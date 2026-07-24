@@ -86,6 +86,21 @@ For each decision: what was chosen, what other options were considered, and why 
 - **Explicitly NOT**: a hand-rolled MCP transport (the old project's approach) — the official server is the base
 - **Why**: replaces the legacy custom MCP with the supported surface; permission-gated by design.
 
+## Search
+- **Choice**: **Postgres full-text search** (tsvector over mention content + response text), exposed via a custom Strapi controller. **No external search engine** (Elasticsearch/Meilisearch) in v1.
+- **Why**: at assumed volumes Postgres FTS is plenty; an external engine adds infra Strapi Cloud can't host. Revisit only if volume grows 10×.
+
+## Data collection & replay (greenfield — decided)
+- **No migration from the prior project** — data collection starts fresh at launch. Trends become meaningful as data accumulates; the UI ships proper empty states for the early weeks.
+- **Replay**: any stored `raw` payload can be re-run through analysis (admin-triggered).
+- **Dead letters**: webhook payloads that fail validation are stored raw with the error (never dropped) + ops alert; replayable once the parser is fixed.
+- **Reconciliation**: ⚠️ open — whether Octolens exposes a pull/list API for gap-filling after webhook downtime. If yes, a periodic reconcile cron is a v1.x add; if no, dead-letter replay is the fallback.
+
+## Observability & guardrails
+- **Ops alerts**: a **second Slack webhook** (ops channel) for pipeline failures — analysis sweep errors, webhook secret-rejection spikes. The tool must never fail silently.
+- **AI budget**: daily token counter (plugin store) with `AI_DAILY_TOKEN_BUDGET`; warn to ops Slack at 80%, halt non-essential AI work (nightly re-cluster) at 100% — analysis of new mentions always continues.
+- **Trend integrity**: every analysis stamps `modelVersion` + `promptVersion`; human corrections are flagged and never overwritten by re-analysis.
+
 ## Styling
 - **Choice**: Tailwind
 - **Component library**: shadcn/ui (dashboard-friendly, fits Next.js + Tailwind)

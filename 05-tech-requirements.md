@@ -21,9 +21,14 @@
 | analysisStatus | enumeration: `pending` `analyzed` `failed` | drives the cron retry sweep |
 | status | enumeration: `unanswered` `claimed` `answered` `resolved` | the core-loop workflow |
 | owner | relation: manyToOne → `plugin::users-permissions.user` | **server-set** on claim (controller) |
+| assignee | relation: manyToOne → `plugin::users-permissions.user` | **server-set** on person-level routing; assignee gets a Slack ping |
 | suggestedTeam | enumeration: `devrel` `marketing` `product` (optional) | set by routing/flagging |
-| topics | relation: manyToMany → `api::topic.topic` | assigned by analysis; admin-correctable |
-| raw | json | original webhook payload (audit / reprocessing) |
+| topics | relation: manyToMany → `api::topic.topic` | assigned by analysis; human-correctable |
+| humanCorrected | boolean (default false) | set when a human overrides sentiment/topics — re-analysis must **never** overwrite corrected fields |
+| modelVersion | string | model id that produced the analysis (trend integrity) |
+| promptVersion | string | prompt revision that produced the analysis |
+| activities | relation: oneToMany → `api::activity.activity` | system-written audit trail |
+| raw | json | original webhook payload (audit / **replay**) |
 
 - Draft & publish: **no** (workflow is the explicit `status` enum)
 - Note: stage 3 suggested a reusable `source` component; flattened here because the dedupe key (`externalId`) needs a **unique** constraint, which belongs on a top-level field.
@@ -57,6 +62,23 @@
 | kind | enumeration: `release` `launch` `incident` | |
 | notes | text | |
 
+### `api::dead-letter.dead-letter` — collection-type (system-written; ingest failures)
+| Field | Type | Notes |
+|-------|------|-------|
+| raw | json | the payload exactly as received |
+| error | text | why validation/normalization failed |
+| receivedAt | datetime | |
+| resolved | boolean (default false) | set true after successful replay |
+
+### `api::activity.activity` — collection-type (system-written only; no create/update via public API)
+| Field | Type | Notes |
+|-------|------|-------|
+| mention | relation: manyToOne → `api::mention.mention` | required |
+| actor | relation: manyToOne → `plugin::users-permissions.user` | null for system actions (ingest, analysis) |
+| action | enumeration: `ingested` `analyzed` `claimed` `routed` `corrected` `answered` `resolved` `replayed` | |
+| detail | json | e.g. `{ from: 'unanswered', to: 'claimed' }`, correction before/after |
+| at | datetime | server-set |
+
 ### `api::channel.channel` — collection-type (editorial, admin panel)
 | Field | Type | Notes |
 |-------|------|-------|
@@ -80,10 +102,10 @@ None — Pulse is a data/insight tool.
 
 | Plugin (`src/plugins/…`) | Owns | Exposes |
 |---|---|---|
-| `ingest` | Octolens webhook receiver: verify secret, normalize, dedupe on `externalId`, create Mention, trigger analysis | `POST /api/ingest/octolens` |
-| `analysis` | Sentiment scoring, topic assignment/clustering, AI draft generation — all behind a **provider-agnostic AI interface** (v1 provider: Claude/Anthropic; swappable) | service `plugin::analysis.analyze(mentionId)`, `draft(mentionId)`; cron retry sweep |
+| `ingest` | Octolens webhook receiver: verify secret, validate + normalize, dedupe on `externalId`, create Mention (`analysisStatus: pending`); payloads that fail validation → **dead-letter record** (raw + error, ops alert, replayable). Greenfield — no historical import | `POST /api/ingest/octolens`; replay |
+| `analysis` | Sentiment scoring, topic assignment/clustering, AI draft generation — all behind a **provider-agnostic AI interface** (v1 provider: Claude/Anthropic; swappable). Stamps `modelVersion`/`promptVersion`; skips `humanCorrected` fields; tracks daily token spend against `AI_DAILY_TOKEN_BUDGET` (warn 80% → ops Slack; at 100% halt re-cluster, never new-mention analysis) | service `plugin::analysis.analyze(mentionId)`, `draft(mentionId)`; cron sweep |
 | `assistant` | Chat over the data: NL question → data queries → answer/report | `POST /api/assistant/chat` |
-| `notify` | Slack notifications (new mention; priority on `negative`) | subscribes after mention analysis |
+| `notify` | Slack notifications: new-mention channel (priority `negative`), assignee pings, daily stale digest, **ops channel** (sweep failures, secret-rejection spikes, budget warnings) | subscribes after analysis; consumed by cron + routing |
 | `pulse-mcp-tools` | Custom MCP tools registered on the **official** built-in MCP server via `strapi.ai.mcp` in `register()` | tools: `pulse.search-mentions`, `pulse.trend-summary`, `pulse.theme-report` |
 
 > ⚠️ Strapi Cloud has no separate worker processes. **Analysis runs via cron (decided):** the ingest webhook only stores the mention (`analysisStatus: pending`) and returns 200 fast; a frequent cron sweep (every minute) analyzes pending/failed mentions and fires Slack notifications after analysis. This keeps the webhook snappy and gives natural retries. Future upgrade path: an external queue service — the `analysis` service interface stays the same.
@@ -105,16 +127,26 @@ None — Pulse is a data/insight tool.
 |---|---|---|
 | `POST /api/ingest/octolens` | `auth: false` + shared-secret header check (reject without it) | Verify → dedupe by `externalId` → create Mention (`analysisStatus: pending`) via Document Service → return 200 (analysis + notify happen in the cron sweep) |
 | `POST /api/mentions/:documentId/claim` | authenticated | Controller stamps `owner = ctx.state.user` **via Document Service** (server-set; never from body) and sets `status: claimed` |
-| `POST /api/mentions/:documentId/route` | authenticated | Sets `suggestedTeam`, optional Slack ping to that team |
+| `POST /api/mentions/:documentId/route` | authenticated | Sets `suggestedTeam` and/or `assignee` (server-set from a validated user id); Slack pings the assignee/team; logs `routed` activity |
+| `POST /api/mentions/:documentId/correct` | authenticated | Human override of `sentimentLabel`/`sentimentScore`/`topics`; sets `humanCorrected: true`; logs `corrected` activity with before/after; re-analysis skips corrected fields forever |
+| `POST /api/mentions/:documentId/replay` | authenticated | Re-runs the stored `raw` payload through analysis (respects `humanCorrected`); logs `replayed` |
+| `GET /api/search?q=…` | authenticated | Postgres full-text search across mention content and response finalText/notes; returns matches with type + highlight |
+| `GET /api/insights/stale?days=N` | authenticated | Unanswered/claimed mentions older than N days (drives queue flags + daily digest) |
 | `POST /api/mentions/:documentId/draft` | authenticated | `analysis` plugin generates an AI draft grounded in official Strapi docs; returns `{ draft }` — **not persisted** until a Response is created |
 | `POST /api/responses` | authenticated | Creates Response; controller stamps `respondedBy`/`respondedAt` via Document Service; sets parent mention `status: answered` |
 | `PUT /api/responses/:documentId/outcome` | authenticated | Records `shared.outcome`; if `result: resolved` → mention `status: resolved` |
-| `GET /api/insights/trends?from&to&topic` | authenticated | Aggregation: sentiment over time (bucketed) + events in range for annotation |
+| `GET /api/insights/trends?from&to&topic` | authenticated | Aggregation: **the Pulse score** (defined below) over time + events in range for annotation |
 | `GET /api/insights/themes?window` | authenticated | Recurring-theme feed: topics ranked by volume/negativity trend, with evidence mention ids |
 | `POST /api/assistant/chat` | authenticated | `{ messages } → { answer, data? }` — NL Q&A over mentions/sentiment/themes |
 
 ### GraphQL
 Not installed.
+
+## The Pulse score (single source of truth for "sentiment improved")
+- **Definition**: per day, the **volume-weighted mean of `sentimentScore` over a trailing 7-day window**, scaled to 0–100 (`(mean + 1) × 50`). Computed overall and per topic/channel by the `insights` controller — one formula, documented here, used by every surface (dashboard, digest, MCP tools, chat).
+- **Stability rules**: human-corrected scores participate like any other; a model/prompt change (new `modelVersion`) is annotated on the trend line like an Event so a step-change is attributable, not mysterious. Historical mentions are never silently re-scored — re-scoring old data is an explicit, logged replay.
+- **Why trailing-7d**: smooths single-viral-thread spikes without hiding real shifts; daily buckets keep release/incident alignment readable.
+- **Buckets are UTC** — one convention everywhere (score, digest, charts) so trends are timezone-proof; the frontend renders in local time but aggregates never shift.
 
 ## MCP server (enabled — stage 4)
 - `mcp: { enabled: true }` in `config/server`; endpoint `POST /mcp`; Strapi **≥ 5.49** (GA)
@@ -132,7 +164,7 @@ Not installed.
 
 ## Permissions & roles (U&P)
 - **Public**: nothing. (The ingest webhook route uses `auth: false` + secret — a route config, not a Public permission.)
-- **Authenticated** (= team member): `find/findOne` on mention, topic, event, channel, response; access to all custom routes above (each custom route action enabled per role).
+- **Authenticated** (= team member): `find/findOne` on mention, topic, event, channel, response, activity; access to all custom routes above — claim, route, draft, correct, replay, respond, outcome, search, trends, themes, stale, chat (each custom route action enabled per role). Dead letters are admin-panel-only.
 - **Admin panel roles**: Super Admin (Paul) manages accounts, topics curation, events, channels. Editors optional later.
 - Extensibility: future roles (e.g. read-only stakeholder) = new U&P role + per-route permission flips; no schema change.
 - Server-set fields (`owner`, `respondedBy`) are never accepted from the request body — stamped in controllers via the Document Service (naive body injection 400s in v5).
@@ -149,8 +181,8 @@ Not installed.
 
 | Route | Fetch (RSC unless noted) | Components / notes |
 |---|---|---|
-| `/` — queue | `GET /api/mentions?filters[status][$in]=unanswered,claimed` | MentionList, SentimentBadge, ClaimButton (client), filters in URL state |
-| `/mentions/[id]` | `GET /api/mentions/:documentId` (populated) | MentionDetail, DraftPanel (client — calls `/draft`), RespondForm (client), OutcomeForm, past responses on same topics |
+| `/` — queue | `GET /api/mentions?filters[status][$in]=unanswered,claimed` sorted oldest-first | MentionList, SentimentBadge, **StalenessFlag** (age > `STALE_AFTER_DAYS`), ClaimButton (client), **SearchBox** (→ `/api/search`), filters in URL state. **Empty state** designed for the greenfield early weeks |
+| `/mentions/[id]` | `GET /api/mentions/:documentId` (populated) | MentionDetail, DraftPanel (client — calls `/draft`), RespondForm (client), OutcomeForm, **CorrectionControls** (sentiment/topic override → `/correct`), **ActivityTimeline**, past responses on same topics |
 | `/trends` | `GET /api/insights/trends` | TrendChart with event annotations, range/topic filters (URL state) |
 | `/themes` | `GET /api/insights/themes` | ThemeFeed (product feedback pipeline), evidence drill-down |
 | `/chat` | client → `POST /api/assistant/chat` | Chat UI (TanStack Query mutation) |
@@ -163,8 +195,10 @@ Not installed.
 - Client state: minimal (forms, dialogs)
 
 ## Background jobs (`config/cron-tasks.ts`, `cron.enabled: true`)
-- `* * * * *` — analysis sweep: process `analysisStatus: pending|failed` mentions (sentiment + topics), then Slack-notify newly analyzed ones (priority: negative)
-- `0 3 * * *` — nightly topic re-cluster + theme-feed rollup
+- `* * * * *` — analysis sweep: process `analysisStatus: pending|failed` mentions (sentiment + topics; stamp model/prompt version; skip human-corrected fields), then Slack-notify newly analyzed ones (priority: negative). **Errors → ops Slack.**
+- `0 3 * * *` — nightly topic re-cluster + theme-feed rollup (never touches `humanCorrected` mentions; skipped if AI budget exhausted)
+- `0 9 * * 1-5` — weekday stale digest to Slack: unanswered/claimed older than the SLA threshold (`STALE_AFTER_DAYS`, default 2)
+- `0 0 * * *` — reset the daily AI token counter
 
 ## Media & uploads
 - Strapi Cloud media (default). Minimal usage in v1.
@@ -176,7 +210,11 @@ Not installed.
 - `OCTOLENS_WEBHOOK_SECRET` — shared secret the ingest route requires
 - `AI_PROVIDER` (`anthropic` in v1), `AI_API_KEY` — provider-agnostic AI config consumed by `analysis`/`assistant`
 - `STRAPI_DOCS_MCP_URL` — endpoint of the Strapi docs MCP server the `analysis` plugin consumes for draft grounding (decided: docs MCP directly; kapa.ai stays external — used when the app itself is consumed via MCP from Claude Desktop)
-- `SLACK_WEBHOOK_URL` — notify plugin
+- `SLACK_WEBHOOK_URL` — team notifications channel
+- `SLACK_OPS_WEBHOOK_URL` — ops channel (pipeline failures, dead letters, budget warnings)
+- `PULSE_APP_URL` — the deployed frontend URL; every Slack notification deep-links `<PULSE_APP_URL>/mentions/<id>`
+- `AI_DAILY_TOKEN_BUDGET` — daily token cap (warn at 80%, halt re-cluster at 100%)
+- `STALE_AFTER_DAYS` — SLA threshold for staleness flags + digest (default 2)
 
 ### Frontend (apps/web) — Next.js public prefix is `NEXT_PUBLIC_`
 - `NEXT_PUBLIC_STRAPI_URL` — public Strapi URL (browser-safe)
@@ -185,6 +223,8 @@ Not installed.
 ## Open items (carried to stage 6)
 1. ~~Docs-grounding mechanism~~ **Decided:** the `analysis` plugin consumes the **Strapi docs MCP** directly for draft grounding; kapa.ai remains an external layer for Claude-Desktop-side usage.
 2. ~~Async model~~ **Decided:** cron-based analysis sweep (webhook stores only); external queue services are a future exploration.
-3. Primary AI provider assumed **Claude/Anthropic** behind the provider-agnostic interface — unobjected, treated as confirmed.
-4. Mention volume assumption (low-to-mid hundreds/day, ~1yr history) — design comfortable at 10× that.
-5. Password reset without an email provider — admin-performed in v1; add an email provider if this grates.
+3. ~~Historical data~~ **Decided:** greenfield — fresh collection from launch, no migration; empty states cover the early weeks.
+4. Primary AI provider assumed **Claude/Anthropic** behind the provider-agnostic interface — unobjected, treated as confirmed.
+5. Mention volume assumption (low-to-mid hundreds/day, ~1yr history) — design comfortable at 10× that. No auto-deletion/retention policy in v1.
+6. Password reset without an email provider — admin-performed in v1; add an email provider if this grates.
+7. Octolens pull/list API availability (for gap reconciliation after webhook downtime) — investigate during build; dead-letter replay is the fallback.

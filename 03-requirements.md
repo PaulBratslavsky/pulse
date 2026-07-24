@@ -12,7 +12,17 @@
 - **Recurring pain → product feed**: recurring themes surface as a structured, evidenced feed the product team reviews for roadmap input.
 - **Shared dashboard**: the whole team self-serves the queue, trends, and score — nobody waits on a manual report.
 - **Chat with the data**: teammates ask natural-language questions about mentions/sentiment/themes and get answers and generated reports.
-- **Slack notifications**: the team is notified in Slack of new mentions (with priority on negative/spicy ones).
+- **Slack notifications**: the team is notified in Slack of new mentions (with priority on negative/spicy ones); every notification deep-links to the mention in Pulse.
+- **Fresh data, nothing lost**: data collection starts greenfield (no migration from the prior project — decided). Raw payloads are kept so any mention can be **replayed** through analysis, and malformed/unrecognized webhook payloads are stored as **dead letters** (with an ops alert) instead of being dropped.
+- **A defined sentiment score**: the headline score is computed by one documented, stable formula (not an ad-hoc average) so the number can settle roadmap arguments instead of starting them.
+- **Human correction**: teammates can correct a wrong sentiment label or topic assignment; corrections are marked human-set and are never overwritten by re-analysis. Corrections double as evaluation data for improving the prompts.
+- **Trend integrity**: every analysis records which model/prompt version produced it, so provider or prompt changes never masquerade as sentiment shifts.
+- **Full-text search** across mentions and responses — "have we seen this before / what did we say last time" is a first-class action.
+- **Person-level routing**: a mention can be assigned to a specific teammate (not just a team), and the assignee is pinged in Slack.
+- **Aging / SLA visibility**: the queue makes stale unanswered mentions loud (age-sorted, staleness flags) and a daily Slack digest lists what's been sitting too long.
+- **Activity trail**: every workflow transition (ingested, claimed, routed, corrected, answered, resolved) is logged with who and when — the "full data trail" is queryable, not implied.
+- **Operational alerting**: pipeline failures (analysis sweep errors, webhook auth-rejection spikes) alert the team in a Slack ops channel — the tool never fails silently.
+- **AI budget guard**: daily AI token spend is tracked against a budget with a Slack warning before it's blown.
 
 ## Account & auth
 - End-user accounts: **yes** — every teammate has their own login (attribution of claims/responses depends on identity).
@@ -28,9 +38,10 @@
 - **Channel/Source**: the social platforms mentions come from.
 
 ### User-generated content (created via API / by the system)
-- **Mention**: a social mention — content, author handle, platform, URL, timestamp, computed sentiment, assigned topics, status (unanswered/claimed/answered/resolved), owner.
+- **Mention**: a social mention — content, author handle, platform, URL, timestamp, computed sentiment (+ human correction flag, model/prompt version), assigned topics, status (unanswered/claimed/answered/resolved), owner/assignee.
 - **Response**: what was replied to a mention — text, who replied, when, notes, outcome; linked to its mention. Includes the AI draft it started from (draft vs. final).
 - **AI draft**: generated answer suggestions awaiting human review (may be modeled as part of Response).
+- **Activity entry**: system-written log line per workflow transition (who, what, when) attached to a mention.
 
 ### Reusable shapes (likely Strapi components)
 - **Outcome record** (result + notes + date): appears on responses; possibly reused on mentions for status history.
@@ -68,3 +79,4 @@
 - **AI auto-responding without human review** — drafts always pass through a human.
 - **Multi-tenancy / other companies using Pulse** — pinned in stage 1, never in scope.
 - **Public-facing pages** — internal only.
+- **Consciously deferred** (discussed, cut from v1): rate-limiting the ingest endpoint · CSV export · a staging environment · automatic outcome detection (how a reply landed stays human-recorded).
