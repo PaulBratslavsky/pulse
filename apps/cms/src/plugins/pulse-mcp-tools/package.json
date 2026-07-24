@@ -1,0 +1,7 @@
+{
+  "name": "pulse-plugin-pulse-mcp-tools",
+  "version": "1.0.0",
+  "description": "Pulse local plugin: pulse-mcp-tools",
+  "strapi": { "name": "pulse-mcp-tools", "kind": "plugin" },
+  "main": "strapi-server.js"
+}

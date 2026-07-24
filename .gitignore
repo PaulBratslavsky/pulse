@@ -1,0 +1,10 @@
+node_modules/
+.tmp/
+.cache/
+build/
+dist/
+.next/
+.env
+.env.local
+*.db
+.DS_Store

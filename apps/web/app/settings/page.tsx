@@ -1,0 +1,29 @@
+const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1337'
+
+export default function SettingsPage() {
+  const links = [
+    { href: `${STRAPI_URL}/admin`, label: 'Strapi admin panel', note: 'accounts, roles, dead letters' },
+    { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::topic.topic`, label: 'Curate topics', note: 'rename / merge machine-created topics' },
+    { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::event.event`, label: 'Events', note: 'releases, launches, incidents for trend annotations' },
+    { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::channel.channel`, label: 'Channels', note: 'platform keys the webhook maps to' },
+    { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::dead-letter.dead-letter`, label: 'Dead letters', note: 'webhook payloads that failed validation' },
+  ]
+  return (
+    <div className="max-w-2xl">
+      <h1 className="text-2xl font-semibold mb-1">Settings</h1>
+      <p className="text-sm text-zinc-500 mb-6">
+        Configuration lives in the Strapi admin panel — Pulse doesn&apos;t duplicate CRUD UI.
+      </p>
+      <ul className="space-y-3">
+        {links.map((l) => (
+          <li key={l.href} className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+            <a href={l.href} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:underline">
+              {l.label} ↗
+            </a>
+            <p className="text-sm text-zinc-500">{l.note}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}

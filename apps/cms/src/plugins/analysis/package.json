@@ -1,0 +1,7 @@
+{
+  "name": "pulse-plugin-analysis",
+  "version": "1.0.0",
+  "description": "Pulse local plugin: analysis",
+  "strapi": { "name": "analysis", "kind": "plugin" },
+  "main": "strapi-server.js"
+}

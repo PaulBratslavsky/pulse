@@ -1,0 +1,11 @@
+{
+  "name": "pulse",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:cms": "npm run develop --workspace apps/cms",
+    "dev:web": "npm run dev --workspace apps/web"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "collectionName": "components_shared_outcomes",
+  "info": {
+    "displayName": "Outcome",
+    "description": "How a response landed"
+  },
+  "attributes": {
+    "result": {
+      "type": "enumeration",
+      "enum": ["resolved", "positive-turn", "no-reaction", "escalated"]
+    },
+    "notes": { "type": "text" },
+    "recordedAt": { "type": "datetime" }
+  }
+}

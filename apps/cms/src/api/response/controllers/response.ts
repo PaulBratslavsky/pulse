@@ -1,0 +1,73 @@
+import { factories } from '@strapi/strapi'
+import { logActivity } from '../../../utils/activity'
+
+export default factories.createCoreController('api::response.response', ({ strapi }) => ({
+  /**
+   * Overridden create: respondedBy/respondedAt are server-set (never from the body),
+   * parent mention moves to `answered`, and the transition is logged.
+   */
+  async create(ctx) {
+    const user = ctx.state.user
+    const { mentionDocumentId, finalText, draftText, notes } = ctx.request.body?.data ?? ctx.request.body ?? {}
+    if (!mentionDocumentId || !finalText) return ctx.badRequest('mentionDocumentId and finalText are required')
+
+    const mention = await strapi.documents('api::mention.mention').findOne({ documentId: mentionDocumentId })
+    if (!mention) return ctx.badRequest('mention not found')
+
+    const response = await strapi.documents('api::response.response').create({
+      data: {
+        mention: mentionDocumentId,
+        finalText,
+        draftText: draftText ?? null,
+        notes: notes ?? null,
+        respondedBy: user.id,
+        respondedAt: new Date().toISOString(),
+      } as any,
+    })
+    await strapi.documents('api::mention.mention').update({
+      documentId: mentionDocumentId,
+      data: { status: 'answered' } as any,
+    })
+    await logActivity(strapi, {
+      mentionDocumentId,
+      action: 'answered',
+      actorId: user.id,
+      detail: { responseDocumentId: response.documentId },
+    })
+    return { data: response }
+  },
+
+  /** Record how a response landed; `resolved` closes the mention. */
+  async outcome(ctx) {
+    const { documentId } = ctx.params
+    const user = ctx.state.user
+    const { result, notes } = ctx.request.body ?? {}
+    if (!['resolved', 'positive-turn', 'no-reaction', 'escalated'].includes(result))
+      return ctx.badRequest('invalid outcome result')
+
+    const response = await strapi
+      .documents('api::response.response')
+      .findOne({ documentId, populate: { mention: true } as any })
+    if (!response) return ctx.notFound('response not found')
+
+    const updated = await strapi.documents('api::response.response').update({
+      documentId,
+      data: { outcome: { result, notes: notes ?? null, recordedAt: new Date().toISOString() } } as any,
+    })
+
+    const mention = (response as any).mention
+    if (result === 'resolved' && mention) {
+      await strapi.documents('api::mention.mention').update({
+        documentId: mention.documentId,
+        data: { status: 'resolved' } as any,
+      })
+      await logActivity(strapi, {
+        mentionDocumentId: mention.documentId,
+        action: 'resolved',
+        actorId: user.id,
+        detail: { responseDocumentId: documentId, result },
+      })
+    }
+    return { data: updated }
+  },
+}))

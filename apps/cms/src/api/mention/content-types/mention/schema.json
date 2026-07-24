@@ -1,0 +1,76 @@
+{
+  "kind": "collectionType",
+  "collectionName": "mentions",
+  "info": {
+    "singularName": "mention",
+    "pluralName": "mentions",
+    "displayName": "Mention",
+    "description": "A social mention ingested from the mention source"
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "externalId": { "type": "string", "required": true, "unique": true },
+    "content": { "type": "text", "required": true },
+    "authorHandle": { "type": "string" },
+    "url": { "type": "string" },
+    "postedAt": { "type": "datetime" },
+    "receivedAt": { "type": "datetime" },
+    "channel": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::channel.channel",
+      "inversedBy": "mentions"
+    },
+    "sentimentScore": { "type": "decimal" },
+    "sentimentLabel": {
+      "type": "enumeration",
+      "enum": ["positive", "neutral", "negative"]
+    },
+    "analysisStatus": {
+      "type": "enumeration",
+      "enum": ["pending", "analyzed", "failed"],
+      "default": "pending"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["unanswered", "claimed", "answered", "resolved"],
+      "default": "unanswered"
+    },
+    "owner": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "assignee": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "suggestedTeam": {
+      "type": "enumeration",
+      "enum": ["devrel", "marketing", "product"]
+    },
+    "topics": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::topic.topic",
+      "inversedBy": "mentions"
+    },
+    "humanCorrected": { "type": "boolean", "default": false },
+    "modelVersion": { "type": "string" },
+    "promptVersion": { "type": "string" },
+    "responses": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::response.response",
+      "mappedBy": "mention"
+    },
+    "activities": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::activity.activity",
+      "mappedBy": "mention"
+    },
+    "raw": { "type": "json" }
+  }
+}

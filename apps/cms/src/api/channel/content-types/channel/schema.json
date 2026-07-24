@@ -1,0 +1,22 @@
+{
+  "kind": "collectionType",
+  "collectionName": "channels",
+  "info": {
+    "singularName": "channel",
+    "pluralName": "channels",
+    "displayName": "Channel",
+    "description": "Social platform mentions come from"
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "name": { "type": "string", "required": true, "unique": true },
+    "key": { "type": "string", "required": true, "unique": true },
+    "url": { "type": "string" },
+    "mentions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::mention.mention",
+      "mappedBy": "channel"
+    }
+  }
+}

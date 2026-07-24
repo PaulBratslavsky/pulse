@@ -1,0 +1,7 @@
+{
+  "name": "pulse-plugin-notify",
+  "version": "1.0.0",
+  "description": "Pulse local plugin: notify",
+  "strapi": { "name": "notify", "kind": "plugin" },
+  "main": "strapi-server.js"
+}

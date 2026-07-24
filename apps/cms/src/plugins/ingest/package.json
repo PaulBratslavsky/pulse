@@ -1,0 +1,7 @@
+{
+  "name": "pulse-plugin-ingest",
+  "version": "1.0.0",
+  "description": "Pulse local plugin: ingest",
+  "strapi": { "name": "ingest", "kind": "plugin" },
+  "main": "strapi-server.js"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "pulse-plugin-assistant",
+  "version": "1.0.0",
+  "description": "Pulse local plugin: assistant",
+  "strapi": { "name": "assistant", "kind": "plugin" },
+  "main": "strapi-server.js"
+}

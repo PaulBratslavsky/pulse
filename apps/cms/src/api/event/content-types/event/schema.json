@@ -1,0 +1,21 @@
+{
+  "kind": "collectionType",
+  "collectionName": "events",
+  "info": {
+    "singularName": "event",
+    "pluralName": "events",
+    "displayName": "Event",
+    "description": "Release, launch, or incident that annotates the sentiment timeline"
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "title": { "type": "string", "required": true },
+    "date": { "type": "datetime", "required": true },
+    "kind": {
+      "type": "enumeration",
+      "enum": ["release", "launch", "incident"],
+      "default": "release"
+    },
+    "notes": { "type": "text" }
+  }
+}

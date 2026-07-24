@@ -1,0 +1,27 @@
+{
+  "kind": "collectionType",
+  "collectionName": "topics",
+  "info": {
+    "singularName": "topic",
+    "pluralName": "topics",
+    "displayName": "Topic",
+    "description": "Theme mentions cluster into; machine-created, admin-curated"
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "name": { "type": "string", "required": true, "unique": true },
+    "slug": { "type": "uid", "targetField": "name" },
+    "kind": {
+      "type": "enumeration",
+      "enum": ["feature", "bug", "docs", "competitor", "other"],
+      "default": "other"
+    },
+    "description": { "type": "text" },
+    "mentions": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::mention.mention",
+      "mappedBy": "topics"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "kind": "collectionType",
+  "collectionName": "dead_letters",
+  "info": {
+    "singularName": "dead-letter",
+    "pluralName": "dead-letters",
+    "displayName": "Dead Letter",
+    "description": "Webhook payload that failed validation — kept raw, replayable, never dropped"
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "raw": { "type": "json", "required": true },
+    "error": { "type": "text" },
+    "receivedAt": { "type": "datetime" },
+    "resolved": { "type": "boolean", "default": false }
+  }
+}

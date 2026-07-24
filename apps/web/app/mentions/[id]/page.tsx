@@ -1,0 +1,97 @@
+import { redirect, notFound } from 'next/navigation'
+import { strapiFetch } from '@/lib/strapi'
+import { SentimentBadge, StatusBadge } from '@/components/badges'
+import MentionActions from '@/components/mention-actions'
+
+export default async function MentionDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  let data: any
+  try {
+    data = await strapiFetch(`/api/mentions/${id}`)
+  } catch (err: any) {
+    if (err.status === 401 || err.status === 403) redirect('/sign-in')
+    throw err
+  }
+  const m = data.data
+  if (!m) notFound()
+
+  const topics = await strapiFetch('/api/topics?pagination[pageSize]=100&sort=name:asc')
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+      <div>
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <SentimentBadge label={m.sentimentLabel} />
+          <StatusBadge status={m.status} />
+          {m.humanCorrected && (
+            <span className="text-xs rounded px-1.5 py-0.5 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+              human-corrected
+            </span>
+          )}
+          <span className="text-xs text-zinc-500">
+            @{m.authorHandle ?? 'unknown'} · {m.channel?.name ?? '—'} ·{' '}
+            {m.postedAt ? new Date(m.postedAt).toLocaleString() : '—'}
+          </span>
+        </div>
+
+        <blockquote className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 text-lg mb-2">
+          {m.content}
+        </blockquote>
+        {m.url && (
+          <a href={m.url} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">
+            View on {m.channel?.name ?? 'platform'} ↗
+          </a>
+        )}
+
+        <div className="mt-2 flex gap-2 flex-wrap">
+          {(m.topics ?? []).map((t: any) => (
+            <span key={t.slug} className="text-xs rounded-full border border-zinc-300 dark:border-zinc-700 px-2 py-0.5">
+              #{t.name}
+            </span>
+          ))}
+          {m.modelVersion && (
+            <span className="text-xs text-zinc-400">analyzed by {m.modelVersion} / {m.promptVersion}</span>
+          )}
+        </div>
+
+        <MentionActions mention={m} allTopics={topics.data ?? []} />
+
+        <section className="mt-8">
+          <h2 className="font-medium mb-3">Responses</h2>
+          {(m.responses ?? []).length === 0 && (
+            <p className="text-sm text-zinc-500">No response recorded yet.</p>
+          )}
+          <ul className="space-y-3">
+            {(m.responses ?? []).map((r: any) => (
+              <li key={r.documentId} className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+                <p className="text-sm whitespace-pre-wrap">{r.finalText}</p>
+                <p className="text-xs text-zinc-500 mt-2">
+                  by {r.respondedBy?.username ?? '—'} ·{' '}
+                  {r.respondedAt ? new Date(r.respondedAt).toLocaleString() : '—'} · outcome:{' '}
+                  <span className="font-medium">{r.outcome?.result ?? 'not recorded'}</span>
+                </p>
+                {r.notes && <p className="text-xs text-zinc-400 mt-1">notes: {r.notes}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+
+      <aside>
+        <h2 className="font-medium mb-3">Activity</h2>
+        <ol className="space-y-2 border-l border-zinc-200 dark:border-zinc-800 pl-4">
+          {(m.activities ?? []).map((a: any) => (
+            <li key={a.documentId} className="text-sm">
+              <span className="font-medium">{a.action}</span>
+              {a.actor ? <span className="text-zinc-500"> by {a.actor.username}</span> : <span className="text-zinc-500"> (system)</span>}
+              <div className="text-xs text-zinc-400">{a.at ? new Date(a.at).toLocaleString() : ''}</div>
+            </li>
+          ))}
+          {(m.activities ?? []).length === 0 && (
+            <li className="text-sm text-zinc-500">No activity yet.</li>
+          )}
+        </ol>
+      </aside>
+    </div>
+  )
+}
