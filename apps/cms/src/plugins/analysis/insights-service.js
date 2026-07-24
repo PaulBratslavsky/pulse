@@ -27,7 +27,7 @@ module.exports = ({ strapi }) => ({
     const mentions = await strapi.documents('api::mention.mention').findMany({
       filters,
       fields: ['postedAt', 'sentimentScore'],
-      pagination: { limit: -1 },
+      limit: 5000,
     })
 
     const byDay = new Map()
@@ -61,7 +61,7 @@ module.exports = ({ strapi }) => ({
     const events = await strapi.documents('api::event.event').findMany({
       filters: { date: { $gte: fromDate.toISOString(), $lte: toDate.toISOString() } },
       fields: ['title', 'date', 'kind'],
-      pagination: { limit: -1 },
+      limit: 5000,
     })
 
     return { series, events }
@@ -75,7 +75,7 @@ module.exports = ({ strapi }) => ({
       filters: { analysisStatus: 'analyzed', postedAt: { $gte: since } },
       fields: ['sentimentScore', 'sentimentLabel', 'postedAt'],
       populate: { topics: { fields: ['name', 'slug', 'kind'] } },
-      pagination: { limit: -1 },
+      limit: 5000,
     })
 
     const byTopic = new Map()
@@ -111,7 +111,7 @@ module.exports = ({ strapi }) => ({
       fields: ['content', 'status', 'sentimentLabel', 'receivedAt', 'url'],
       populate: { owner: { fields: ['username'] }, channel: { fields: ['name'] } },
       sort: 'receivedAt:asc',
-      pagination: { limit: 100 },
+      limit: 100,
     })
     return { staleAfterDays: days, mentions }
   },

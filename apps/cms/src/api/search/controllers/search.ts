@@ -14,7 +14,7 @@ export default {
         fields: ['content', 'sentimentLabel', 'status', 'postedAt', 'url'],
         populate: { channel: { fields: ['name'] }, topics: { fields: ['name', 'slug'] } } as any,
         sort: 'postedAt:desc' as any,
-        pagination: { limit: 25 } as any,
+        limit: 25,
       }),
       strapi.documents('api::response.response').findMany({
         filters: {
@@ -27,7 +27,7 @@ export default {
           outcome: true,
         } as any,
         sort: 'respondedAt:desc' as any,
-        pagination: { limit: 25 } as any,
+        limit: 25,
       }),
     ])
 

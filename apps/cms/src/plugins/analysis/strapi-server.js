@@ -186,7 +186,7 @@ module.exports = () => ({
         const pending = await strapi.documents('api::mention.mention').findMany({
           filters: { analysisStatus: { $in: ['pending', 'failed'] } },
           populate: { topics: true },
-          pagination: { limit: 20 },
+          limit: 20,
           sort: 'receivedAt:asc',
         })
         for (const mention of pending) {
@@ -252,7 +252,7 @@ module.exports = () => ({
         }
         const orphans = await strapi.documents('api::mention.mention').findMany({
           filters: { analysisStatus: 'analyzed', humanCorrected: false, topics: { documentId: { $null: true } } },
-          pagination: { limit: 50 },
+          limit: 50,
         })
         for (const mention of orphans) {
           await strapi

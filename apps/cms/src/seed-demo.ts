@@ -84,7 +84,7 @@ export async function seedDemo(strapi: Core.Strapi) {
   }
 
   // mentions spread over the past ~20 days, pre-analyzed so trends render
-  const channels = await strapi.documents('api::channel.channel').findMany({ pagination: { limit: -1 } as any })
+  const channels = await strapi.documents('api::channel.channel').findMany({ limit: 200 })
   const channelByKey = new Map(channels.map((c: any) => [c.key, c]))
   let i = 0
   for (const s of SAMPLES) {

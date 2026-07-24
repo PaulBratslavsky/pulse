@@ -15,3 +15,35 @@ npm run dev:web   # Next.js on :3000
 ```
 
 Copy `apps/cms/.env.example` → `apps/cms/.env` and `apps/web/.env.example` → `apps/web/.env.local`, then fill in secrets (see the Environment variables section of the build spec).
+
+### Demo data (dev only)
+
+Start the CMS once with `PULSE_SEED_DEMO=true` to get 10 pre-analyzed mentions, topics, events, 2 example responses, a dead letter, and three team accounts (`dana` / `mark` / `priya`, password `PulseDemo1!`). Production starts **empty by design** — data collection is greenfield.
+
+Keyless dev: with `AI_API_KEY` unset, sentiment/drafts/chat use deterministic fallbacks (`modelVersion: heuristic-v1`) so the whole loop works without spending tokens.
+
+### Webhook smoke test
+
+```bash
+curl -X POST http://localhost:1337/api/ingest/octolens \
+  -H 'content-type: application/json' -H "x-pulse-secret: $OCTOLENS_WEBHOOK_SECRET" \
+  -d '{"id":"t-1","text":"Strapi v5 docs are great","platform":"x","author":{"handle":"tester"}}'
+# analyzed by the cron sweep within ~1 minute; malformed payloads → dead letter + ops alert
+```
+
+## Deploy (user-performed)
+
+1. **Strapi → Strapi Cloud**: create a project at https://cloud.strapi.io, connect this repo, root dir `apps/cms`, Node ≥ 20. Set env vars: `OCTOLENS_WEBHOOK_SECRET`, `AI_API_KEY`, `AI_MODEL`, `AI_DAILY_TOKEN_BUDGET`, `STRAPI_DOCS_MCP_URL`, `SLACK_WEBHOOK_URL`, `SLACK_OPS_WEBHOOK_URL`, `PULSE_APP_URL`, `STALE_AFTER_DAYS` (DB + core secrets are auto-injected). **Verify backups are active on your plan.**
+2. **Frontend → Vercel**: import repo, root dir `apps/web`, set `NEXT_PUBLIC_STRAPI_URL` to the Strapi Cloud URL.
+3. **CORS**: set `strapi::cors` origin in `apps/cms/config/middlewares.ts` to the Vercel URL.
+4. **Octolens**: point the webhook at `https://<strapi-cloud-url>/api/ingest/octolens` with the shared secret header `x-pulse-secret`.
+5. **MCP clients** (Claude Desktop etc.): the `/mcp` endpoint requires an **Admin Token** (`kind: admin`) — a classic content-API token is rejected. Create one scoped to read-only reporting (verified on 5.51):
+   ```
+   POST /admin/admin-tokens   (as a logged-in admin)
+   { "name": "pulse-mcp-reporting", "lifespan": null,
+     "adminPermissions": [
+       { "action": "plugin::content-manager.explorer.read", "subject": "api::mention.mention" },
+       { "action": "plugin::content-manager.explorer.read", "subject": "api::topic.topic" },
+       { "action": "plugin::content-manager.explorer.read", "subject": "api::event.event" } ] }
+   ```
+   Connect to `POST https://<strapi-cloud-url>/mcp` with `Authorization: Bearer <accessKey>`. The token's permissions gate tool visibility — this token sees only read tools for those three types plus the custom `pulse-search-mentions`, `pulse-trend-summary`, `pulse-theme-report`.

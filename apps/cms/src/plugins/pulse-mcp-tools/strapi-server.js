@@ -59,7 +59,7 @@ module.exports = () => ({
             fields: ['content', 'sentimentLabel', 'sentimentScore', 'status', 'postedAt', 'url'],
             populate: { topics: { fields: ['name'] }, channel: { fields: ['name'] } },
             sort: 'postedAt:desc',
-            pagination: { limit: args.limit ?? 20 },
+            limit: args.limit ?? 20,
           })
           return asResult(mentions)
         },
