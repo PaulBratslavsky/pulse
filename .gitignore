@@ -8,3 +8,5 @@ dist/
 .env.local
 *.db
 .DS_Store
+test-results/
+playwright-report/
