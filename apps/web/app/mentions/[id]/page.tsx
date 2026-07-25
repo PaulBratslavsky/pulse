@@ -16,6 +16,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
   if (!m) notFound()
 
   const topics = await strapiFetch('/api/topics?pagination[pageSize]=100&sort=name:asc')
+  const config = await strapiFetch('/api/insights/config').catch(() => ({ data: { aiEnabled: false } }))
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
@@ -54,7 +55,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
 
-        <MentionActions mention={m} allTopics={topics.data ?? []} />
+        <MentionActions mention={m} allTopics={topics.data ?? []} aiEnabled={config.data.aiEnabled} />
 
         <section className="mt-8">
           <h2 className="font-medium mb-3">Responses</h2>

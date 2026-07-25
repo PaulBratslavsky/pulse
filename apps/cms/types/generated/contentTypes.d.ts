@@ -606,7 +606,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
       'api::activity.activity'
     >;
     analysisStatus: Schema.Attribute.Enumeration<
-      ['pending', 'analyzed', 'failed']
+      ['pending', 'analyzed', 'failed', 'skipped']
     > &
       Schema.Attribute.DefaultTo<'pending'>;
     assignee: Schema.Attribute.Relation<

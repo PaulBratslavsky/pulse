@@ -28,7 +28,7 @@
     },
     "analysisStatus": {
       "type": "enumeration",
-      "enum": ["pending", "analyzed", "failed"],
+      "enum": ["pending", "analyzed", "failed", "skipped"],
       "default": "pending"
     },
     "status": {

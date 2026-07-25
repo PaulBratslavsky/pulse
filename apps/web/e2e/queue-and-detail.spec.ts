@@ -40,7 +40,8 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await signIn(page)
     await page.locator('li', { hasText: externalId }).getByRole('link', { name: 'Open' }).click()
 
-    await page.getByRole('button', { name: 'Correct analysis' }).click()
+    // label depends on the AI feature flag: "Correct analysis" (on) / "Set sentiment / topics" (off)
+    await page.getByRole('button', { name: /correct analysis|set sentiment/i }).click()
     await page.getByRole('radio').nth(2).check() // negative
     await page.getByRole('button', { name: 'Save correction' }).click()
     await expect(page.getByText('human-corrected')).toBeVisible()

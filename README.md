@@ -20,7 +20,9 @@ Copy `apps/cms/.env.example` → `apps/cms/.env` and `apps/web/.env.example` →
 
 Start the CMS once with `PULSE_SEED_DEMO=true` to get 10 pre-analyzed mentions, topics, events, 2 example responses, a dead letter, and three team accounts (`dana` / `mark` / `priya`, password `PulseDemo1!`). Production starts **empty by design** — data collection is greenfield.
 
-Keyless dev: with `AI_API_KEY` unset, sentiment/drafts/chat use deterministic fallbacks (`modelVersion: heuristic-v1`) so the whole loop works without spending tokens.
+### AI is optional
+
+Without `AI_API_KEY`, Pulse **runs fully** — mentions ingest, the queue/claim/respond/outcome loop, Slack notifications, search, and the activity trail all work. The three AI features are cleanly **disabled** (not degraded with fake heuristics): automatic sentiment/topic analysis (mentions get `analysisStatus: skipped`; labeling is manual via "Set sentiment / topics"), draft generation (button hidden; API returns 503), and chat (page shows a disabled notice). Add a key later and the cron sweep **auto-analyzes previously skipped mentions**. The frontend reads `GET /api/insights/config` (`{ aiEnabled }`).
 
 ### Webhook smoke test
 

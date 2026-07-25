@@ -27,6 +27,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::insights.insights.trends',
   'api::insights.insights.themes',
   'api::insights.insights.stale',
+  'api::insights.insights.config',
   'plugin::assistant.chat.chat',
 ]
 

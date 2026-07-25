@@ -163,6 +163,11 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
   },
 
   async draft(ctx) {
+    if (!strapi.plugin('analysis').service('ai').enabled()) {
+      ctx.status = 503
+      ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable drafts.' } }
+      return
+    }
     const { documentId } = ctx.params
     const mention = await strapi
       .documents('api::mention.mention')

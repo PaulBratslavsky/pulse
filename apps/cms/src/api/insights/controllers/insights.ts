@@ -18,4 +18,9 @@ export default {
     const days = ctx.query.days ? Number(ctx.query.days) : undefined
     return { data: await strapi.plugin('analysis').service('insights').stale({ days }) }
   },
+
+  /** Feature flags the frontend renders against (AI is optional by design). */
+  async config(_ctx: any) {
+    return { data: { aiEnabled: strapi.plugin('analysis').service('ai').enabled() } }
+  },
 }

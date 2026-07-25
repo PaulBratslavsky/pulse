@@ -25,6 +25,11 @@ module.exports = () => ({
   controllers: {
     chat: ({ strapi }) => ({
       async chat(ctx) {
+        if (!strapi.plugin('analysis').service('ai').enabled()) {
+          ctx.status = 503
+          ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable chat.' } }
+          return
+        }
         const { messages } = ctx.request.body ?? {}
         if (!Array.isArray(messages) || !messages.length) return ctx.badRequest('messages[] required')
         const question = String(messages[messages.length - 1]?.content ?? '').slice(0, 2000)
@@ -55,16 +60,6 @@ module.exports = () => ({
             negativeShare: t.negativeShare,
           })),
           recentEvents: trends.events.slice(-5),
-        }
-
-        if (!process.env.AI_API_KEY) {
-          return {
-            answer:
-              `(keyless dev fallback) Pulse score: ${context.pulseScoreToday ?? 'n/a'}. ` +
-              `${context.unansweredCount} unanswered mention(s). Top themes (30d): ` +
-              context.topThemes30d.map((t) => `${t.name} (${t.mentions}, ${t.negativeShare}% neg)`).join(', '),
-            data: context,
-          }
         }
 
         const res = await fetch('https://api.anthropic.com/v1/messages', {

@@ -9,8 +9,10 @@ export default async function TrendsPage({
 }) {
   const params = await searchParams
   let data: any
+  let config: any = { data: { aiEnabled: true } }
   try {
     data = await strapiFetch('/api/insights/trends' + qs(params))
+    config = await strapiFetch('/api/insights/config')
   } catch (err: any) {
     if (err.status === 401 || err.status === 403) redirect('/sign-in')
     throw err
@@ -33,6 +35,12 @@ export default async function TrendsPage({
         </div>
       </div>
 
+      {!config.data.aiEnabled && (
+        <p className="mb-4 text-sm rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
+          AI analysis is disabled — the score reflects only manually labeled mentions. Set{' '}
+          <code className="text-xs">AI_API_KEY</code> to enable automatic sentiment analysis.
+        </p>
+      )}
       {series.every((p: any) => p.score == null) ? (
         <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-12 text-center">
           <p className="text-lg font-medium mb-1">Not enough data yet</p>

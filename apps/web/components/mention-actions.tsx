@@ -14,7 +14,15 @@ async function post(path: string, body?: unknown) {
   return res.json()
 }
 
-export default function MentionActions({ mention, allTopics }: { mention: any; allTopics: any[] }) {
+export default function MentionActions({
+  mention,
+  allTopics,
+  aiEnabled,
+}: {
+  mention: any
+  allTopics: any[]
+  aiEnabled: boolean
+}) {
   const router = useRouter()
   const [draft, setDraft] = useState<string>('')
   const [finalText, setFinalText] = useState('')
@@ -79,18 +87,20 @@ export default function MentionActions({ mention, allTopics }: { mention: any; a
             Claim
           </button>
         )}
-        <button
-          onClick={() => genDraft.mutate()}
-          disabled={genDraft.isPending}
-          className="text-sm rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5"
-        >
-          {genDraft.isPending ? 'Drafting…' : '✨ Generate docs-grounded draft'}
-        </button>
+        {aiEnabled && (
+          <button
+            onClick={() => genDraft.mutate()}
+            disabled={genDraft.isPending}
+            className="text-sm rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5"
+          >
+            {genDraft.isPending ? 'Drafting…' : '✨ Generate docs-grounded draft'}
+          </button>
+        )}
         <button
           onClick={() => setShowCorrect((v) => !v)}
           className="text-sm rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5"
         >
-          Correct analysis
+          {aiEnabled ? 'Correct analysis' : 'Set sentiment / topics'}
         </button>
         {lastResponse && !lastResponse.outcome?.result && (
           <div className="flex items-center gap-1 text-sm">
@@ -110,7 +120,11 @@ export default function MentionActions({ mention, allTopics }: { mention: any; a
 
       {showCorrect && (
         <div className="rounded-lg border border-violet-300 dark:border-violet-800 p-4 space-y-3">
-          <p className="text-sm font-medium">Human correction (never overwritten by re-analysis)</p>
+          <p className="text-sm font-medium">
+            {aiEnabled
+              ? 'Human correction (never overwritten by re-analysis)'
+              : 'Manual labeling (AI analysis is disabled — labels are set by the team)'}
+          </p>
           <div className="flex gap-2">
             {['positive', 'neutral', 'negative'].map((l) => (
               <label key={l} className="text-sm flex items-center gap-1">
