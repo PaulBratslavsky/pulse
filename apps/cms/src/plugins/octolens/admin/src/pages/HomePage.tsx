@@ -1,9 +1,31 @@
 import { useEffect, useState } from 'react';
-import { Box, Button, Flex, Typography, NumberInput, Alert } from '@strapi/design-system';
+import {
+  Box,
+  Button,
+  Flex,
+  Typography,
+  NumberInput,
+  Alert,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Badge,
+} from '@strapi/design-system';
 import { useFetchClient } from '@strapi/admin/strapi-admin';
 
 type Status = { enabled: boolean; totalMentions: number; lastReceivedAt: string | null };
-type SyncResult = { created: number; seen: number; skippedIrrelevant: number; pages: number; lookbackHours: number };
+type CreatedItem = { documentId: string; excerpt: string; platform: string; sentiment: string | null };
+type SyncResult = {
+  created: number;
+  seen: number;
+  skippedIrrelevant: number;
+  pages: number;
+  lookbackHours: number;
+  createdItems?: CreatedItem[];
+};
 
 export const HomePage = () => {
   const { get, post } = useFetchClient();
@@ -11,6 +33,7 @@ export const HomePage = () => {
   const [lookbackHours, setLookbackHours] = useState<number>(24);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SyncResult | null>(null);
+  const [ranAt, setRanAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
@@ -29,13 +52,13 @@ export const HomePage = () => {
   const runSync = async () => {
     setBusy(true);
     setError(null);
-    setResult(null);
     try {
       const { data } = await post('/octolens/sync', { lookbackHours });
       setResult(data.data);
+      setRanAt(new Date().toLocaleString());
       await refresh();
     } catch (e: any) {
-      setError(e?.message ?? 'sync failed');
+      setError(e?.response?.data?.error?.message ?? e?.message ?? 'sync failed');
     } finally {
       setBusy(false);
     }
@@ -84,19 +107,65 @@ export const HomePage = () => {
         </Button>
       </Flex>
 
-      {result && (
-        <Box paddingTop={4}>
-          <Alert closeLabel="Close" title="Sync complete" variant="success" onClose={() => setResult(null)}>
-            {result.created} new / {result.seen} seen ({result.skippedIrrelevant} irrelevant skipped,{' '}
-            {result.pages} page(s), lookback {result.lookbackHours}h)
-          </Alert>
-        </Box>
-      )}
       {error && (
         <Box paddingTop={4}>
           <Alert closeLabel="Close" title="Sync failed" variant="danger" onClose={() => setError(null)}>
             {error}
           </Alert>
+        </Box>
+      )}
+
+      {result && (
+        <Box paddingTop={6}>
+          <Typography variant="beta" tag="h2">
+            Sync report
+          </Typography>
+          <Box paddingTop={2} paddingBottom={4}>
+            <Typography textColor="neutral600">
+              Ran {ranAt} · lookback {result.lookbackHours}h · <strong>{result.created} new</strong> ·{' '}
+              {result.seen} seen · {result.skippedIrrelevant} irrelevant skipped · {result.pages} page(s)
+            </Typography>
+          </Box>
+
+          {result.created === 0 ? (
+            <Typography textColor="neutral600">
+              No new mentions — everything in this window was already ingested (webhook, cron, or a
+              previous sync).
+            </Typography>
+          ) : (
+            <Table colCount={3} rowCount={(result.createdItems?.length ?? 0) + 1}>
+              <Thead>
+                <Tr>
+                  <Th>
+                    <Typography variant="sigma">Mention</Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">Platform</Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">Octolens sentiment</Typography>
+                  </Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {(result.createdItems ?? []).map((item) => (
+                  <Tr key={item.documentId}>
+                    <Td>
+                      <Typography ellipsis style={{ maxWidth: '560px', display: 'block' }}>
+                        {item.excerpt}
+                      </Typography>
+                    </Td>
+                    <Td>
+                      <Badge>{item.platform}</Badge>
+                    </Td>
+                    <Td>
+                      <Typography>{item.sentiment ?? '—'}</Typography>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          )}
         </Box>
       )}
     </Box>

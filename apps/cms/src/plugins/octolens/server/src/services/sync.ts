@@ -41,7 +41,7 @@ export const sync = ({ strapi }: { strapi: Core.Strapi }) => ({
   async sync({ lookbackHours = 24 }: { lookbackHours?: number } = {}) {
     if (!this.enabled()) {
       strapi.log.info('[octolens-sync] skipped — no OCTOLENS_API key configured');
-      return { created: 0, seen: 0, skippedIrrelevant: 0, pages: 0 };
+      return { created: 0, seen: 0, skippedIrrelevant: 0, pages: 0, createdItems: [] };
     }
     const intakeService = strapi.plugin('octolens').service('intake') as any;
     const cutoff = Date.now() - lookbackHours * 3600_000;
@@ -51,6 +51,7 @@ export const sync = ({ strapi }: { strapi: Core.Strapi }) => ({
     let skippedIrrelevant = 0;
     let pages = 0;
     let reachedCutoff = false;
+    const createdItems: Array<{ documentId: string; excerpt: string; platform: string; sentiment: string | null }> = [];
 
     while (!reachedCutoff && pages < MAX_PAGES) {
       const page = await this.fetchPage(cursor);
@@ -80,7 +81,17 @@ export const sync = ({ strapi }: { strapi: Core.Strapi }) => ({
           m,
           'sync'
         );
-        if (result.created) created += 1;
+        if (result.created) {
+          created += 1;
+          if (createdItems.length < 50) {
+            createdItems.push({
+              documentId: result.documentId,
+              excerpt: String(content).slice(0, 140),
+              platform: String(m.source || 'unknown').toLowerCase(),
+              sentiment: m.sentiment ?? m.sentimentLabel ?? null,
+            });
+          }
+        }
       }
       cursor = page.pagination?.nextCursor;
       if (!cursor || (page.data ?? []).length === 0) break;
@@ -89,7 +100,7 @@ export const sync = ({ strapi }: { strapi: Core.Strapi }) => ({
     strapi.log.info(
       `[octolens-sync] ${created} new / ${seen} seen (${skippedIrrelevant} irrelevant skipped, ${pages} page(s), lookback ${lookbackHours}h)`
     );
-    return { created, seen, skippedIrrelevant, pages };
+    return { created, seen, skippedIrrelevant, pages, createdItems };
   },
 });
 
