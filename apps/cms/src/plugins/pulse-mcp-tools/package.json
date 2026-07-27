@@ -1,7 +1,24 @@
 {
-  "name": "pulse-plugin-pulse-mcp-tools",
-  "version": "1.0.0",
-  "description": "Pulse local plugin: pulse-mcp-tools",
-  "strapi": { "name": "pulse-mcp-tools", "kind": "plugin" },
-  "main": "strapi-server.js"
+  "name": "pulse-mcp-tools",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./package.json": "./package.json",
+    "./strapi-server": {
+      "source": "./server/src/index.ts",
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p server/tsconfig.build.json",
+    "watch": "tsc -p server/tsconfig.build.json --watch --preserveWatchOutput",
+    "verify": "tsc -p server/tsconfig.json --noEmit"
+  },
+  "strapi": {
+    "kind": "plugin",
+    "name": "pulse-mcp-tools",
+    "displayName": "pulse mcp tools"
+  }
 }
