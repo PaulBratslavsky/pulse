@@ -1,5 +1,4 @@
 import type { Core } from '@strapi/strapi';
-import { aiEnabled } from '../../analysis/services/ai';
 
 /**
  * Shared mention-intake path — used by BOTH the Octolens webhook (real-time)
@@ -14,6 +13,8 @@ import { aiEnabled } from '../../analysis/services/ai';
  * Human corrections always win; enabling AI later never silently re-scores
  * octolens-labeled history (bulk replay is an explicit action).
  */
+
+const aiEnabled = () => Boolean(process.env.AI_API_KEY);
 
 const OCTOLENS_SCORE: Record<string, number> = { positive: 0.5, neutral: 0, negative: -0.5 };
 
@@ -49,9 +50,12 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
   },
 
-  /** Octolens payloads carry sentiment as "Positive"/"Neutral"/"Negative". */
+  /** Octolens sentiment: pull API field is `sentiment`, webhook field is
+   *  `data.sentimentLabel` — both "Positive"/"Neutral"/"Negative". */
   octolensSentiment(raw: any): { label: string; score: number } | null {
-    const label = String(raw?.sentiment ?? '').toLowerCase();
+    const value =
+      raw?.sentiment ?? raw?.sentimentLabel ?? raw?.data?.sentimentLabel ?? raw?.data?.sentiment ?? '';
+    const label = String(value).toLowerCase();
     if (!(label in OCTOLENS_SCORE)) return null;
     return { label, score: OCTOLENS_SCORE[label] };
   },

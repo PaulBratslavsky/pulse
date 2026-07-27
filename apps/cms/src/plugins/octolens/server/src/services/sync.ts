@@ -21,7 +21,7 @@ const MAX_PAGES = 40; // hard stop: 2000 mentions per run
 
 const apiKey = () => process.env.OCTOLENS_API_KEY || process.env.OCTOLENS_API || '';
 
-export const octolensSync = ({ strapi }: { strapi: Core.Strapi }) => ({
+export const sync = ({ strapi }: { strapi: Core.Strapi }) => ({
   enabled: () => Boolean(apiKey()),
 
   async fetchPage(cursor?: string) {
@@ -43,7 +43,7 @@ export const octolensSync = ({ strapi }: { strapi: Core.Strapi }) => ({
       strapi.log.info('[octolens-sync] skipped — no OCTOLENS_API key configured');
       return { created: 0, seen: 0, skippedIrrelevant: 0, pages: 0 };
     }
-    const intakeService = strapi.service('api::ingest.intake') as any;
+    const intakeService = strapi.plugin('octolens').service('intake') as any;
     const cutoff = Date.now() - lookbackHours * 3600_000;
     let cursor: string | undefined;
     let created = 0;
@@ -93,4 +93,4 @@ export const octolensSync = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 });
 
-export default octolensSync;
+export default sync;

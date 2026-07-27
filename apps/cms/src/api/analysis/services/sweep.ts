@@ -15,7 +15,7 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
       // Keyless: adopt Octolens sentiment where the raw payload carries it
       // (modelVersion 'octolens'); otherwise mark skipped. Also rescans
       // skipped-but-unlabeled mentions so pre-feature backlogs get labeled.
-      const intakeService = strapi.service('api::ingest.intake') as any;
+      const intakeService = strapi.plugin('octolens').service('intake') as any;
       const pending = await strapi.documents('api::mention.mention').findMany({
         filters: {
           $or: [

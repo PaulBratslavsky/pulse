@@ -102,7 +102,7 @@ None — Pulse is a data/insight tool.
 
 | Module | Owns | Exposes |
 |---|---|---|
-| `ingest` | Octolens webhook receiver: verify secret, validate + normalize, dedupe on `externalId`, create Mention (`analysisStatus: pending`); payloads that fail validation → **dead-letter record** (raw + error, ops alert, replayable). Greenfield — no historical import | `POST /api/ingest/octolens`; replay |
+| `ingest` | Octolens webhook receiver: verify secret, validate + normalize, dedupe on `externalId`, create Mention (`analysisStatus: pending`); payloads that fail validation → **dead-letter record** (raw + error, ops alert, replayable). Greenfield — no historical import | `POST /api/octolens/ingest`; replay |
 | `analysis` | Sentiment scoring, topic assignment/clustering, AI draft generation — all behind a **provider-agnostic AI interface** (v1 provider: Claude/Anthropic; swappable). **AI is optional**: without `AI_API_KEY` these features are disabled (mentions → `analysisStatus: skipped`, sentiment null, manual labeling via correct; drafts/chat 503; `GET /api/insights/config` → `{ aiEnabled }` drives the UI) — the core loop runs fully without AI, and skipped mentions auto-analyze once a key is added. Stamps `modelVersion`/`promptVersion`; skips `humanCorrected` fields; tracks daily token spend against `AI_DAILY_TOKEN_BUDGET` (warn 80% → ops Slack; at 100% halt re-cluster, never new-mention analysis) | services `api::analysis.ai` (`analyze`, `draft`), `api::analysis.budget`, `api::analysis.insights`, `api::analysis.sweep`; cron sweep |
 | `assistant` | Chat over the data: NL question → data queries → answer/report | `POST /api/assistant/chat` |
 | `notify` | Slack notifications: new-mention channel (priority `negative`), assignee pings, daily stale digest, **ops channel** (sweep failures, secret-rejection spikes, budget warnings) | subscribes after analysis; consumed by cron + routing |
@@ -125,7 +125,7 @@ None — Pulse is a data/insight tool.
 ### Custom routes
 | Method & path | Auth | Handler behavior |
 |---|---|---|
-| `POST /api/ingest/octolens` | `auth: false` + shared-secret header check (reject without it) | Verify → dedupe by `externalId` → create Mention (`analysisStatus: pending`) via Document Service → return 200 (analysis + notify happen in the cron sweep) |
+| `POST /api/octolens/ingest` | `auth: false` + shared-secret header check (reject without it) | Verify → dedupe by `externalId` → create Mention (`analysisStatus: pending`) via Document Service → return 200 (analysis + notify happen in the cron sweep) |
 | `POST /api/mentions/:documentId/claim` | authenticated | Controller stamps `owner = ctx.state.user` **via Document Service** (server-set; never from body) and sets `status: claimed` |
 | `POST /api/mentions/:documentId/route` | authenticated | Sets `suggestedTeam` and/or `assignee` (server-set from a validated user id); Slack pings the assignee/team; logs `routed` activity |
 | `POST /api/mentions/:documentId/correct` | authenticated | Human override of `sentimentLabel`/`sentimentScore`/`topics`; sets `humanCorrected: true`; logs `corrected` activity with before/after; re-analysis skips corrected fields forever |

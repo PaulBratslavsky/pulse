@@ -61,7 +61,7 @@ export default async function QueuePage({
           <p className="text-sm text-zinc-500 max-w-md mx-auto">
             Pulse collects data from launch onward — new mentions land here automatically as the
             webhook delivers them. If you just set up, point Octolens at{' '}
-            <code className="text-xs">/api/ingest/octolens</code> and give it a minute.
+            <code className="text-xs">/api/octolens/ingest</code> and give it a minute.
           </p>
         </div>
       ) : (

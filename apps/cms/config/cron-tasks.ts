@@ -48,13 +48,13 @@ export default {
   },
   // Octolens pull-sync — the PRIMARY ingestion path (user decision: all Octolens
   // integration lives in the Strapi backend; no frontend relay). The direct
-  // webhook remains ready at /api/ingest/octolens for when Octolens fixes their
+  // webhook remains ready at /api/octolens/ingest for when Octolens fixes their
   // SSRF false-positive on Cloudflare's 172.66/16. Until then this cadence is
   // the freshness ceiling. No-op when no OCTOLENS_API key is configured.
   octolensSync: {
     task: async ({ strapi }: any) => {
       try {
-        await strapi.service('api::ingest.octolens-sync').sync({ lookbackHours: 24 })
+        await strapi.plugin('octolens').service('sync').sync({ lookbackHours: 24 })
       } catch (err: any) {
         strapi.log.error(`[cron] octolens sync crashed: ${err.message}`)
         await strapi.service('api::notify.slack').ops(`octolens sync crashed: ${err.message}`).catch(() => {})

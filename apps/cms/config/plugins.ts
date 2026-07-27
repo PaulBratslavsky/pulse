@@ -23,6 +23,9 @@ const deniedExecutableTypes = [
 ];
 
 const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin => ({
+  // Octolens integration — local plugin (earned: it ships admin UI — sync page + widget)
+  octolens: { enabled: true, resolve: './src/plugins/octolens' },
+
   'users-permissions': {
     config: {
       jwtManagement: 'refresh',

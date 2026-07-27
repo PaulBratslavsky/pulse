@@ -86,7 +86,7 @@ for (const action of [
 **Done when**: an admin-created user can log in via `POST /api/auth/local` and read mentions; anonymous requests get 401/403 on everything.
 
 ### M4 — Ingest, analysis, notify (the backend loop)
-- [ ] **`ingest` module** (`src/api/ingest`, route-only) — `POST /api/ingest/octolens`, route `config: { auth: false }`, controller: reject unless `x-pulse-secret` header equals `OCTOLENS_WEBHOOK_SECRET`; validate + normalize payload; **validation failure → create `dead-letter` record (raw + error) + ops Slack alert — never drop data**; dedupe on `externalId` (200 on duplicate — webhooks redeliver); create Mention via Document Service (`analysisStatus: 'pending'`, `status: 'unanswered'`, `raw` = payload); log `ingested` activity; return fast (NO AI work in-request)
+- [ ] **`ingest` module** (`src/api/ingest`, route-only) — `POST /api/octolens/ingest`, route `config: { auth: false }`, controller: reject unless `x-pulse-secret` header equals `OCTOLENS_WEBHOOK_SECRET`; validate + normalize payload; **validation failure → create `dead-letter` record (raw + error) + ops Slack alert — never drop data**; dedupe on `externalId` (200 on duplicate — webhooks redeliver); create Mention via Document Service (`analysisStatus: 'pending'`, `status: 'unanswered'`, `raw` = payload); log `ingested` activity; return fast (NO AI work in-request)
 - [ ] **`analysis` module** (`src/api/analysis`, service-only) — provider-agnostic interface (`AI_PROVIDER`/`AI_API_KEY`; v1 = Anthropic): `analyze(mention)` → sentimentScore/label + topic assignment (create Topic via Document Service if new), stamps `modelVersion` + `promptVersion`, **skips any field on a `humanCorrected` mention**; `draft(mention)` → answer grounded via the **Strapi docs MCP** (`STRAPI_DOCS_MCP_URL`); **token budget**: count daily spend in a store against `AI_DAILY_TOKEN_BUDGET` — warn ops Slack at 80%, at 100% halt re-cluster only (new-mention analysis always continues)
 - [ ] **Cron** (`config/cron-tasks.ts`, `cron.enabled: true` in `config/server`):
   - `* * * * *` — sweep `analysisStatus: pending|failed` → analyze → `analyzed` → notify Slack (lead with `negative`; every message deep-links `<PULSE_APP_URL>/mentions/<id>`). **Sweep errors → ops Slack**
@@ -129,7 +129,7 @@ for (const action of [
 ### M8 — Deploy + smoke test
 - [ ] Backend → Strapi Cloud (env vars below; Node ≥ 20); frontend → Vercel (root `apps/web`); **confirm DB backups are active on the chosen Strapi Cloud plan** (mentions are unrecoverable once platforms delete them)
 - [ ] CORS: `strapi::cors` origin = the Vercel URL (no `*`)
-- [ ] Point Octolens webhook at `https://<cloud-url>/api/ingest/octolens` with the shared secret; verify a malformed test payload dead-letters + alerts
+- [ ] Point Octolens webhook at `https://<cloud-url>/api/octolens/ingest` with the shared secret; verify a malformed test payload dead-letters + alerts
 - [ ] Smoke: real mention → analyzed + Slack deep-link ping → claim → correct → draft → respond → outcome → visible in trends + activity log
 **Done when**: all acceptance criteria pass against deployed URLs.
 
