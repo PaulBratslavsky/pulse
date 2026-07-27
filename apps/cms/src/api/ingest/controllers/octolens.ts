@@ -29,8 +29,12 @@ function normalize(payload: any) {
 export const octolens = ({ strapi }: { strapi: Core.Strapi }) => ({
   async receive(ctx: any) {
     const secret = process.env.OCTOLENS_WEBHOOK_SECRET;
-    if (!secret || ctx.request.headers['x-pulse-secret'] !== secret) {
-      strapi.log.warn('[ingest] webhook rejected: bad or missing x-pulse-secret');
+    // Octolens' webhook form has no custom-header support, so the secret is
+    // also accepted as ?secret=… in the URL. (Tradeoff: query strings can land
+    // in intermediary logs — mitigated by using a dedicated, rotatable secret.)
+    const provided = ctx.request.headers['x-pulse-secret'] ?? ctx.query?.secret;
+    if (!secret || provided !== secret) {
+      strapi.log.warn('[ingest] webhook rejected: bad or missing secret (header or ?secret=)');
       return ctx.unauthorized('bad secret');
     }
 
