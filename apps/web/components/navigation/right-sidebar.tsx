@@ -54,13 +54,14 @@ export async function RightSidebar() {
         <div className="flex flex-wrap gap-2">
           {themes.length === 0 && <p className="text-sm text-zinc-500">No topics yet.</p>}
           {themes.map((t: any) => (
-            <span
+            <Link
               key={t.topic.slug}
-              className="inline-flex items-center gap-2 rounded-md bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300"
+              href={`/?topic=${encodeURIComponent(t.topic.slug)}`}
+              className="inline-flex items-center gap-2 rounded-md bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-rose-500"
             >
               #{t.topic.name}
               <span className="text-zinc-400">{t.mentions}</span>
-            </span>
+            </Link>
           ))}
         </div>
       </div>

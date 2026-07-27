@@ -8,7 +8,7 @@ import SyncButton from '@/components/sync-button'
 export default async function QueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; sentiment?: string; page?: string }>
+  searchParams: Promise<{ status?: string; sentiment?: string; topic?: string; page?: string }>
 }) {
   const params = await searchParams
   const page = Math.max(1, Number(params.page) || 1)
@@ -20,6 +20,7 @@ export default async function QueuePage({
           'filters[status][$in][0]': params.status ?? 'unanswered',
           ...(params.status ? {} : { 'filters[status][$in][1]': 'claimed' }),
           ...(params.sentiment ? { 'filters[sentimentLabel][$eq]': params.sentiment } : {}),
+          ...(params.topic ? { 'filters[topics][slug][$eq]': params.topic } : {}),
           sort: 'receivedAt:asc',
           'pagination[page]': page,
           'pagination[pageSize]': 25,
@@ -31,14 +32,18 @@ export default async function QueuePage({
   }
   const mentions = data.data ?? []
   const pagination = data.meta?.pagination ?? { page: 1, pageCount: 1, total: mentions.length }
-  const pageUrl = (p: number) => {
+  const filterUrl = (over: { sentiment?: string; topic?: string; page?: number }) => {
     const q = new URLSearchParams()
     if (params.status) q.set('status', params.status)
-    if (params.sentiment) q.set('sentiment', params.sentiment)
-    if (p > 1) q.set('page', String(p))
+    const sentiment = over.sentiment !== undefined ? over.sentiment : params.sentiment
+    const topic = over.topic !== undefined ? over.topic : params.topic
+    if (sentiment) q.set('sentiment', sentiment)
+    if (topic) q.set('topic', topic)
+    if (over.page && over.page > 1) q.set('page', String(over.page))
     const qs = q.toString()
     return qs ? `/?${qs}` : '/'
   }
+  const pageUrl = (p: number) => filterUrl({ page: p })
 
   return (
     <div>
@@ -50,11 +55,20 @@ export default async function QueuePage({
         <SyncButton />
       </div>
 
-      <div className="flex gap-2 mb-4 text-sm">
+      <div className="flex gap-2 mb-4 text-sm items-center flex-wrap">
+        {params.topic && (
+          <Link
+            href={filterUrl({ topic: undefined, page: 0 })}
+            className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white px-3 py-1 font-medium"
+            title="Clear topic filter"
+          >
+            #{params.topic} ✕
+          </Link>
+        )}
         {['', 'negative', 'neutral', 'positive'].map((s) => (
           <Link
             key={s || 'all'}
-            href={s ? `/?sentiment=${s}` : '/'}
+            href={filterUrl({ sentiment: s || undefined, page: 0 })}
             className={`rounded-full px-3 py-1 border ${
               (params.sentiment ?? '') === s
                 ? 'border-zinc-900 dark:border-white font-medium'
@@ -90,7 +104,9 @@ export default async function QueuePage({
                   @{m.authorHandle ?? 'unknown'} · {m.channel?.name ?? '—'}
                 </span>
                 {(m.topics ?? []).map((t: any) => (
-                  <span key={t.slug} className="text-xs text-zinc-400">#{t.name}</span>
+                  <Link key={t.slug} href={filterUrl({ topic: t.slug, page: 0 })} className="text-xs text-zinc-400 hover:text-rose-500">
+                    #{t.name}
+                  </Link>
                 ))}
               </div>
               <Link
