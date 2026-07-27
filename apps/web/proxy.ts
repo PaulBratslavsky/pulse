@@ -3,12 +3,13 @@ import type { NextRequest } from 'next/server'
 import { getUserMeService } from '@/data/services/auth'
 
 /**
- * Everything requires a session except /sign-in. Beyond cookie presence, the
+ * Next 16 proxy (the renamed middleware convention — runs at the network
+ * boundary before routing). Everything requires a session except /sign-in. Beyond cookie presence, the
  * token is validated against /api/users/me (Epic Next pattern) so expired or
  * revoked JWTs bounce at the edge instead of failing inside pages.
  * /api/pulse/* (the authenticated proxy) is skipped — it 401s naturally.
  */
-export async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   if (
     pathname.startsWith('/sign-in') ||
