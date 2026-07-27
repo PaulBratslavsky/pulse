@@ -10,10 +10,10 @@ export default {
   analysisSweep: {
     task: async ({ strapi }: any) => {
       try {
-        await strapi.plugin('analysis').service('sweep').run()
+        await strapi.service('api::analysis.sweep').run()
       } catch (err: any) {
         strapi.log.error(`[cron] analysis sweep crashed: ${err.message}`)
-        await strapi.plugin('notify').service('slack').ops(`analysis sweep crashed: ${err.message}`).catch(() => {})
+        await strapi.service('api::notify.slack').ops(`analysis sweep crashed: ${err.message}`).catch(() => {})
       }
     },
     options: { rule: '* * * * *' },
@@ -21,10 +21,10 @@ export default {
   nightlyRecluster: {
     task: async ({ strapi }: any) => {
       try {
-        const n = await strapi.plugin('analysis').service('sweep').recluster()
+        const n = await strapi.service('api::analysis.sweep').recluster()
         strapi.log.info(`[cron] recluster queued ${n} mention(s)`)
       } catch (err: any) {
-        await strapi.plugin('notify').service('slack').ops(`recluster crashed: ${err.message}`).catch(() => {})
+        await strapi.service('api::notify.slack').ops(`recluster crashed: ${err.message}`).catch(() => {})
       }
     },
     options: { rule: '0 3 * * *' },
@@ -32,17 +32,17 @@ export default {
   staleDigest: {
     task: async ({ strapi }: any) => {
       try {
-        const stale = await strapi.plugin('analysis').service('insights').stale({})
-        await strapi.plugin('notify').service('slack').staleDigest(stale)
+        const stale = await strapi.service('api::analysis.insights').stale({})
+        await strapi.service('api::notify.slack').staleDigest(stale)
       } catch (err: any) {
-        await strapi.plugin('notify').service('slack').ops(`stale digest crashed: ${err.message}`).catch(() => {})
+        await strapi.service('api::notify.slack').ops(`stale digest crashed: ${err.message}`).catch(() => {})
       }
     },
     options: { rule: '0 9 * * 1-5' },
   },
   budgetReset: {
     task: async ({ strapi }: any) => {
-      await strapi.plugin('analysis').service('budget').reset()
+      await strapi.service('api::analysis.budget').reset()
     },
     options: { rule: '0 0 * * *' },
   },

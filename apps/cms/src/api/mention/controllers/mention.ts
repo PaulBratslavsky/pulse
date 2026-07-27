@@ -97,9 +97,7 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       detail: { suggestedTeam: suggestedTeam ?? null, assignee: assignee?.username ?? null },
     })
     if (assignee) {
-      await strapi
-        .plugin('notify')
-        .service('slack')
+      await (strapi.service('api::notify.slack') as any)
         .pingAssignee({ mention, assignee, router: user })
         .catch((err: Error) => strapi.log.warn(`assignee ping failed: ${err.message}`))
     }
@@ -163,7 +161,7 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
   },
 
   async draft(ctx) {
-    if (!strapi.plugin('analysis').service('ai').enabled()) {
+    if (!(strapi.service('api::analysis.ai') as any).enabled()) {
       ctx.status = 503
       ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable drafts.' } }
       return
@@ -174,7 +172,7 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       .findOne({ documentId, populate: { topics: true, channel: true } as any })
     if (!mention) return ctx.notFound('mention not found')
 
-    const draft = await strapi.plugin('analysis').service('ai').draft(mention)
+    const draft = await (strapi.service('api::analysis.ai') as any).draft(mention)
     return { data: { draft } }
   },
 }))

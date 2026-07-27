@@ -1,5 +1,6 @@
 import type { Core } from '@strapi/strapi'
 import { seedDemo } from './seed-demo'
+import { registerAllMcpTools } from './mcp'
 
 /** Actions the Authenticated (team member) role gets. Each is its own permission record —
  *  a fresh Strapi denies everything for BOTH roles, and admin-UI clicks don't survive a fresh DB. */
@@ -28,7 +29,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::insights.insights.themes',
   'api::insights.insights.stale',
   'api::insights.insights.config',
-  'plugin::assistant.chat.chat',
+  'api::assistant.chat.chat',
 ]
 
 const DEFAULT_CHANNELS = [
@@ -50,6 +51,9 @@ function slugify(value: string): string {
 
 export default {
   register({ strapi }: { strapi: Core.Strapi }) {
+    // Custom MCP tools — app-level registration (must run before mcp.start()).
+    registerAllMcpTools(strapi)
+
     // uid fields are NOT auto-filled on API/seed writes (admin panel only) —
     // generate topic.slug in Document Service middleware for every write path.
     strapi.documents.use(async (context, next) => {

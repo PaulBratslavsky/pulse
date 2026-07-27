@@ -23,13 +23,6 @@ const deniedExecutableTypes = [
 ];
 
 const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin => ({
-  // ---- Pulse local plugins (module boundaries — see 06-build-spec.md) ----
-  ingest: { enabled: true, resolve: './src/plugins/ingest' },
-  analysis: { enabled: true, resolve: './src/plugins/analysis' },
-  assistant: { enabled: true, resolve: './src/plugins/assistant' },
-  notify: { enabled: true, resolve: './src/plugins/notify' },
-  'pulse-mcp-tools': { enabled: true, resolve: './src/plugins/pulse-mcp-tools' },
-
   'users-permissions': {
     config: {
       jwtManagement: 'refresh',

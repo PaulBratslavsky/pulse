@@ -10,5 +10,3 @@ dist/
 .DS_Store
 test-results/
 playwright-report/
-src/plugins/*/dist/
-src/plugins/*/server/tsconfig.tsbuildinfo

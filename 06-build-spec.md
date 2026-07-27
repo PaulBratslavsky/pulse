@@ -15,14 +15,14 @@ Pulse is the Strapi team's internal, single-instance tool for tracking sentiment
 - AI: provider-agnostic interface in the `analysis`/`assistant` plugins; v1 provider **Anthropic (Claude)**; draft grounding via the **Strapi docs MCP** consumed backend-side; daily token budget guard
 - Search: **Postgres full-text** (no external search engine)
 - Notifications: two Slack webhooks (team + ops) · Styling: Tailwind + shadcn/ui
-- **Architecture principles**: heavy lifting in Strapi (thin, swappable frontend); modules as **local plugins** in `src/plugins/*` (greenfield — inspiration repos are patterns only, nothing imported)
+- **Architecture principles**: heavy lifting in Strapi (thin, swappable frontend); modules as **Strapi-native `src/api/<name>` folders** (REVISED from local plugins during build — single instance, no admin-UI/distribution need); reference repos define binding conventions, no code imported
 
 ## Repo layout
 ```
 pulse/
 ├── apps/
 │   ├── cms/                      # Strapi v5
-│   │   └── src/plugins/          # LOCAL plugins: ingest, analysis, assistant, notify, pulse-mcp-tools
+│   │   └── src/api|mcp/          # modules as api folders: ingest, analysis, assistant, notify + src/mcp (app-level tools)
 │   └── web/                      # Next.js 16 (App Router)
 ├── package.json                  # workspaces
 └── README.md
@@ -40,19 +40,8 @@ npx create-strapi-app@latest apps/cms \
 npx create-next-app@latest apps/web
 cd apps/web && npm install @tanstack/react-query
 
-# 3. Local plugins (per plugin, inside apps/cms): scaffold with the plugin SDK into src/plugins/
-npx @strapi/sdk-plugin init src/plugins/ingest        # repeat: analysis, assistant, notify, pulse-mcp-tools
 ```
-Register each local plugin in `apps/cms/config/plugins.ts`:
-```ts
-export default () => ({
-  ingest:            { enabled: true, resolve: './src/plugins/ingest' },
-  analysis:          { enabled: true, resolve: './src/plugins/analysis' },
-  assistant:         { enabled: true, resolve: './src/plugins/assistant' },
-  notify:            { enabled: true, resolve: './src/plugins/notify' },
-  'pulse-mcp-tools': { enabled: true, resolve: './src/plugins/pulse-mcp-tools' },
-})
-```
+Modules need no registration — `src/api/<name>` folders load natively. (REVISED from local plugins during build; see 04.)
 
 ## The Pulse score (single source of truth — implement once, use everywhere)
 - Per **UTC day**: volume-weighted mean of `sentimentScore` over a **trailing 7-day window**, scaled 0–100 (`(mean + 1) × 50`). Computed overall and per topic/channel in the `insights` controller; the dashboard, digest, MCP tools, and chat all read this one implementation.
@@ -97,8 +86,8 @@ for (const action of [
 **Done when**: an admin-created user can log in via `POST /api/auth/local` and read mentions; anonymous requests get 401/403 on everything.
 
 ### M4 — Ingest, analysis, notify (the backend loop)
-- [ ] **`ingest` plugin** — `POST /api/ingest/octolens`, route `config: { auth: false }`, controller: reject unless `x-pulse-secret` header equals `OCTOLENS_WEBHOOK_SECRET`; validate + normalize payload; **validation failure → create `dead-letter` record (raw + error) + ops Slack alert — never drop data**; dedupe on `externalId` (200 on duplicate — webhooks redeliver); create Mention via Document Service (`analysisStatus: 'pending'`, `status: 'unanswered'`, `raw` = payload); log `ingested` activity; return fast (NO AI work in-request)
-- [ ] **`analysis` plugin** — provider-agnostic interface (`AI_PROVIDER`/`AI_API_KEY`; v1 = Anthropic): `analyze(mention)` → sentimentScore/label + topic assignment (create Topic via Document Service if new), stamps `modelVersion` + `promptVersion`, **skips any field on a `humanCorrected` mention**; `draft(mention)` → answer grounded via the **Strapi docs MCP** (`STRAPI_DOCS_MCP_URL`); **token budget**: count daily spend in the plugin store against `AI_DAILY_TOKEN_BUDGET` — warn ops Slack at 80%, at 100% halt re-cluster only (new-mention analysis always continues)
+- [ ] **`ingest` module** (`src/api/ingest`, route-only) — `POST /api/ingest/octolens`, route `config: { auth: false }`, controller: reject unless `x-pulse-secret` header equals `OCTOLENS_WEBHOOK_SECRET`; validate + normalize payload; **validation failure → create `dead-letter` record (raw + error) + ops Slack alert — never drop data**; dedupe on `externalId` (200 on duplicate — webhooks redeliver); create Mention via Document Service (`analysisStatus: 'pending'`, `status: 'unanswered'`, `raw` = payload); log `ingested` activity; return fast (NO AI work in-request)
+- [ ] **`analysis` module** (`src/api/analysis`, service-only) — provider-agnostic interface (`AI_PROVIDER`/`AI_API_KEY`; v1 = Anthropic): `analyze(mention)` → sentimentScore/label + topic assignment (create Topic via Document Service if new), stamps `modelVersion` + `promptVersion`, **skips any field on a `humanCorrected` mention**; `draft(mention)` → answer grounded via the **Strapi docs MCP** (`STRAPI_DOCS_MCP_URL`); **token budget**: count daily spend in the plugin store against `AI_DAILY_TOKEN_BUDGET` — warn ops Slack at 80%, at 100% halt re-cluster only (new-mention analysis always continues)
 - [ ] **Cron** (`config/cron-tasks.ts`, `cron.enabled: true` in `config/server`):
   - `* * * * *` — sweep `analysisStatus: pending|failed` → analyze → `analyzed` → notify Slack (lead with `negative`; every message deep-links `<PULSE_APP_URL>/mentions/<id>`). **Sweep errors → ops Slack**
   - `0 3 * * *` — topic re-cluster + themes rollup (never touches `humanCorrected`; skipped when budget exhausted)
@@ -132,8 +121,8 @@ for (const action of [
 **Done when**: unauthenticated visitors only ever see `/sign-in`; login/logout round-trips work.
 
 ### M7 — Assistant, MCP server, seed data
-- [ ] **`assistant` plugin** — `POST /api/assistant/chat`: `{ messages }` → data-grounded answer/report (queries mentions/trends/themes via Document Service; same AI provider interface + budget counter)
-- [ ] **MCP** — `config/server.ts`: `mcp: { enabled: true }` (endpoint `POST /mcp`). **Auth (verified on 5.51): `/mcp` only accepts Admin Tokens (`kind: admin`), created via `POST /admin/admin-tokens` with `adminPermissions` drawn from the admin RBAC registry — e.g. `{ action: 'plugin::content-manager.explorer.read', subject: 'api::mention.mention' }`. Classic content-API tokens (Settings → API Tokens) are rejected with "Authentication required".** Create a read-only reporting token scoped to mention/topic/event reads. Register custom tools in `pulse-mcp-tools`'s `register()` via `strapi.ai.mcp.registerTool({ name, description, auth: { policies: [...] }, resolveInputSchema, resolveOutputSchema, createHandler })` — tools must declare CASL `auth.policies` (or `devModeOnly`); the gate passes when the token's ability satisfies ANY policy. MCP limitations: no media upload; stateless POST-only
+- [ ] **`assistant` module** (`src/api/assistant`) — `POST /api/assistant/chat`: `{ messages }` → data-grounded answer/report (queries mentions/trends/themes via Document Service; same AI provider interface + budget counter)
+- [ ] **MCP** — `config/server.ts`: `mcp: { enabled: true }` (endpoint `POST /mcp`). **Auth (verified on 5.51): `/mcp` only accepts Admin Tokens (`kind: admin`), created via `POST /admin/admin-tokens` with `adminPermissions` drawn from the admin RBAC registry — e.g. `{ action: 'plugin::content-manager.explorer.read', subject: 'api::mention.mention' }`. Classic content-API tokens (Settings → API Tokens) are rejected with "Authentication required".** Create a read-only reporting token scoped to mention/topic/event reads. Register custom tools app-level in `src/index.ts` `register()` (tool definitions in `src/mcp/tools/*.ts`; a plugin is optional) via `strapi.ai.mcp.registerTool({ name, description, auth: { policies: [...] }, resolveInputSchema, resolveOutputSchema, createHandler })` — tools must declare CASL `auth.policies` (or `devModeOnly`); the gate passes when the token's ability satisfies ANY policy. MCP limitations: no media upload; stateless POST-only
 - [ ] **Seed (dev/demo only — production starts empty by design)**: 3+ team users (via U&P service — hashed passwords), channels, a dozen topics, 2-3 events, ~50 mentions across sentiments/statuses with activities, responses with outcomes, one dead letter
 **Done when**: Claude Desktop connected to `POST /mcp` with the read-only token runs `pulse.trend-summary`; `/chat` answers "top negative themes this month?" from seeded data.
 

@@ -4,7 +4,7 @@ For each decision: what was chosen, what other options were considered, and why 
 
 > **Architecture principle (user-stated):** the heavy lifting lives in the **Strapi backend** — ingestion, analysis, drafting, chat, notifications are all backend capabilities. The frontend is a thin client over Strapi's API, so a future frontend migration has small impact.
 >
-> **Modularity principle (user-stated):** Pulse is built **in modules, as local plugins scoped to the Strapi app** (`src/plugins/*`) — not separately published packages. Greenfield: the repos below are *inspiration only*, nothing is consumed directly.
+> **Modularity principle (user-stated; REVISED during build):** Pulse is built in modules. Originally specced as local plugins; **revised to Strapi-native `src/api/<name>` folders** (content-type optional — route-only and service-only APIs) after weighing the tradeoff: single instance, no admin-UI parts, no distribution → plugins' per-module build step (`dist/server`, not watched by `strapi develop`) bought nothing. Local plugins remain the right call only for admin UI / cross-project reuse / distribution. Greenfield: the repos below define **binding conventions**, but no code is consumed directly.
 >
 > Reference material (patterns, not dependencies):
 > - Octolens webhook ingestion (prior project): https://github.com/PaulBratslavsky/strapi-octolens-mentions-plugin
