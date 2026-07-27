@@ -15,7 +15,8 @@
     "upgrade:dry": "npx @strapi/upgrade latest --dry",
     "build:plugins": "for p in src/plugins/*/; do (cd $p && npm run build) || exit 1; done",
     "predevelop": "npm run build:plugins",
-    "prebuild": "npm run build:plugins"
+    "prebuild": "npm run build:plugins",
+    "postinstall": "npm run build:plugins"
   },
   "dependencies": {
     "@strapi/database": "5.51.0",
