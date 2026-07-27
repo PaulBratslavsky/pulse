@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "pulse_jwt",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxIiwic2Vzc2lvbklkIjoiZGMxMWNmY2FlOGE1OGUxZWZlYWYzN2M2YTYzOWMxMGQiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNzg1MTc1OTMyLCJleHAiOjE3ODUxNzY1MzJ9.nKGywH96FMK8fOrY3jyezhtf4huEr_QF3V9AUAnFs9U",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxIiwic2Vzc2lvbklkIjoiNzFlOTkwNjRiZmMwMGUzMDMyMjc2MWE5ODk1YWQ0YjQiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNzg1MTc2MDkwLCJleHAiOjE3ODUxNzY2OTB9.kmnborlLiH_TnooXN6tzluSBzNm2iUNLVVhhnAnGxig",
       "domain": "localhost",
       "path": "/",
-      "expires": 1785780732.412202,
+      "expires": 1785780890.293666,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"

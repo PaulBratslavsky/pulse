@@ -6,15 +6,13 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     page,
     request,
   }) => {
-    const { externalId } = await injectMention(request)
+    const { externalId, documentId } = await injectMention(request)
 
-    // the fresh mention is in the queue (unanalyzed yet — badge shows unscored)
+    // find it via search (queue is oldest-first and can exceed a page with real data)
     await page.goto('/')
-    const card = page.locator('li', { hasText: externalId })
-    await expect(card).toBeVisible()
-
-    // open detail
-    await card.getByRole('link', { name: 'Open' }).click()
+    await page.getByPlaceholder('Search mentions & past responses…').fill(externalId)
+    await page.locator('a', { hasText: externalId }).first().click()
+    await expect(page).toHaveURL(new RegExp(documentId))
     await expect(page.getByText(externalId)).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible()
     await expect(page.getByText('ingested')).toBeVisible()
@@ -36,9 +34,8 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
   })
 
   test('correction controls set human-corrected label', async ({ page, request }) => {
-    const { externalId } = await injectMention(request)
-    await page.goto('/')
-    await page.locator('li', { hasText: externalId }).getByRole('link', { name: 'Open' }).click()
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
 
     // label depends on the AI feature flag: "Correct analysis" (on) / "Set sentiment / topics" (off)
     await page.getByRole('button', { name: /correct analysis|set sentiment/i }).click()
@@ -53,11 +50,10 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     // this behavior is keyless-only; with AI enabled Pulse analyzes instead
     test.skip(config?.data?.aiEnabled === true, 'AI enabled — Pulse analyzes, Octolens label ignored')
 
-    const { externalId } = await injectMention(request, { sentiment: 'Negative' })
-    await page.goto('/')
-    const card = page.locator('li', { hasText: externalId })
-    await expect(card).toBeVisible()
-    await expect(card.getByText('negative', { exact: true })).toBeVisible() // labeled at intake, no sweep wait
+    const { documentId } = await injectMention(request, { sentiment: 'Negative' })
+    await page.goto(`/mentions/${documentId}`)
+    await expect(page.getByText('negative', { exact: true }).first()).toBeVisible() // labeled at intake, no sweep wait
+    await expect(page.getByText('analyzed by octolens')).toBeVisible()
   })
 
   test('search finds recorded responses', async ({ page }) => {
