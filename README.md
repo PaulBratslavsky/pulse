@@ -41,6 +41,11 @@ curl -X POST http://localhost:1337/api/octolens/ingest \
 # analyzed by the cron sweep within ~1 minute; malformed payloads → dead letter + ops alert
 ```
 
+## Production
+
+- **Frontend**: https://pulse-omega-eight.vercel.app (Vercel, auto-deploys from `master`, root dir `apps/web`)
+- **Backend**: https://ambitious-diamond-2dbe462fe9.strapiapp.com (Strapi Cloud, auto-deploys from `master`, root dir `apps/cms`)
+
 ## Deploy (user-performed)
 
 1. **Strapi → Strapi Cloud**: create a project at https://cloud.strapi.io, connect this repo, root dir `apps/cms`, Node ≥ 20. Set env vars: `OCTOLENS_WEBHOOK_SECRET`, `AI_API_KEY`, `AI_MODEL`, `AI_DAILY_TOKEN_BUDGET`, `STRAPI_DOCS_MCP_URL`, `SLACK_WEBHOOK_URL`, `SLACK_OPS_WEBHOOK_URL`, `PULSE_APP_URL`, `STALE_AFTER_DAYS` (DB + core secrets are auto-injected). **Verify backups are active on your plan.**
