@@ -31,6 +31,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::insights.insights.config',
   'api::assistant.chat.chat',
   'plugin::octolens.sync.trigger',
+  'plugin::users-permissions.user.me',
 ]
 
 const DEFAULT_CHANNELS = [

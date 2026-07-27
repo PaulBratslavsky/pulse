@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import Link from 'next/link'
 import './globals.css'
 import Providers from './providers'
+import { strapiFetch } from '@/lib/strapi'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
@@ -20,7 +21,10 @@ const nav = [
   { href: '/settings', label: 'Settings' },
 ]
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // null on /sign-in (no cookie) or if the session expired — header degrades gracefully
+  const me = await strapiFetch('/api/users/me').catch(() => null)
+
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
@@ -37,11 +41,23 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   </Link>
                 ))}
               </nav>
-              <form action="/api/auth/sign-out" method="post" className="ml-auto">
-                <button className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white" formAction="/api/auth/sign-out">
-                  Sign out
-                </button>
-              </form>
+              <div className="ml-auto flex items-center gap-3">
+                {me?.username && (
+                  <span className="text-sm text-zinc-600 dark:text-zinc-300">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700 text-xs font-semibold mr-1.5 align-middle">
+                      {me.username.charAt(0).toUpperCase()}
+                    </span>
+                    {me.username}
+                  </span>
+                )}
+                {me && (
+                  <form action="/api/auth/sign-out" method="post">
+                    <button className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white" formAction="/api/auth/sign-out">
+                      Sign out
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           </header>
           <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
