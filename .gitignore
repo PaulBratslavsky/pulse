@@ -13,3 +13,4 @@ playwright-report/
 playwright/.auth/
 apps/cms/src/plugins/*/dist/
 apps/cms/src/plugins/*/server/tsconfig.tsbuildinfo
+apps/web/playwright/.auth/
