@@ -14,6 +14,12 @@ export default {
     },
     {
       method: 'POST',
+      path: '/mentions/:documentId/acknowledge',
+      handler: 'mention.acknowledge',
+      config: { policies: [] },
+    },
+    {
+      method: 'POST',
       path: '/mentions/:documentId/correct',
       handler: 'mention.correct',
       config: { policies: [] },

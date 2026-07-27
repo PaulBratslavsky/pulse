@@ -24,6 +24,7 @@
     },
     "respondedAt": { "type": "datetime" },
     "notes": { "type": "text" },
+    "internal": { "type": "boolean", "default": false },
     "outcome": { "type": "component", "component": "shared.outcome", "repeatable": false }
   }
 }

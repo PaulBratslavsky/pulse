@@ -9,7 +9,7 @@ export default () => async (ctx: any, next: () => Promise<void>) => {
     owner: { fields: ['username'] },
     assignee: { fields: ['username'] },
     responses: {
-      fields: ['finalText', 'draftText', 'respondedAt', 'notes'],
+      fields: ['finalText', 'draftText', 'respondedAt', 'notes', 'internal'],
       populate: {
         respondedBy: { fields: ['username'] },
         outcome: true,

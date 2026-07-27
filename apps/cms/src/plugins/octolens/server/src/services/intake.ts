@@ -60,6 +60,37 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     return { label, score: OCTOLENS_SCORE[label] };
   },
 
+  /** Octolens marks competitor content with `tags: ["competitor_mention"]` and names
+   *  the matched keyword (`keywords: [{keyword: "payload", keywordTag: "competitor"}]`,
+   *  under `data.` in the webhook envelope). Surface each competitor as a
+   *  `kind: competitor` topic so it flows through queue filters, Top topics, themes,
+   *  and future insight reports — no parallel tagging system. */
+  competitorTopicNames(raw: any): string[] {
+    const src = raw?.data ?? raw ?? {};
+    const keywords = Array.isArray(src.keywords) ? src.keywords : [];
+    const names: string[] = keywords
+      .filter((k: any) => k?.keywordTag === 'competitor' && k?.keyword)
+      .map((k: any) => titleCase(String(k.keyword).trim()));
+    const tags = Array.isArray(src.tags) ? src.tags : [];
+    if (!names.length && tags.includes('competitor_mention')) names.push('Competitor');
+    return [...new Set(names)];
+  },
+
+  async resolveTopics(names: string[], kind: string): Promise<string[]> {
+    const ids: string[] = [];
+    for (const name of names) {
+      let topic = await strapi
+        .documents('api::topic.topic')
+        .findFirst({ filters: { name: { $eqi: name } } });
+      if (!topic) {
+        topic = await strapi.documents('api::topic.topic').create({ data: { name, kind } as any });
+        strapi.log.info(`[ingest] auto-created ${kind} topic '${name}'`);
+      }
+      ids.push(topic.documentId);
+    }
+    return ids;
+  },
+
   async resolveChannel(platformKey: string) {
     const key = PLATFORM_MAP[platformKey] ?? platformKey;
     let channel = await strapi.documents('api::channel.channel').findFirst({ filters: { key } });
@@ -83,6 +114,7 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     if (existing) return { created: false, documentId: existing.documentId };
 
     const channel = await this.resolveChannel(normalized.platformKey);
+    const competitorTopicIds = await this.resolveTopics(this.competitorTopicNames(raw), 'competitor');
 
     // Keyless mode: adopt Octolens' sentiment as the initial, provenance-stamped label.
     const octolens = !aiEnabled() ? this.octolensSentiment(raw) : null;
@@ -96,6 +128,7 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
         postedAt: normalized.postedAt ?? new Date().toISOString(),
         receivedAt: new Date().toISOString(),
         channel: channel?.documentId ?? null,
+        ...(competitorTopicIds.length ? { topics: competitorTopicIds } : {}),
         status: 'unanswered',
         ...(octolens
           ? {

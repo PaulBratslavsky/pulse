@@ -27,9 +27,15 @@ export default function MentionActions({
   const [draft, setDraft] = useState<string>('')
   const [finalText, setFinalText] = useState('')
   const [notes, setNotes] = useState('')
+  const [internal, setInternal] = useState(false)
   const [showCorrect, setShowCorrect] = useState(false)
   const [corrLabel, setCorrLabel] = useState(mention.sentimentLabel ?? 'neutral')
   const [corrTopics, setCorrTopics] = useState<string[]>((mention.topics ?? []).map((t: any) => t.documentId))
+  const [newTopics, setNewTopics] = useState<string[]>([])
+  const [topicDraft, setTopicDraft] = useState('')
+  const [showAck, setShowAck] = useState(false)
+  const [ackReason, setAckReason] = useState('competitor')
+  const [ackNote, setAckNote] = useState('')
 
   const claim = useMutation({
     mutationFn: () => post(`mentions/${mention.documentId}/claim`),
@@ -45,19 +51,40 @@ export default function MentionActions({
   const respond = useMutation({
     mutationFn: () =>
       post('responses', {
-        data: { mentionDocumentId: mention.documentId, finalText, draftText: draft || undefined, notes: notes || undefined },
+        data: {
+          mentionDocumentId: mention.documentId,
+          finalText,
+          draftText: draft || undefined,
+          notes: notes || undefined,
+          internal,
+        },
       }),
     onSuccess: () => {
       setFinalText('')
       setNotes('')
+      setInternal(false)
       router.refresh()
     },
   })
   const correct = useMutation({
     mutationFn: () =>
-      post(`mentions/${mention.documentId}/correct`, { sentimentLabel: corrLabel, topicIds: corrTopics }),
+      post(`mentions/${mention.documentId}/correct`, {
+        sentimentLabel: corrLabel,
+        topicIds: corrTopics,
+        newTopics: newTopics.length ? newTopics : undefined,
+      }),
     onSuccess: () => {
       setShowCorrect(false)
+      setNewTopics([])
+      router.refresh()
+    },
+  })
+  const acknowledge = useMutation({
+    mutationFn: () =>
+      post(`mentions/${mention.documentId}/acknowledge`, { reason: ackReason, note: ackNote || undefined }),
+    onSuccess: () => {
+      setShowAck(false)
+      setAckNote('')
       router.refresh()
     },
   })
@@ -73,7 +100,8 @@ export default function MentionActions({
     onSuccess: () => router.refresh(),
   })
 
-  const lastResponse = (mention.responses ?? [])[mention.responses?.length - 1]
+  // outcome tracking applies to public replies only — internal notes never "land"
+  const lastResponse = (mention.responses ?? []).filter((r: any) => !r.internal).at(-1)
 
   return (
     <div className="mt-6 space-y-4">
@@ -102,6 +130,14 @@ export default function MentionActions({
         >
           {aiEnabled ? 'Correct analysis' : 'Set sentiment / topics'}
         </button>
+        {['unanswered', 'claimed'].includes(mention.status) && (
+          <button
+            onClick={() => setShowAck((v) => !v)}
+            className="text-sm rounded-md border border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 px-3 py-1.5"
+          >
+            Acknowledge — no reply
+          </button>
+        )}
         {lastResponse && !lastResponse.outcome?.result && (
           <div className="flex items-center gap-1 text-sm">
             <span className="text-zinc-500">Outcome:</span>
@@ -117,6 +153,42 @@ export default function MentionActions({
           </div>
         )}
       </div>
+
+      {showAck && (
+        <div className="rounded-lg border border-violet-300 dark:border-violet-800 p-4 space-y-3">
+          <p className="text-sm font-medium">Close without a public reply</p>
+          <p className="text-xs text-zinc-500">
+            The mention leaves the queue but keeps feeding trends, themes, and reports. Use internal
+            notes below to record the team&apos;s take.
+          </p>
+          <div className="flex gap-3 flex-wrap">
+            {[
+              { value: 'competitor', label: 'competitor (replying would look pushy)' },
+              { value: 'not-relevant', label: 'not relevant' },
+              { value: 'watching', label: 'watching (no reply needed yet)' },
+            ].map((r) => (
+              <label key={r.value} className="text-sm flex items-center gap-1">
+                <input type="radio" checked={ackReason === r.value} onChange={() => setAckReason(r.value)} />{' '}
+                {r.label}
+              </label>
+            ))}
+          </div>
+          <input
+            value={ackNote}
+            onChange={(e) => setAckNote(e.target.value)}
+            placeholder="Why (optional — goes to the activity trail)"
+            className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() => acknowledge.mutate()}
+            disabled={acknowledge.isPending}
+            className="text-sm rounded-md bg-violet-600 text-white px-3 py-1.5"
+          >
+            {acknowledge.isPending ? 'Saving…' : 'Acknowledge'}
+          </button>
+          {acknowledge.isError && <p className="text-sm text-red-600">{String(acknowledge.error)}</p>}
+        </div>
+      )}
 
       {showCorrect && (
         <div className="rounded-lg border border-violet-300 dark:border-violet-800 p-4 space-y-3">
@@ -148,6 +220,40 @@ export default function MentionActions({
               </label>
             ))}
           </div>
+          <div className="flex gap-2 items-center flex-wrap">
+            <input
+              value={topicDraft}
+              onChange={(e) => setTopicDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && topicDraft.trim()) {
+                  e.preventDefault()
+                  setNewTopics((prev) => [...new Set([...prev, topicDraft.trim()])])
+                  setTopicDraft('')
+                }
+              }}
+              placeholder="New topic name…"
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm"
+            />
+            <button
+              onClick={() => {
+                if (!topicDraft.trim()) return
+                setNewTopics((prev) => [...new Set([...prev, topicDraft.trim()])])
+                setTopicDraft('')
+              }}
+              className="text-sm rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5"
+            >
+              + Add topic
+            </button>
+            {newTopics.map((n) => (
+              <span
+                key={n}
+                className="text-xs rounded-full bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 px-2 py-0.5"
+              >
+                #{n} (new){' '}
+                <button onClick={() => setNewTopics((prev) => prev.filter((x) => x !== n))}>✕</button>
+              </span>
+            ))}
+          </div>
           <button
             onClick={() => correct.mutate()}
             disabled={correct.isPending}
@@ -159,17 +265,25 @@ export default function MentionActions({
       )}
 
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-3">
-        <p className="text-sm font-medium">Record your reply (post it on the platform first — Pulse tracks it)</p>
+        <p className="text-sm font-medium">
+          {internal
+            ? 'Internal note (searchable team commentary — no public reply, status unchanged)'
+            : 'Record your reply (post it on the platform first — Pulse tracks it)'}
+        </p>
         {draft && (
           <div className="rounded bg-zinc-50 dark:bg-zinc-800 p-3 text-sm whitespace-pre-wrap border border-dashed border-zinc-300 dark:border-zinc-700">
             <p className="text-xs font-medium text-zinc-400 mb-1">AI draft (edit below before posting)</p>
             {draft}
           </div>
         )}
+        <label className="text-sm flex items-center gap-2">
+          <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
+          Internal note only (no public reply — e.g. competitor threads)
+        </label>
         <textarea
           value={finalText}
           onChange={(e) => setFinalText(e.target.value)}
-          placeholder="What you actually replied…"
+          placeholder={internal ? 'The team’s take on this mention…' : 'What you actually replied…'}
           rows={4}
           className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
         />
@@ -184,7 +298,7 @@ export default function MentionActions({
           disabled={respond.isPending || !finalText.trim()}
           className="text-sm rounded-md bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-1.5 font-medium disabled:opacity-50"
         >
-          {respond.isPending ? 'Saving…' : 'Record response'}
+          {respond.isPending ? 'Saving…' : internal ? 'Save internal note' : 'Record response'}
         </button>
         {respond.isError && <p className="text-sm text-red-600">{String(respond.error)}</p>}
       </div>

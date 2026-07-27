@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { strapiFetch, qs } from '@/lib/strapi'
-import { SentimentBadge, StatusBadge, StalenessFlag } from '@/components/badges'
+import { SentimentBadge, StatusBadge, StalenessFlag, PostedDate } from '@/components/badges'
 import ClaimButton from '@/components/claim-button'
 import SyncButton from '@/components/sync-button'
 
@@ -32,9 +32,10 @@ export default async function QueuePage({
   }
   const mentions = data.data ?? []
   const pagination = data.meta?.pagination ?? { page: 1, pageCount: 1, total: mentions.length }
-  const filterUrl = (over: { sentiment?: string; topic?: string; page?: number }) => {
+  const filterUrl = (over: { status?: string; sentiment?: string; topic?: string; page?: number }) => {
     const q = new URLSearchParams()
-    if (params.status) q.set('status', params.status)
+    const status = 'status' in over ? over.status : params.status
+    if (status) q.set('status', status)
     const sentiment = over.sentiment !== undefined ? over.sentiment : params.sentiment
     const topic = over.topic !== undefined ? over.topic : params.topic
     if (sentiment) q.set('sentiment', sentiment)
@@ -50,9 +51,27 @@ export default async function QueuePage({
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">Queue</h1>
-          <p className="text-sm text-zinc-500">Unanswered and claimed mentions, oldest first.</p>
+          <p className="text-sm text-zinc-500">
+            {params.status ? `${params.status} mentions, oldest first.` : 'Unanswered and claimed mentions, oldest first.'}
+          </p>
         </div>
         <SyncButton />
+      </div>
+
+      <div className="flex gap-2 mb-2 text-sm items-center flex-wrap">
+        {['', 'unanswered', 'claimed', 'answered', 'acknowledged', 'resolved'].map((s) => (
+          <Link
+            key={s || 'queue'}
+            href={filterUrl({ status: s || undefined, page: 0 })}
+            className={`rounded-full px-3 py-1 border ${
+              (params.status ?? '') === s
+                ? 'border-zinc-900 dark:border-white font-medium'
+                : 'border-zinc-300 dark:border-zinc-700 text-zinc-500'
+            }`}
+          >
+            {s || 'queue'}
+          </Link>
+        ))}
       </div>
 
       <div className="flex gap-2 mb-4 text-sm items-center flex-wrap">
@@ -101,8 +120,9 @@ export default async function QueuePage({
                 <StatusBadge status={m.status} />
                 <StalenessFlag receivedAt={m.receivedAt} />
                 <span className="text-xs text-zinc-500">
-                  @{m.authorHandle ?? 'unknown'} · {m.channel?.name ?? '—'}
+                  @{m.authorHandle ?? 'unknown'} · {m.channel?.name ?? '—'} ·
                 </span>
+                <PostedDate postedAt={m.postedAt ?? m.receivedAt} />
                 {(m.topics ?? []).map((t: any) => (
                   <Link key={t.slug} href={filterUrl({ topic: t.slug, page: 0 })} className="text-xs text-zinc-400 hover:text-rose-500">
                     #{t.name}

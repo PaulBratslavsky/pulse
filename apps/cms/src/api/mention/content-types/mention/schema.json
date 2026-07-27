@@ -33,8 +33,12 @@
     },
     "status": {
       "type": "enumeration",
-      "enum": ["unanswered", "claimed", "answered", "resolved"],
+      "enum": ["unanswered", "claimed", "answered", "resolved", "acknowledged"],
       "default": "unanswered"
+    },
+    "acknowledgeReason": {
+      "type": "enumeration",
+      "enum": ["competitor", "not-relevant", "watching"]
     },
     "owner": {
       "type": "relation",

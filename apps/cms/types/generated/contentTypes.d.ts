@@ -465,6 +465,8 @@ export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
         'answered',
         'resolved',
         'replayed',
+        'acknowledged',
+        'noted',
       ]
     > &
       Schema.Attribute.Required;
@@ -601,6 +603,9 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    acknowledgeReason: Schema.Attribute.Enumeration<
+      ['competitor', 'not-relevant', 'watching']
+    >;
     activities: Schema.Attribute.Relation<
       'oneToMany',
       'api::activity.activity'
@@ -646,7 +651,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     >;
     sentimentScore: Schema.Attribute.Decimal;
     status: Schema.Attribute.Enumeration<
-      ['unanswered', 'claimed', 'answered', 'resolved']
+      ['unanswered', 'claimed', 'answered', 'resolved', 'acknowledged']
     > &
       Schema.Attribute.DefaultTo<'unanswered'>;
     suggestedTeam: Schema.Attribute.Enumeration<
@@ -677,6 +682,7 @@ export interface ApiResponseResponse extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     draftText: Schema.Attribute.Text;
     finalText: Schema.Attribute.Text & Schema.Attribute.Required;
+    internal: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',

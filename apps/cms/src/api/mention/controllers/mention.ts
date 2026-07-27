@@ -104,10 +104,35 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
     return { data: updated }
   },
 
+  /** Close a mention deliberately without a public reply (competitor threads,
+   *  not-relevant chatter, watch-list items). Keeps full analytics value —
+   *  trends/themes key off analysisStatus, not workflow status. */
+  async acknowledge(ctx) {
+    const { documentId } = ctx.params
+    const user = ctx.state.user
+    const { reason, note } = ctx.request.body ?? {}
+    if (!['competitor', 'not-relevant', 'watching'].includes(reason))
+      return ctx.badRequest('invalid reason')
+    const mention = await strapi.documents('api::mention.mention').findOne({ documentId })
+    if (!mention) return ctx.notFound('mention not found')
+
+    const updated = await strapi.documents('api::mention.mention').update({
+      documentId,
+      data: { status: 'acknowledged', acknowledgeReason: reason } as any,
+    })
+    await logActivity(strapi, {
+      mentionDocumentId: documentId,
+      action: 'acknowledged',
+      actorId: user.id,
+      detail: { from: mention.status, reason, note: note || null },
+    })
+    return { data: updated }
+  },
+
   async correct(ctx) {
     const { documentId } = ctx.params
     const user = ctx.state.user
-    const { sentimentLabel, sentimentScore, topicIds } = ctx.request.body ?? {}
+    const { sentimentLabel, sentimentScore, topicIds, newTopics } = ctx.request.body ?? {}
     const mention = await strapi
       .documents('api::mention.mention')
       .findOne({ documentId, populate: { topics: true } as any })
@@ -128,14 +153,31 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       if (sentimentScore < -1 || sentimentScore > 1) return ctx.badRequest('score out of range')
       data.sentimentScore = sentimentScore
     }
-    if (Array.isArray(topicIds)) data.topics = topicIds
+    // Team can mint topics inline (keyless mode has no auto-clustering); topic.create
+    // stays unexposed — creation only happens through this validated path.
+    const createdTopicIds: string[] = []
+    if (Array.isArray(newTopics)) {
+      for (const rawName of newTopics.slice(0, 10)) {
+        const name = String(rawName).trim().slice(0, 80)
+        if (!name) continue
+        const existing = await strapi
+          .documents('api::topic.topic')
+          .findFirst({ filters: { name: { $eqi: name } } })
+        const topic =
+          existing ??
+          (await strapi.documents('api::topic.topic').create({ data: { name, kind: 'other' } as any }))
+        createdTopicIds.push(topic.documentId)
+      }
+    }
+    if (Array.isArray(topicIds) || createdTopicIds.length)
+      data.topics = [...new Set([...(Array.isArray(topicIds) ? topicIds : []), ...createdTopicIds])]
 
     const updated = await strapi.documents('api::mention.mention').update({ documentId, data: data as any })
     await logActivity(strapi, {
       mentionDocumentId: documentId,
       action: 'corrected',
       actorId: user.id,
-      detail: { before, after: { sentimentLabel, sentimentScore, topicIds } },
+      detail: { before, after: { sentimentLabel, sentimentScore, topicIds, newTopics: newTopics ?? null } },
     })
     return { data: updated }
   },

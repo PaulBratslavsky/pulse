@@ -22,7 +22,7 @@
     },
     "action": {
       "type": "enumeration",
-      "enum": ["ingested", "analyzed", "claimed", "routed", "corrected", "answered", "resolved", "replayed"],
+      "enum": ["ingested", "analyzed", "claimed", "routed", "corrected", "answered", "resolved", "replayed", "acknowledged", "noted"],
       "required": true
     },
     "detail": { "type": "json" },

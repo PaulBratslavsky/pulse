@@ -56,6 +56,57 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('analyzed by octolens')).toBeVisible()
   })
 
+  test('acknowledge closes a mention without a public reply', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+
+    await page.getByRole('button', { name: 'Acknowledge — no reply' }).click()
+    await page.getByRole('radio', { name: /competitor/ }).check()
+    await page.getByPlaceholder(/Why \(optional/).fill('competitor thread — replying would look pushy')
+    await page.getByRole('button', { name: 'Acknowledge', exact: true }).click()
+
+    await expect(page.getByText('acknowledged', { exact: true }).first()).toBeVisible()
+    // reason chip next to the status badge + reason in the activity trail
+    await expect(page.getByText('competitor', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText(/acknowledged.*—.*competitor/).first()).toBeVisible()
+  })
+
+  test('internal note records commentary without answering the mention', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+
+    await page.getByRole('checkbox', { name: /internal note only/i }).check()
+    await page.getByPlaceholder('The team’s take on this mention…').fill('E2E internal-only commentary')
+    await page.getByRole('button', { name: 'Save internal note' }).click()
+
+    await expect(page.getByText('E2E internal-only commentary')).toBeVisible()
+    await expect(page.getByText('internal note', { exact: true })).toBeVisible()
+    // status must NOT flip to answered
+    await expect(page.getByText('unanswered', { exact: true }).first()).toBeVisible()
+  })
+
+  test('new topics can be created inline from the labeling panel', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    const topicName = `E2E Topic ${Date.now().toString(36)}`
+    await page.goto(`/mentions/${documentId}`)
+
+    await page.getByRole('button', { name: /correct analysis|set sentiment/i }).click()
+    await page.getByPlaceholder('New topic name…').fill(topicName)
+    await page.getByRole('button', { name: '+ Add topic' }).click()
+    await page.getByRole('button', { name: 'Save correction' }).click()
+
+    await expect(page.getByText(`#${topicName}`).first()).toBeVisible()
+  })
+
+  test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {
+    const { documentId } = await injectMention(request, {
+      tags: ['competitor_mention'],
+      keywords: [{ id: 1, keyword: 'payload', keywordTag: 'competitor' }],
+    })
+    await page.goto(`/mentions/${documentId}`)
+    await expect(page.getByText('#Payload').first()).toBeVisible()
+  })
+
   test('search finds recorded responses', async ({ page }) => {
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')

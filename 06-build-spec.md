@@ -243,3 +243,6 @@ apps/web/app/
 - kapa.ai as an external grounding layer when the app is consumed from Claude Desktop
 - Email provider (unlocks self-serve password reset)
 - Deferred consciously: ingest rate limiting · CSV export · staging environment · automatic outcome detection · data retention policy (no auto-deletion in v1)
+
+## Revisions
+- **2026-07-27 — Competitor handling & manual topics.** Mention `status` gains `acknowledged` (+ `acknowledgeReason`: competitor / not-relevant / watching) via `POST /api/mentions/:documentId/acknowledge` — deliberate close without a public reply; keeps full analytics value (trends/themes key off `analysisStatus`). Response gains `internal: boolean` — internal-only commentary that never flips the mention to `answered` (activity action `noted`), searchable through the existing response search. Octolens competitor signal (`tags: ["competitor_mention"]`, `keywords[].keywordTag: "competitor"`) auto-creates/attaches `kind: competitor` topics at intake (e.g. `#Payload`). The labeling panel can mint new topics inline (server-side create inside the `correct` action — `topic.create` stays unexposed). Queue gains a status filter row and always shows the posted date (the red "Nd old" chip remains the 2-day SLA flag, not a date).

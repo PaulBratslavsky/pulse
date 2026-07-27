@@ -8,31 +8,38 @@ export default factories.createCoreController('api::response.response', ({ strap
    */
   async create(ctx) {
     const user = ctx.state.user
-    const { mentionDocumentId, finalText, draftText, notes } = ctx.request.body?.data ?? ctx.request.body ?? {}
+    const { mentionDocumentId, finalText, draftText, notes, internal } =
+      ctx.request.body?.data ?? ctx.request.body ?? {}
     if (!mentionDocumentId || !finalText) return ctx.badRequest('mentionDocumentId and finalText are required')
 
     const mention = await strapi.documents('api::mention.mention').findOne({ documentId: mentionDocumentId })
     if (!mention) return ctx.badRequest('mention not found')
 
+    const isInternal = Boolean(internal)
     const response = await strapi.documents('api::response.response').create({
       data: {
         mention: mentionDocumentId,
         finalText,
         draftText: draftText ?? null,
         notes: notes ?? null,
+        internal: isInternal,
         respondedBy: user.id,
         respondedAt: new Date().toISOString(),
       } as any,
     })
-    await strapi.documents('api::mention.mention').update({
-      documentId: mentionDocumentId,
-      data: { status: 'answered' } as any,
-    })
+    // Internal notes record team commentary without a public reply — the mention
+    // keeps its workflow status (acknowledged/claimed/etc.), only real replies answer it.
+    if (!isInternal) {
+      await strapi.documents('api::mention.mention').update({
+        documentId: mentionDocumentId,
+        data: { status: 'answered' } as any,
+      })
+    }
     await logActivity(strapi, {
       mentionDocumentId,
-      action: 'answered',
+      action: isInternal ? 'noted' : 'answered',
       actorId: user.id,
-      detail: { responseDocumentId: response.documentId },
+      detail: { responseDocumentId: response.documentId, internal: isInternal },
     })
     return { data: response }
   },

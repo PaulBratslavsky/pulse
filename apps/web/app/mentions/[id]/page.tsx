@@ -24,6 +24,11 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <SentimentBadge label={m.sentimentLabel} />
           <StatusBadge status={m.status} />
+          {m.status === 'acknowledged' && m.acknowledgeReason && (
+            <span className="text-xs rounded px-1.5 py-0.5 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
+              {m.acknowledgeReason}
+            </span>
+          )}
           {m.humanCorrected && (
             <span className="text-xs rounded px-1.5 py-0.5 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
               human-corrected
@@ -80,12 +85,28 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           )}
           <ul className="space-y-3">
             {(m.responses ?? []).map((r: any) => (
-              <li key={r.documentId} className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+              <li
+                key={r.documentId}
+                className={`rounded-lg border bg-white dark:bg-zinc-900 p-4 ${
+                  r.internal
+                    ? 'border-violet-300 dark:border-violet-800'
+                    : 'border-zinc-200 dark:border-zinc-800'
+                }`}
+              >
+                {r.internal && (
+                  <span className="inline-block mb-2 text-xs rounded px-1.5 py-0.5 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 font-medium">
+                    internal note
+                  </span>
+                )}
                 <p className="text-sm whitespace-pre-wrap">{r.finalText}</p>
                 <p className="text-xs text-zinc-500 mt-2">
                   by {r.respondedBy?.username ?? '—'} ·{' '}
-                  {r.respondedAt ? new Date(r.respondedAt).toLocaleString() : '—'} · outcome:{' '}
-                  <span className="font-medium">{r.outcome?.result ?? 'not recorded'}</span>
+                  {r.respondedAt ? new Date(r.respondedAt).toLocaleString() : '—'}
+                  {!r.internal && (
+                    <>
+                      {' '}· outcome: <span className="font-medium">{r.outcome?.result ?? 'not recorded'}</span>
+                    </>
+                  )}
                 </p>
                 {r.notes && <p className="text-xs text-zinc-400 mt-1">notes: {r.notes}</p>}
               </li>
@@ -101,6 +122,9 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
             <li key={a.documentId} className="text-sm">
               <span className="font-medium">{a.action}</span>
               {a.actor ? <span className="text-zinc-500"> by {a.actor.username}</span> : <span className="text-zinc-500"> (system)</span>}
+              {a.action === 'acknowledged' && a.detail?.reason && (
+                <span className="text-zinc-500"> — {a.detail.reason}{a.detail.note ? `: ${a.detail.note}` : ''}</span>
+              )}
               <div className="text-xs text-zinc-400">{a.at ? new Date(a.at).toLocaleString() : ''}</div>
             </li>
           ))}
