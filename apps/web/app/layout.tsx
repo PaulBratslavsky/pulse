@@ -4,6 +4,7 @@ import Link from 'next/link'
 import './globals.css'
 import Providers from './providers'
 import { strapiFetch } from '@/lib/strapi'
+import { logoutUserAction } from '@/data/actions/auth'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
@@ -51,8 +52,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                   </span>
                 )}
                 {me && (
-                  <form action="/api/auth/sign-out" method="post">
-                    <button className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white" formAction="/api/auth/sign-out">
+                  <form action={logoutUserAction}>
+                    <button className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white">
                       Sign out
                     </button>
                   </form>

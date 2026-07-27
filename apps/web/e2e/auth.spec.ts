@@ -29,6 +29,9 @@ test.describe('auth', () => {
   test('sign out returns to sign-in and re-locks the app', async ({ page }) => {
     await signIn(page)
     await page.getByRole('button', { name: /sign out/i }).click()
+    // the logout server action clears the cookie and redirects — wait for it
+    await expect(page).toHaveURL(/\/sign-in/)
+    // middleware re-locks: navigating back bounces to sign-in
     await page.goto('/')
     await expect(page).toHaveURL(/\/sign-in/)
   })
