@@ -7,7 +7,7 @@ test.describe('insights surfaces', () => {
     await expect(page.getByText('current Pulse score')).toBeVisible()
     // seeded data → a real number, not the em dash
     await expect(page.locator('.text-4xl')).not.toHaveText('—')
-    await expect(page.locator('svg polyline')).toBeVisible()
+    await expect(page.locator('div.overflow-x-auto svg polyline')).toBeVisible() // scoped: nav icons also contain polylines
   })
 
   test('themes ranks recurring topics', async ({ page }) => {

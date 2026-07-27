@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { strapiFetch, qs } from '@/lib/strapi'
 import { SentimentBadge, StatusBadge, StalenessFlag } from '@/components/badges'
-import SearchBox from '@/components/search-box'
 import ClaimButton from '@/components/claim-button'
 import SyncButton from '@/components/sync-button'
 
@@ -37,10 +36,7 @@ export default async function QueuePage({
           <h1 className="text-2xl font-semibold">Queue</h1>
           <p className="text-sm text-zinc-500">Unanswered and claimed mentions, oldest first.</p>
         </div>
-        <div className="flex items-center gap-3 flex-1 justify-end">
-          <SearchBox />
-          <SyncButton />
-        </div>
+        <SyncButton />
       </div>
 
       <div className="flex gap-2 mb-4 text-sm">
