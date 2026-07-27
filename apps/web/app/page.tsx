@@ -88,7 +88,6 @@ export default async function QueuePage({
                 <StalenessFlag receivedAt={m.receivedAt} />
                 <span className="text-xs text-zinc-500">
                   @{m.authorHandle ?? 'unknown'} · {m.channel?.name ?? '—'}
-                  {m.owner ? ` · claimed by ${m.owner.username}` : ''}
                 </span>
                 {(m.topics ?? []).map((t: any) => (
                   <span key={t.slug} className="text-xs text-zinc-400">#{t.name}</span>
@@ -106,8 +105,16 @@ export default async function QueuePage({
                   <span className="text-xs text-blue-600 group-hover:underline">Read more →</span>
                 )}
               </Link>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex items-center gap-2">
                 {m.status === 'unanswered' && <ClaimButton documentId={m.documentId} />}
+                {m.owner && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-sm text-zinc-700 dark:text-zinc-300">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[10px] font-semibold">
+                      {m.owner.username.charAt(0).toUpperCase()}
+                    </span>
+                    Claimed by <strong>{m.owner.username}</strong>
+                  </span>
+                )}
                 <Link
                   href={`/mentions/${m.documentId}`}
                   className="text-sm rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1"

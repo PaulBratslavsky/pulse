@@ -33,6 +33,22 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
             @{m.authorHandle ?? 'unknown'} · {m.channel?.name ?? '—'} ·{' '}
             {m.postedAt ? new Date(m.postedAt).toLocaleString() : '—'}
           </span>
+          {m.owner && (
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs text-zinc-700 dark:text-zinc-300">
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[9px] font-semibold">
+                {m.owner.username.charAt(0).toUpperCase()}
+              </span>
+              Claimed by <strong>{m.owner.username}</strong>
+            </span>
+          )}
+          {m.assignee && (
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs text-zinc-700 dark:text-zinc-300">
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-zinc-400 text-white text-[9px] font-semibold">
+                {m.assignee.username.charAt(0).toUpperCase()}
+              </span>
+              Assigned to <strong>{m.assignee.username}</strong>
+            </span>
+          )}
         </div>
 
         <blockquote className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 mb-2 whitespace-pre-wrap break-words leading-relaxed max-h-[32rem] overflow-y-auto">
