@@ -6,5 +6,11 @@ export default {
       handler: 'octolens.receive',
       config: { auth: false, policies: [] },
     },
+    {
+      method: 'POST',
+      path: '/ingest/octolens-sync',
+      handler: 'octolens.sync',
+      config: { policies: [] },
+    },
   ],
 }

@@ -46,4 +46,17 @@ export default {
     },
     options: { rule: '0 0 * * *' },
   },
+  // Octolens pull-sync: reconciliation for anything the webhook missed.
+  // No-op when no OCTOLENS_API key is configured.
+  octolensSync: {
+    task: async ({ strapi }: any) => {
+      try {
+        await strapi.service('api::ingest.octolens-sync').sync({ lookbackHours: 24 })
+      } catch (err: any) {
+        strapi.log.error(`[cron] octolens sync crashed: ${err.message}`)
+        await strapi.service('api::notify.slack').ops(`octolens sync crashed: ${err.message}`).catch(() => {})
+      }
+    },
+    options: { rule: '*/15 * * * *' },
+  },
 }

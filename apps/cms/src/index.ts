@@ -30,6 +30,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::insights.insights.stale',
   'api::insights.insights.config',
   'api::assistant.chat.chat',
+  'api::ingest.octolens.sync',
 ]
 
 const DEFAULT_CHANNELS = [
