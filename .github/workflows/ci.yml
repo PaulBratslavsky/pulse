@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # One-command setup: workspace install + .env from examples
+      # (SQLite locally; webhook secret matches the e2e suite; AI stays disabled — keyless CI)
+      - name: Setup
+        run: npm run setup
+
+      - name: Typecheck (cms)
+        working-directory: apps/cms
+        run: npx tsc --noEmit
+
+      - name: Typecheck (web)
+        working-directory: apps/web
+        run: npx tsc --noEmit
+
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      # Boot the full stack with demo seed (the e2e suite's fixtures: dana/mark/priya,
+      # pre-analyzed mentions for trends/themes/search). Keyless: AI features disabled,
+      # which the suite covers explicitly.
+      - name: Start stack (demo seed)
+        run: |
+          nohup npm run dev:demo > stack.log 2>&1 &
+          npx wait-on -t 240000 http://localhost:1337/_health
+          npx wait-on -t 120000 http://localhost:3000/sign-in
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure
+          path: |
+            apps/web/test-results/
+            stack.log
+          retention-days: 7
