@@ -83,8 +83,17 @@ export default async function QueuePage({
                   <span key={t.slug} className="text-xs text-zinc-400">#{t.name}</span>
                 ))}
               </div>
-              <Link href={`/mentions/${m.documentId}`} className="block hover:underline">
-                {m.content}
+              <Link
+                href={`/mentions/${m.documentId}`}
+                className="block group"
+                title="Open full mention"
+              >
+                <span className="line-clamp-3 break-words group-hover:text-zinc-950 dark:group-hover:text-white">
+                  {m.content}
+                </span>
+                {m.content.length > 240 && (
+                  <span className="text-xs text-blue-600 group-hover:underline">Read more →</span>
+                )}
               </Link>
               <div className="mt-3 flex gap-2">
                 {m.status === 'unanswered' && <ClaimButton documentId={m.documentId} />}

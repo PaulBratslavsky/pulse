@@ -35,7 +35,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           </span>
         </div>
 
-        <blockquote className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 text-lg mb-2">
+        <blockquote className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 mb-2 whitespace-pre-wrap break-words leading-relaxed max-h-[32rem] overflow-y-auto">
           {m.content}
         </blockquote>
         {m.url && (
