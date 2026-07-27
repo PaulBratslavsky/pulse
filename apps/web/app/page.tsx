@@ -8,9 +8,10 @@ import SyncButton from '@/components/sync-button'
 export default async function QueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; sentiment?: string }>
+  searchParams: Promise<{ status?: string; sentiment?: string; page?: string }>
 }) {
   const params = await searchParams
+  const page = Math.max(1, Number(params.page) || 1)
   let data: any
   try {
     data = await strapiFetch(
@@ -20,7 +21,8 @@ export default async function QueuePage({
           ...(params.status ? {} : { 'filters[status][$in][1]': 'claimed' }),
           ...(params.sentiment ? { 'filters[sentimentLabel][$eq]': params.sentiment } : {}),
           sort: 'receivedAt:asc',
-          'pagination[pageSize]': 50,
+          'pagination[page]': page,
+          'pagination[pageSize]': 25,
         })
     )
   } catch (err: any) {
@@ -28,6 +30,15 @@ export default async function QueuePage({
     throw err
   }
   const mentions = data.data ?? []
+  const pagination = data.meta?.pagination ?? { page: 1, pageCount: 1, total: mentions.length }
+  const pageUrl = (p: number) => {
+    const q = new URLSearchParams()
+    if (params.status) q.set('status', params.status)
+    if (params.sentiment) q.set('sentiment', params.sentiment)
+    if (p > 1) q.set('page', String(p))
+    const qs = q.toString()
+    return qs ? `/?${qs}` : '/'
+  }
 
   return (
     <div>
@@ -107,6 +118,28 @@ export default async function QueuePage({
             </li>
           ))}
         </ul>
+      )}
+
+      {pagination.pageCount > 1 && (
+        <nav className="mt-6 flex items-center justify-center gap-4 text-sm" aria-label="Pagination">
+          {pagination.page > 1 ? (
+            <Link href={pageUrl(pagination.page - 1)} className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              ← Prev
+            </Link>
+          ) : (
+            <span className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-zinc-400">← Prev</span>
+          )}
+          <span className="text-zinc-500">
+            Page {pagination.page} of {pagination.pageCount} · {pagination.total} mentions
+          </span>
+          {pagination.page < pagination.pageCount ? (
+            <Link href={pageUrl(pagination.page + 1)} className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              Next →
+            </Link>
+          ) : (
+            <span className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-zinc-400">Next →</span>
+          )}
+        </nav>
       )}
     </div>
   )
