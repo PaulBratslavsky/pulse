@@ -168,6 +168,7 @@ Not installed.
 - **Admin panel roles**: Super Admin (Paul) manages accounts, topics curation, events, channels. Editors optional later.
 - Extensibility: future roles (e.g. read-only stakeholder) = new U&P role + per-route permission flips; no schema change.
 - Server-set fields (`owner`, `respondedBy`) are never accepted from the request body — stamped in controllers via the Document Service (naive body injection 400s in v5).
+- **User-data exposure pattern (enforced):** the ONLY user endpoint exposed is `GET /api/users/me` (own record). `user.find`/`findOne` are never seeded — `/api/users` 403s for everyone. Where user identity appears on other records (owner/assignee/actor/respondedBy), controllers whitelist to `id`/`documentId`/`username` only. Assignee pickers etc. must be built on those whitelisted relation fields, never on a user list endpoint.
 - No `is-owner` policy in v1 — deliberate: internal high-trust team; any member may act on any mention.
 
 ## Lifecycles / policies / middlewares (v5 layering)
