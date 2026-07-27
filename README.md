@@ -46,7 +46,9 @@ curl -X POST http://localhost:1337/api/ingest/octolens \
 1. **Strapi → Strapi Cloud**: create a project at https://cloud.strapi.io, connect this repo, root dir `apps/cms`, Node ≥ 20. Set env vars: `OCTOLENS_WEBHOOK_SECRET`, `AI_API_KEY`, `AI_MODEL`, `AI_DAILY_TOKEN_BUDGET`, `STRAPI_DOCS_MCP_URL`, `SLACK_WEBHOOK_URL`, `SLACK_OPS_WEBHOOK_URL`, `PULSE_APP_URL`, `STALE_AFTER_DAYS` (DB + core secrets are auto-injected). **Verify backups are active on your plan.**
 2. **Frontend → Vercel**: import repo, root dir `apps/web`, set `NEXT_PUBLIC_STRAPI_URL` to the Strapi Cloud URL.
 3. **CORS**: set `strapi::cors` origin in `apps/cms/config/middlewares.ts` to the Vercel URL.
-4. **Octolens**: the webhook form supports only a URL (no custom headers), so pass the secret as a query param: `https://<strapi-cloud-url>/api/ingest/octolens?secret=<OCTOLENS_WEBHOOK_SECRET>`. (Integrations that can send headers may use `x-pulse-secret` instead.)
+4. **Octolens** — all integration is Strapi-backend-only:
+   - **Pull-sync (primary)**: with `OCTOLENS_API` set, Strapi pulls mentions every 5 minutes (`OCTOLENS_SYNC_CRON` to change). This is the active ingestion path.
+   - **Webhook (ready, currently blocked upstream)**: `https://<strapi-cloud-url>/api/ingest/octolens?secret=<OCTOLENS_WEBHOOK_SECRET>` (or header `x-pulse-secret`). ⚠️ As of 2026-07-27 Octolens' webhook validator false-positives on Strapi Cloud's public Cloudflare IPs (`172.66/16` misread as private) and refuses the URL — bug reported. The endpoint is live and verified; deliveries start working the moment they fix their range check.
 5. **MCP clients** (Claude Desktop etc.): the `/mcp` endpoint requires an **Admin Token** (`kind: admin`) — a classic content-API token is rejected. Create one scoped to read-only reporting (verified on 5.51):
    ```
    POST /admin/admin-tokens   (as a logged-in admin)

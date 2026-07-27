@@ -7,8 +7,6 @@ export function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/sign-in') ||
     pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/octolens') || // webhook relay — Strapi validates the secret
-
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico'
   ) {

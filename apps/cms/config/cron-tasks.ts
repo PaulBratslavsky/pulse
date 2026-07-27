@@ -46,8 +46,11 @@ export default {
     },
     options: { rule: '0 0 * * *' },
   },
-  // Octolens pull-sync: reconciliation for anything the webhook missed.
-  // No-op when no OCTOLENS_API key is configured.
+  // Octolens pull-sync — the PRIMARY ingestion path (user decision: all Octolens
+  // integration lives in the Strapi backend; no frontend relay). The direct
+  // webhook remains ready at /api/ingest/octolens for when Octolens fixes their
+  // SSRF false-positive on Cloudflare's 172.66/16. Until then this cadence is
+  // the freshness ceiling. No-op when no OCTOLENS_API key is configured.
   octolensSync: {
     task: async ({ strapi }: any) => {
       try {
@@ -57,6 +60,6 @@ export default {
         await strapi.service('api::notify.slack').ops(`octolens sync crashed: ${err.message}`).catch(() => {})
       }
     },
-    options: { rule: '*/15 * * * *' },
+    options: { rule: process.env.OCTOLENS_SYNC_CRON || '*/5 * * * *' },
   },
 }
