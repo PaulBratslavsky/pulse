@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "pulse_jwt",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxIiwic2Vzc2lvbklkIjoiMzI1MWIxYzNjM2Y0OWI4MjJkMjIyMzk4MzNhNmQ0MDEiLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNzg1MTczMzg1LCJleHAiOjE3ODUxNzM5ODV9.KWl1AMw8ykf0A-jVKl_oQano278q_FITVs2d6KvvPts",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1785778185.897744,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

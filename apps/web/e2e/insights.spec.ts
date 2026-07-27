@@ -1,9 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { signIn } from './helpers'
+
 
 test.describe('insights surfaces', () => {
   test('trends renders the Pulse score and chart', async ({ page }) => {
-    await signIn(page)
     await page.goto('/trends')
     await expect(page.getByText('current Pulse score')).toBeVisible()
     // seeded data → a real number, not the em dash
@@ -12,14 +11,12 @@ test.describe('insights surfaces', () => {
   })
 
   test('themes ranks recurring topics', async ({ page }) => {
-    await signIn(page)
     await page.goto('/themes')
     await expect(page.getByText(/ranked by volume × negativity/)).toBeVisible()
     await expect(page.locator('li', { hasText: 'mentions' }).first()).toBeVisible()
   })
 
   test('chat works when AI is enabled, shows disabled notice when not', async ({ page, request }) => {
-    await signIn(page)
     const config = await (
       await request.get('http://localhost:3000/api/pulse/insights/config', {
         headers: { cookie: (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ') },
@@ -38,7 +35,7 @@ test.describe('insights surfaces', () => {
   })
 
   test('draft button hidden and manual labeling offered when AI is disabled', async ({ page, request }) => {
-    await signIn(page)
+    await page.goto('/')
     const cookies = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const config = await (
       await request.get('http://localhost:3000/api/pulse/insights/config', { headers: { cookie: cookies } })

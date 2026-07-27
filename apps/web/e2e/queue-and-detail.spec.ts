@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { signIn, injectMention } from './helpers'
+import { injectMention } from './helpers'
 
 test.describe('queue → claim → respond → outcome (the core loop)', () => {
   test('webhook-injected mention appears in the queue and walks the full loop', async ({
@@ -7,9 +7,9 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     request,
   }) => {
     const { externalId } = await injectMention(request)
-    await signIn(page)
 
     // the fresh mention is in the queue (unanalyzed yet — badge shows unscored)
+    await page.goto('/')
     const card = page.locator('li', { hasText: externalId })
     await expect(card).toBeVisible()
 
@@ -37,7 +37,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
 
   test('correction controls set human-corrected label', async ({ page, request }) => {
     const { externalId } = await injectMention(request)
-    await signIn(page)
+    await page.goto('/')
     await page.locator('li', { hasText: externalId }).getByRole('link', { name: 'Open' }).click()
 
     // label depends on the AI feature flag: "Correct analysis" (on) / "Set sentiment / topics" (off)
@@ -49,7 +49,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
   })
 
   test('search finds recorded responses', async ({ page }) => {
-    await signIn(page)
+    await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')
     await expect(page.locator('a', { hasText: 'reply' }).first()).toBeVisible()
   })

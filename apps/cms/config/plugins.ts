@@ -29,6 +29,11 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin =>
       sessions: {
         httpOnly: true,
       },
+      // Dev/test only: the default auth rate limit (small max per interval) trips
+      // repeated e2e runs ("Too many requests"). Production keeps the default.
+      ...(process.env.NODE_ENV !== 'production'
+        ? { ratelimit: { interval: 60000, max: 100 } }
+        : {}),
     },
   },
   upload: {
