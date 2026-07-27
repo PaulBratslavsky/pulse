@@ -6,15 +6,23 @@ The Strapi team's internal tool for tracking sentiment across social mentions, c
 - **Backend**: Strapi v5 (≥ 5.49) — `apps/cms` (local plugins in `apps/cms/src/plugins/`)
 - **Frontend**: Next.js 16 (App Router) — `apps/web`
 
-## Local dev
+## Local dev — two commands
 
 ```bash
-npm install
-npm run dev:cms   # Strapi on :1337 (SQLite locally; Postgres on Strapi Cloud)
-npm run dev:web   # Next.js on :3000
+npm run setup     # installs all workspaces + copies .env.example → .env / .env.local (skips existing)
+npm run dev       # starts Strapi (:1337), waits for its health check, then starts Next.js (:3000)
 ```
 
-Copy `apps/cms/.env.example` → `apps/cms/.env` and `apps/web/.env.example` → `apps/web/.env.local`, then fill in secrets (see the Environment variables section of the build spec).
+That's it — SQLite locally (Postgres on Strapi Cloud), and the copied env defaults work out of the box (webhook secret matches the e2e suite; AI stays disabled until you set `AI_API_KEY`).
+
+Other root scripts:
+
+| Script | What it does |
+|---|---|
+| `npm run dev:demo` | same as `dev`, but seeds demo data on first boot (10 mentions, 3 users — `dana`/`mark`/`priya`, password `PulseDemo1!`) |
+| `npm run backend` / `npm run frontend` | run one side only |
+| `npm run test:e2e` | Playwright suite (11 tests) against the running dev servers |
+| `npm run db:export` / `npm run db:import` | snapshot / restore Strapi data via `seed-data.tar.gz` |
 
 ### Demo data (dev only)
 

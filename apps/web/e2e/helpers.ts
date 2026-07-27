@@ -10,8 +10,9 @@ export async function signIn(page: Page, creds = DANA) {
   await page.getByPlaceholder('Email or username').fill(creds.identifier)
   await page.getByPlaceholder('Password').fill(creds.password)
   await page.getByRole('button', { name: /sign in/i }).click()
-  // more robust than waitForURL: the queue heading only renders authenticated
-  await expect(page.getByRole('heading', { name: 'Queue' })).toBeVisible({ timeout: 15_000 })
+  // more robust than waitForURL: the queue heading only renders authenticated.
+  // 30s: dev-mode first-compile of a route after a fresh install can exceed 15s.
+  await expect(page.getByRole('heading', { name: 'Queue' })).toBeVisible({ timeout: 30_000 })
 }
 
 /** Inject a fresh mention through the real ingest webhook; returns its documentId. */
