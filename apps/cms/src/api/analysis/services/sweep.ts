@@ -12,17 +12,51 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
     const notifySlack = () => strapi.service('api::notify.slack') as any;
 
     if (!aiEnabled()) {
+      // Keyless: adopt Octolens sentiment where the raw payload carries it
+      // (modelVersion 'octolens'); otherwise mark skipped. Also rescans
+      // skipped-but-unlabeled mentions so pre-feature backlogs get labeled.
+      const intakeService = strapi.service('api::ingest.intake') as any;
       const pending = await strapi.documents('api::mention.mention').findMany({
-        filters: { analysisStatus: 'pending' },
+        filters: {
+          $or: [
+            { analysisStatus: 'pending' },
+            { analysisStatus: 'skipped', sentimentLabel: { $null: true } },
+          ],
+        } as any,
         limit: 50,
         sort: 'receivedAt:asc' as any,
       });
       for (const mention of pending) {
-        const updated = await strapi.documents('api::mention.mention').update({
-          documentId: mention.documentId,
-          data: { analysisStatus: 'skipped' } as any,
-        });
-        await notifySlack().newMention(updated).catch(() => {});
+        const octolens = intakeService.octolensSentiment(mention.raw);
+        if (octolens) {
+          const updated = await strapi.documents('api::mention.mention').update({
+            documentId: mention.documentId,
+            data: {
+              analysisStatus: 'analyzed',
+              sentimentLabel: octolens.label,
+              sentimentScore: octolens.score,
+              modelVersion: 'octolens',
+              promptVersion: 'label-map-v1',
+            } as any,
+          });
+          await strapi.documents('api::activity.activity').create({
+            data: {
+              mention: mention.documentId,
+              action: 'analyzed',
+              detail: { modelVersion: 'octolens', label: octolens.label },
+              at: new Date().toISOString(),
+            } as any,
+          });
+          if (mention.analysisStatus === 'pending') {
+            await notifySlack().newMention(updated).catch(() => {});
+          }
+        } else if (mention.analysisStatus === 'pending') {
+          const updated = await strapi.documents('api::mention.mention').update({
+            documentId: mention.documentId,
+            data: { analysisStatus: 'skipped' } as any,
+          });
+          await notifySlack().newMention(updated).catch(() => {});
+        }
       }
       return pending.length;
     }

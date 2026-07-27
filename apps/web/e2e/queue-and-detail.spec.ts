@@ -48,6 +48,18 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('corrected', { exact: true })).toBeVisible() // activity entry
   })
 
+  test('octolens sentiment is adopted as initial label when AI is disabled', async ({ page, request }) => {
+    const config = await (await request.get('http://localhost:3000/api/pulse/insights/config')).json().catch(() => null)
+    // this behavior is keyless-only; with AI enabled Pulse analyzes instead
+    test.skip(config?.data?.aiEnabled === true, 'AI enabled — Pulse analyzes, Octolens label ignored')
+
+    const { externalId } = await injectMention(request, { sentiment: 'Negative' })
+    await page.goto('/')
+    const card = page.locator('li', { hasText: externalId })
+    await expect(card).toBeVisible()
+    await expect(card.getByText('negative', { exact: true })).toBeVisible() // labeled at intake, no sweep wait
+  })
+
   test('search finds recorded responses', async ({ page }) => {
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')

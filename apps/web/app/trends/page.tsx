@@ -37,8 +37,9 @@ export default async function TrendsPage({
 
       {!config.data.aiEnabled && (
         <p className="mb-4 text-sm rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
-          AI analysis is disabled — the score reflects only manually labeled mentions. Set{' '}
-          <code className="text-xs">AI_API_KEY</code> to enable automatic sentiment analysis.
+          Pulse AI is disabled — scores come from Octolens sentiment labels and manual labeling
+          (provenance-stamped <code className="text-xs">modelVersion: octolens</code>). Set{' '}
+          <code className="text-xs">AI_API_KEY</code> for Pulse&apos;s own analysis.
         </p>
       )}
       {series.every((p: any) => p.score == null) ? (
