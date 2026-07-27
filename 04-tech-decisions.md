@@ -22,14 +22,14 @@ For each decision: what was chosen, what other options were considered, and why 
 
 ## Backend / CMS
 - **Choice**: Strapi v5, **≥ 5.49.0**, Node ≥ 20, TypeScript
-- **Plugins anticipated** (all **local plugins** inside the app, `src/plugins/*`):
+- **Modules** (Strapi-native `src/api/<name>` folders — REVISED from local plugins during build; content-type optional):
   - `ingest` — webhook receiver for the mention source (Octolens), dedupe + normalize
   - `analysis` — sentiment scoring + topic clustering + AI draft generation, behind a **provider-agnostic AI interface**
   - `assistant` — chat-with-the-data Q&A / report generation
   - `notify` — Slack notifications
-  - `pulse-mcp-tools` — custom MCP tools registered on the **official** built-in MCP server via `strapi.ai.mcp`
+  - `src/mcp/` — custom MCP tools registered **app-level** (`src/index.ts` `register()`) on the **official** built-in MCP server via `strapi.ai.mcp`
   - (No GraphQL, no i18n, no custom-field plugins)
-- **Why**: requirements demand backend-heavy modules (ingestion, analysis, chat, notify) that bolt on independently; local plugins give module boundaries without package-publishing overhead.
+- **Why**: requirements demand backend-heavy modules that bolt on independently; api folders give those boundaries inside Strapi's own toolchain (no per-module build). Local plugins reserved for admin-UI/reuse/distribution needs.
 
 ## Database
 - **Choice**: PostgreSQL (managed by Strapi Cloud); SQLite for local dev only
@@ -65,7 +65,7 @@ For each decision: what was chosen, what other options were considered, and why 
 - **Frontend**: Vercel auto-deploy on push
 
 ## Email / notifications
-- **Choice**: **Slack incoming webhook** (from the `notify` plugin) for new/negative mentions. No email provider in v1.
+- **Choice**: **Slack incoming webhook** (from the `notify` module) for new/negative mentions. No email provider in v1.
 - **Why**: the team lives in Slack; email adds provider setup with no v1 requirement.
 
 ## Payments
@@ -75,14 +75,14 @@ For each decision: what was chosen, what other options were considered, and why 
 - **Choice**: none in v1 (internal tool); Sentry optional later.
 
 ## AI provider (sentiment, clustering, drafts, chat)
-- **Choice**: **provider-agnostic interface** inside the `analysis`/`assistant` plugins; v1 ships against **Claude (Anthropic API)** as the primary provider. ⚠️ Primary-provider choice assumed from the user's prior work — confirm.
+- **Choice**: **provider-agnostic interface** inside the `analysis`/`assistant` modules; v1 ships against **Claude (Anthropic API)** as the primary provider. ⚠️ Primary-provider choice assumed from the user's prior work — confirm.
 - **Grounding**: AI draft answers must be grounded in **official Strapi documentation** as the source of truth. Mechanism to evaluate in stage 5: Strapi's docs assistant is kapa.ai-powered — investigate the kapa.ai API vs. consuming a Strapi docs MCP server from the backend. Flagged as a stage-5 open item; do not hard-code a docs mechanism into the module boundary.
 - **Why**: "framework agnostic" is a stated requirement; the abstraction keeps the provider swappable while shipping v1 against one real provider.
 
 ## MCP server (AI agent access)
 - **Enabled**: **yes** — first-class requirement (external AI clients query mentions/sentiment/themes and generate reports)
 - **Implementation**: Strapi **built-in** MCP server (GA since v5.49) — `mcp: { enabled: true }` in `config/server`; endpoint `POST /mcp`; authed with **scoped Admin API tokens** (least-privilege: read-only token for reporting clients; separate token if any write tools are exposed)
-- **Custom tools**: registered from the `pulse-mcp-tools` local plugin via `strapi.ai.mcp` in `register()` (pattern per the official blog post + demo-store repo above) — e.g. sentiment-trend query, theme summary, report generation
+- **Custom tools**: registered app-level from `src/index.ts` `register()` via `strapi.ai.mcp` (tool definitions in `src/mcp/tools/*.ts`; pattern per the official blog post + demo-store repo above — a plugin is optional) — e.g. sentiment-trend query, theme summary, report generation
 - **Explicitly NOT**: a hand-rolled MCP transport (the old project's approach) — the official server is the base
 - **Why**: replaces the legacy custom MCP with the supported surface; permission-gated by design.
 

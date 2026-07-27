@@ -12,7 +12,7 @@ Pulse is the Strapi team's internal, single-instance tool for tracking sentiment
 - Database: PostgreSQL (Strapi Cloud managed; SQLite for local dev only)
 - Backend hosting: Strapi Cloud · Frontend: **Next.js 16** (App Router) on Vercel
 - Auth: **stock Users & Permissions** (closed registration — admin-invited accounts; JWT in httpOnly cookie)
-- AI: provider-agnostic interface in the `analysis`/`assistant` plugins; v1 provider **Anthropic (Claude)**; draft grounding via the **Strapi docs MCP** consumed backend-side; daily token budget guard
+- AI: provider-agnostic interface in the `analysis`/`assistant` modules; v1 provider **Anthropic (Claude)**; draft grounding via the **Strapi docs MCP** consumed backend-side; daily token budget guard
 - Search: **Postgres full-text** (no external search engine)
 - Notifications: two Slack webhooks (team + ops) · Styling: Tailwind + shadcn/ui
 - **Architecture principles**: heavy lifting in Strapi (thin, swappable frontend); modules as **Strapi-native `src/api/<name>` folders** (REVISED from local plugins during build — single instance, no admin-UI/distribution need); reference repos define binding conventions, no code imported
@@ -77,7 +77,7 @@ for (const action of [
   'api::activity.activity.find', 'api::activity.activity.findOne',
   'api::search.search.query',
   'api::insights.insights.trends', 'api::insights.insights.themes', 'api::insights.insights.stale',
-  'plugin::assistant.chat.chat',
+  'api::assistant.chat.chat',
 ])
   await strapi.query('plugin::users-permissions.permission').create({ data: { action, role: auth.id } })
 // Public role: seed NOTHING (ingest webhook uses auth:false + secret, not a Public permission)
@@ -87,7 +87,7 @@ for (const action of [
 
 ### M4 — Ingest, analysis, notify (the backend loop)
 - [ ] **`ingest` module** (`src/api/ingest`, route-only) — `POST /api/ingest/octolens`, route `config: { auth: false }`, controller: reject unless `x-pulse-secret` header equals `OCTOLENS_WEBHOOK_SECRET`; validate + normalize payload; **validation failure → create `dead-letter` record (raw + error) + ops Slack alert — never drop data**; dedupe on `externalId` (200 on duplicate — webhooks redeliver); create Mention via Document Service (`analysisStatus: 'pending'`, `status: 'unanswered'`, `raw` = payload); log `ingested` activity; return fast (NO AI work in-request)
-- [ ] **`analysis` module** (`src/api/analysis`, service-only) — provider-agnostic interface (`AI_PROVIDER`/`AI_API_KEY`; v1 = Anthropic): `analyze(mention)` → sentimentScore/label + topic assignment (create Topic via Document Service if new), stamps `modelVersion` + `promptVersion`, **skips any field on a `humanCorrected` mention**; `draft(mention)` → answer grounded via the **Strapi docs MCP** (`STRAPI_DOCS_MCP_URL`); **token budget**: count daily spend in the plugin store against `AI_DAILY_TOKEN_BUDGET` — warn ops Slack at 80%, at 100% halt re-cluster only (new-mention analysis always continues)
+- [ ] **`analysis` module** (`src/api/analysis`, service-only) — provider-agnostic interface (`AI_PROVIDER`/`AI_API_KEY`; v1 = Anthropic): `analyze(mention)` → sentimentScore/label + topic assignment (create Topic via Document Service if new), stamps `modelVersion` + `promptVersion`, **skips any field on a `humanCorrected` mention**; `draft(mention)` → answer grounded via the **Strapi docs MCP** (`STRAPI_DOCS_MCP_URL`); **token budget**: count daily spend in a store against `AI_DAILY_TOKEN_BUDGET` — warn ops Slack at 80%, at 100% halt re-cluster only (new-mention analysis always continues)
 - [ ] **Cron** (`config/cron-tasks.ts`, `cron.enabled: true` in `config/server`):
   - `* * * * *` — sweep `analysisStatus: pending|failed` → analyze → `analyzed` → notify Slack (lead with `negative`; every message deep-links `<PULSE_APP_URL>/mentions/<id>`). **Sweep errors → ops Slack**
   - `0 3 * * *` — topic re-cluster + themes rollup (never touches `humanCorrected`; skipped when budget exhausted)

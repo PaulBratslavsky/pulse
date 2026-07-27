@@ -2,7 +2,7 @@
 
 > Verified against Strapi v5 docs (https://docs.strapi.io) on 2026-07-24.
 > When in doubt during build, query the strapi-docs MCP first.
-> Architecture principles from stage 4: heavy lifting in the Strapi backend; modules as **local plugins** (`src/plugins/*`); thin Next.js 16 frontend.
+> Architecture principles from stage 4: heavy lifting in the Strapi backend; modules as **Strapi-native `src/api/<name>` folders** (revised from local plugins during build — see 04); thin Next.js 16 frontend.
 
 ## Strapi content types
 
@@ -16,7 +16,7 @@
 | postedAt | datetime | when it was posted on the platform |
 | receivedAt | datetime | when Pulse ingested it |
 | channel | relation: manyToOne → `api::channel.channel` | platform it came from |
-| sentimentScore | decimal | −1.0 … 1.0, computed by the `analysis` plugin |
+| sentimentScore | decimal | −1.0 … 1.0, computed by the `analysis` module |
 | sentimentLabel | enumeration: `positive` `neutral` `negative` | derived from score |
 | analysisStatus | enumeration: `pending` `analyzed` `failed` | drives the cron retry sweep |
 | status | enumeration: `unanswered` `claimed` `answered` `resolved` | the core-loop workflow |
@@ -103,7 +103,7 @@ None — Pulse is a data/insight tool.
 | Module | Owns | Exposes |
 |---|---|---|
 | `ingest` | Octolens webhook receiver: verify secret, validate + normalize, dedupe on `externalId`, create Mention (`analysisStatus: pending`); payloads that fail validation → **dead-letter record** (raw + error, ops alert, replayable). Greenfield — no historical import | `POST /api/ingest/octolens`; replay |
-| `analysis` | Sentiment scoring, topic assignment/clustering, AI draft generation — all behind a **provider-agnostic AI interface** (v1 provider: Claude/Anthropic; swappable). **AI is optional**: without `AI_API_KEY` these features are disabled (mentions → `analysisStatus: skipped`, sentiment null, manual labeling via correct; drafts/chat 503; `GET /api/insights/config` → `{ aiEnabled }` drives the UI) — the core loop runs fully without AI, and skipped mentions auto-analyze once a key is added. Stamps `modelVersion`/`promptVersion`; skips `humanCorrected` fields; tracks daily token spend against `AI_DAILY_TOKEN_BUDGET` (warn 80% → ops Slack; at 100% halt re-cluster, never new-mention analysis) | service `plugin::analysis.analyze(mentionId)`, `draft(mentionId)`; cron sweep |
+| `analysis` | Sentiment scoring, topic assignment/clustering, AI draft generation — all behind a **provider-agnostic AI interface** (v1 provider: Claude/Anthropic; swappable). **AI is optional**: without `AI_API_KEY` these features are disabled (mentions → `analysisStatus: skipped`, sentiment null, manual labeling via correct; drafts/chat 503; `GET /api/insights/config` → `{ aiEnabled }` drives the UI) — the core loop runs fully without AI, and skipped mentions auto-analyze once a key is added. Stamps `modelVersion`/`promptVersion`; skips `humanCorrected` fields; tracks daily token spend against `AI_DAILY_TOKEN_BUDGET` (warn 80% → ops Slack; at 100% halt re-cluster, never new-mention analysis) | services `api::analysis.ai` (`analyze`, `draft`), `api::analysis.budget`, `api::analysis.insights`, `api::analysis.sweep`; cron sweep |
 | `assistant` | Chat over the data: NL question → data queries → answer/report | `POST /api/assistant/chat` |
 | `notify` | Slack notifications: new-mention channel (priority `negative`), assignee pings, daily stale digest, **ops channel** (sweep failures, secret-rejection spikes, budget warnings) | subscribes after analysis; consumed by cron + routing |
 | `src/mcp/` (app-level, registered in `src/index.ts` `register()`) | Custom MCP tools registered app-level on the **official** built-in MCP server via `strapi.ai.mcp` (a plugin is optional for custom tools) | tools: `pulse.search-mentions`, `pulse.trend-summary`, `pulse.theme-report` |
