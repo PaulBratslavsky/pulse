@@ -103,14 +103,16 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     return { windowDays: days, themes };
   },
 
+  /** Staleness is measured from postedAt (when the comment was published on
+   *  the platform), not receivedAt — synced backlog counts as already-stale. */
   async stale(opts: { days?: number } = {}) {
     const days = opts.days ?? Number(process.env.STALE_AFTER_DAYS ?? 2);
     const cutoff = new Date(Date.now() - days * DAY).toISOString();
     const mentions = await strapi.documents('api::mention.mention').findMany({
-      filters: { status: { $in: ['unanswered', 'claimed'] }, receivedAt: { $lte: cutoff } },
-      fields: ['content', 'status', 'sentimentLabel', 'receivedAt', 'url'],
+      filters: { status: { $in: ['unanswered', 'claimed'] }, postedAt: { $lte: cutoff } },
+      fields: ['content', 'status', 'sentimentLabel', 'postedAt', 'receivedAt', 'url'],
       populate: { owner: { fields: ['username'] }, channel: { fields: ['name'] } } as any,
-      sort: 'receivedAt:asc' as any,
+      sort: 'postedAt:asc' as any,
       limit: 100,
     });
     return { staleAfterDays: days, mentions };

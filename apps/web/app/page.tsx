@@ -21,7 +21,7 @@ export default async function QueuePage({
           ...(params.status ? {} : { 'filters[status][$in][1]': 'claimed' }),
           ...(params.sentiment ? { 'filters[sentimentLabel][$eq]': params.sentiment } : {}),
           ...(params.topic ? { 'filters[topics][slug][$eq]': params.topic } : {}),
-          sort: 'receivedAt:asc',
+          sort: 'postedAt:asc',
           'pagination[page]': page,
           'pagination[pageSize]': 25,
         })
@@ -118,7 +118,7 @@ export default async function QueuePage({
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <SentimentBadge label={m.sentimentLabel} />
                 <StatusBadge status={m.status} />
-                <StalenessFlag receivedAt={m.receivedAt} />
+                <StalenessFlag postedAt={m.postedAt ?? m.receivedAt} />
                 {m.draftText && (
                   <span className="inline-block rounded px-1.5 py-0.5 text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
                     draft ready

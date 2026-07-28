@@ -13,7 +13,7 @@ export async function RightSidebar() {
         '/api/mentions' +
           qs({
             'filters[status][$eq]': 'unanswered',
-            sort: 'receivedAt:asc',
+            sort: 'postedAt:asc',
             'pagination[pageSize]': 5,
           })
       ),

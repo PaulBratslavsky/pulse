@@ -40,9 +40,12 @@ export function PostedDate({ postedAt }: { postedAt?: string | null }) {
   )
 }
 
-export function StalenessFlag({ receivedAt, days = 2 }: { receivedAt?: string; days?: number }) {
-  if (!receivedAt) return null
-  const age = (Date.now() - new Date(receivedAt).getTime()) / 86400000
+/** Age is measured from when the comment was PUBLISHED on the platform
+ *  (postedAt), not when Pulse ingested it — a synced backlog item that has
+ *  gone unanswered for weeks must flag immediately. */
+export function StalenessFlag({ postedAt, days = 2 }: { postedAt?: string; days?: number }) {
+  if (!postedAt) return null
+  const age = (Date.now() - new Date(postedAt).getTime()) / 86400000
   if (age < days) return null
   return (
     <span className="inline-block rounded px-1.5 py-0.5 text-xs font-semibold bg-red-600 text-white">
