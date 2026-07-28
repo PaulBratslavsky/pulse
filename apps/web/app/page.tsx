@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { strapiFetch, qs } from '@/lib/strapi'
+import { MessageSquare } from 'lucide-react'
 import { SentimentBadge, StatusBadge, StalenessFlag, PostedDate } from '@/components/badges'
 import ClaimButton from '@/components/claim-button'
 import SyncButton from '@/components/sync-button'
@@ -122,6 +123,14 @@ export default async function QueuePage({
                 {m.draftText && (
                   <span className="inline-block rounded px-1.5 py-0.5 text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
                     draft ready
+                  </span>
+                )}
+                {(m.comments ?? []).length > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs text-zinc-500"
+                    title={`${m.comments.length} comment(s)/note(s)`}
+                  >
+                    <MessageSquare size={12} /> {m.comments.length}
                   </span>
                 )}
                 <span className="text-xs text-zinc-500">
