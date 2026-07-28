@@ -85,7 +85,7 @@ export default async function QueuePage({
             #{params.topic} ✕
           </Link>
         )}
-        {['', 'negative', 'neutral', 'positive'].map((s) => (
+        {['', 'negative', 'neutral', 'positive', 'na'].map((s) => (
           <Link
             key={s || 'all'}
             href={filterUrl({ sentiment: s || undefined, page: 0 })}
@@ -95,7 +95,7 @@ export default async function QueuePage({
                 : 'border-zinc-300 dark:border-zinc-700 text-zinc-500'
             }`}
           >
-            {s || 'all'}
+            {s === 'na' ? 'n/a' : s || 'all'}
           </Link>
         ))}
       </div>

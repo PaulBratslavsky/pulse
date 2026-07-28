@@ -146,9 +146,11 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
     }
     const data: Record<string, unknown> = { humanCorrected: true }
     if (sentimentLabel) {
-      if (!['positive', 'neutral', 'negative'].includes(sentimentLabel))
+      if (!['positive', 'neutral', 'negative', 'na'].includes(sentimentLabel))
         return ctx.badRequest('invalid sentimentLabel')
       data.sentimentLabel = sentimentLabel
+      // n/a = not about Strapi — clear the score so trends/Pulse ignore it
+      if (sentimentLabel === 'na') data.sentimentScore = null
     }
     if (typeof sentimentScore === 'number') {
       if (sentimentScore < -1 || sentimentScore > 1) return ctx.badRequest('score out of range')

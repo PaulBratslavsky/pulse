@@ -19,8 +19,10 @@ const sentimentMeta: Record<string, { label: string; className: string }> = {
   positive: { label: 'positive', className: 'bg-emerald-500' },
   neutral: { label: 'neutral', className: 'bg-zinc-400 dark:bg-zinc-500' },
   negative: { label: 'negative', className: 'bg-red-500' },
+  na: { label: 'n/a (off-topic)', className: 'bg-zinc-300 dark:bg-zinc-600' },
   unscored: { label: 'unscored', className: 'bg-zinc-200 dark:bg-zinc-700' },
 }
+const sentimentFallback = { label: 'other', className: 'bg-zinc-200 dark:bg-zinc-700' }
 
 function StatTile({ label, value, detail }: { label: string; value: React.ReactNode; detail?: React.ReactNode }) {
   return (
@@ -176,7 +178,7 @@ export default async function InsightsPage({
               {sentimentEntries.map(([key, n]) => (
                 <div
                   key={key}
-                  className={`${sentimentMeta[key].className} rounded-sm`}
+                  className={`${(sentimentMeta[key] ?? sentimentFallback).className} rounded-sm`}
                   style={{ width: `${(n / sentimentTotal) * 100}%` }}
                 />
               ))}
@@ -184,8 +186,8 @@ export default async function InsightsPage({
             <div className="mt-2 flex gap-4 flex-wrap text-xs text-zinc-600 dark:text-zinc-400">
               {sentimentEntries.map(([key, n]) => (
                 <span key={key} className="inline-flex items-center gap-1.5">
-                  <span className={`h-2 w-2 rounded-full ${sentimentMeta[key].className}`} />
-                  {sentimentMeta[key].label} {n} ({Math.round((n / sentimentTotal) * 100)}%)
+                  <span className={`h-2 w-2 rounded-full ${(sentimentMeta[key] ?? sentimentFallback).className}`} />
+                  {(sentimentMeta[key] ?? sentimentFallback).label} {n} ({Math.round((n / sentimentTotal) * 100)}%)
                 </span>
               ))}
             </div>

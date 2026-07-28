@@ -195,10 +195,16 @@ export default function MentionActions({
               ? 'Human correction (never overwritten by re-analysis)'
               : 'Manual labeling (AI analysis is disabled — labels are set by the team)'}
           </p>
-          <div className="flex gap-2">
-            {['positive', 'neutral', 'negative'].map((l) => (
-              <label key={l} className="text-sm flex items-center gap-1">
-                <input type="radio" checked={corrLabel === l} onChange={() => setCorrLabel(l)} /> {l}
+          <div className="flex gap-3 flex-wrap">
+            {[
+              { value: 'positive', label: 'positive' },
+              { value: 'neutral', label: 'neutral' },
+              { value: 'negative', label: 'negative' },
+              { value: 'na', label: 'n/a — not about Strapi' },
+            ].map((l) => (
+              <label key={l.value} className="text-sm flex items-center gap-1">
+                <input type="radio" checked={corrLabel === l.value} onChange={() => setCorrLabel(l.value)} />{' '}
+                {l.label}
               </label>
             ))}
           </div>

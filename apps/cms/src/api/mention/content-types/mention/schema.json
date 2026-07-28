@@ -24,7 +24,8 @@
     "sentimentScore": { "type": "decimal" },
     "sentimentLabel": {
       "type": "enumeration",
-      "enum": ["positive", "neutral", "negative"]
+      "enum": ["positive", "neutral", "negative", "na"],
+      "description": "na = not about Strapi; excluded from the Pulse score (score cleared)"
     },
     "analysisStatus": {
       "type": "enumeration",

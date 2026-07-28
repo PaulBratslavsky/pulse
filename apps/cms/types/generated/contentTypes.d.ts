@@ -692,7 +692,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     receivedAt: Schema.Attribute.DateTime;
     responses: Schema.Attribute.Relation<'oneToMany', 'api::response.response'>;
     sentimentLabel: Schema.Attribute.Enumeration<
-      ['positive', 'neutral', 'negative']
+      ['positive', 'neutral', 'negative', 'na']
     >;
     sentimentScore: Schema.Attribute.Decimal;
     status: Schema.Attribute.Enumeration<
