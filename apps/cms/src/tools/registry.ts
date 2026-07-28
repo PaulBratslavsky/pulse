@@ -67,8 +67,9 @@ export const PULSE_TOOLS: PulseTool[] = [
     title: 'Pulse: mention detail',
     description:
       'Full context for one mention: content, sentiment, topics, workflow status, prior responses ' +
-      '(including internal team notes), the activity trail, and up to 5 past public replies on the ' +
-      'same topics — use those to match the team voice before drafting.',
+      '(a Response = a reply that was actually posted; pending drafts live on mention.draftText), ' +
+      'team discussion (notes/comments/feedback), the activity trail, and up to 5 past public ' +
+      'replies on the same topics — use those to match the team voice before drafting.',
     access: 'read',
     subject: 'api::mention.mention',
     input: () => z.object({ documentId: z.string().describe('Mention documentId') }),
@@ -144,20 +145,36 @@ export const PULSE_TOOLS: PulseTool[] = [
     name: 'pulse-save-draft',
     title: 'Pulse: save draft reply',
     description:
-      'Save a draft reply on a mention. The draft pre-fills the reply form in Pulse for a human to ' +
-      'review, post on the platform, and record — this tool NEVER auto-posts anything. ' +
-      'Keep drafts in the team voice: helpful, concrete, no marketing tone; for competitor threads ' +
-      'prefer an internal note in the app over a public reply.',
+      'Save a draft reply on a mention. Drafts live ONLY on the mention (mention.draftText) — a ' +
+      'Response record is created later by a human, only for a reply that was actually posted. ' +
+      'The draft pre-fills the reply form in Pulse for a human to review, post on the platform, ' +
+      'and record — this tool NEVER auto-posts anything. Writes are conditional: if a draft ' +
+      'already exists the call is refused (returned in the result) unless overwrite=true, so ' +
+      're-runs never silently clobber a human-edited draft. Keep drafts in the team voice: ' +
+      'helpful, concrete, no marketing tone; for competitor threads prefer an internal note.',
     access: 'write',
     subject: 'api::mention.mention',
     input: () =>
       z.object({
         documentId: z.string().describe('Mention documentId'),
         draft: z.string().min(1).max(4000).describe('The proposed reply text'),
+        overwrite: z
+          .boolean()
+          .optional()
+          .describe('Required true to replace an existing draft; default refuses and returns it'),
       }),
     execute: async (strapi, args, meta) => {
-      const mention = await strapi.documents('api::mention.mention').findOne({ documentId: args.documentId });
+      const mention: any = await strapi.documents('api::mention.mention').findOne({ documentId: args.documentId });
       if (!mention) return { error: `mention ${args.documentId} not found` };
+      if (mention.draftText && !args.overwrite) {
+        return {
+          saved: false,
+          reason: 'draft already exists — pass overwrite: true to replace it',
+          existingDraft: mention.draftText,
+          draftedVia: mention.draftedVia ?? null,
+          draftedAt: mention.draftedAt ?? null,
+        };
+      }
       await strapi.documents('api::mention.mention').update({
         documentId: args.documentId,
         data: { draftText: args.draft, draftedAt: new Date().toISOString(), draftedVia: meta.via } as any,
