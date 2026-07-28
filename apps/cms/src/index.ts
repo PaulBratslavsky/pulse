@@ -58,9 +58,15 @@ function slugify(value: string): string {
 }
 
 export default {
-  register({ strapi }: { strapi: Core.Strapi }) {
+  async register({ strapi }: { strapi: Core.Strapi }) {
     // Custom MCP tools — app-level registration (must run before mcp.start()).
     registerAllMcpTools(strapi)
+
+    // Tool permission actions MUST register here, not in bootstrap: the admin
+    // plugin's bootstrap cleanup prunes token/role grants whose action isn't in
+    // the registry yet — bootstrap-time registration meant every restart wiped
+    // the per-tool grants off admin tokens (verified 2026-07-28).
+    await registerMcpToolPermissions(strapi)
 
     // uid fields are NOT auto-filled on API/seed writes (admin panel only) —
     // generate topic.slug in Document Service middleware for every write path.
@@ -77,9 +83,6 @@ export default {
   },
 
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
-    // ---- MCP tool permissions: one checkbox per tool on the Admin Token screen ----
-    await registerMcpToolPermissions(strapi)
-
     // ---- Repair duplicate mentions + enforce a real unique index on externalId ----
     await dedupeMentionsAndEnforceUnique(strapi).catch((err: Error) =>
       strapi.log.error(`pulse: mention dedupe failed: ${err.message}`)
