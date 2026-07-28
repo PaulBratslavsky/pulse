@@ -102,13 +102,22 @@ export default async function InsightsPage({
         </div>
       </div>
 
-      {/* headline tiles */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mb-6">
-        <StatTile label="Mentions" value={snap.mentions.total} />
+      {/* headline tiles — statuses match the queue filters one-to-one */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
+        <StatTile
+          label="Mentions"
+          value={snap.mentions.total}
+          detail={`${snap.mentions.answeredRate}% got a reply`}
+        />
         <StatTile
           label="Answered"
-          value={snap.mentions.answered}
-          detail={`${snap.mentions.answeredRate}% of mentions · ${snap.mentions.byStatus.resolved ?? 0} of them resolved`}
+          value={snap.mentions.byStatus.answered ?? 0}
+          detail="replied — outcome pending"
+        />
+        <StatTile
+          label="Resolved"
+          value={snap.mentions.byStatus.resolved ?? 0}
+          detail="replied & closed out"
         />
         <StatTile
           label="Acknowledged (no reply)"
