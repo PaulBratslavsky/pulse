@@ -1,6 +1,7 @@
 import type { Core } from '@strapi/strapi'
 import { seedDemo } from './seed-demo'
 import { registerAllMcpTools, registerMcpToolPermissions } from './mcp'
+import { dedupeMentionsAndEnforceUnique } from './utils/dedupe-mentions'
 
 /** Actions the Authenticated (team member) role gets. Each is its own permission record —
  *  a fresh Strapi denies everything for BOTH roles, and admin-UI clicks don't survive a fresh DB. */
@@ -78,6 +79,11 @@ export default {
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     // ---- MCP tool permissions: one checkbox per tool on the Admin Token screen ----
     await registerMcpToolPermissions(strapi)
+
+    // ---- Repair duplicate mentions + enforce a real unique index on externalId ----
+    await dedupeMentionsAndEnforceUnique(strapi).catch((err: Error) =>
+      strapi.log.error(`pulse: mention dedupe failed: ${err.message}`)
+    )
 
     // ---- Seed Authenticated role permissions (idempotent) ----
     const authRole = await strapi

@@ -9,7 +9,7 @@ import SyncButton from '@/components/sync-button'
 export default async function QueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; sentiment?: string; topic?: string; page?: string }>
+  searchParams: Promise<{ status?: string; sentiment?: string; topic?: string; page?: string; draft?: string }>
 }) {
   const params = await searchParams
   const page = Math.max(1, Number(params.page) || 1)
@@ -22,6 +22,7 @@ export default async function QueuePage({
           ...(params.status ? {} : { 'filters[status][$in][1]': 'claimed' }),
           ...(params.sentiment ? { 'filters[sentimentLabel][$eq]': params.sentiment } : {}),
           ...(params.topic ? { 'filters[topics][slug][$eq]': params.topic } : {}),
+          ...(params.draft ? { 'filters[draftText][$notNull]': 'true' } : {}),
           sort: 'postedAt:asc',
           'pagination[page]': page,
           'pagination[pageSize]': 25,
@@ -33,14 +34,16 @@ export default async function QueuePage({
   }
   const mentions = data.data ?? []
   const pagination = data.meta?.pagination ?? { page: 1, pageCount: 1, total: mentions.length }
-  const filterUrl = (over: { status?: string; sentiment?: string; topic?: string; page?: number }) => {
+  const filterUrl = (over: { status?: string; sentiment?: string; topic?: string; page?: number; draft?: string }) => {
     const q = new URLSearchParams()
     const status = 'status' in over ? over.status : params.status
     if (status) q.set('status', status)
     const sentiment = over.sentiment !== undefined ? over.sentiment : params.sentiment
     const topic = over.topic !== undefined ? over.topic : params.topic
+    const draft = 'draft' in over ? over.draft : params.draft
     if (sentiment) q.set('sentiment', sentiment)
     if (topic) q.set('topic', topic)
+    if (draft) q.set('draft', draft)
     if (over.page && over.page > 1) q.set('page', String(over.page))
     const qs = q.toString()
     return qs ? `/?${qs}` : '/'
@@ -98,6 +101,17 @@ export default async function QueuePage({
             {s === 'na' ? 'n/a' : s || 'all'}
           </Link>
         ))}
+        <Link
+          href={filterUrl({ draft: params.draft ? undefined : '1', page: 0 })}
+          className={`rounded-full px-3 py-1 border ${
+            params.draft
+              ? 'border-sky-500 bg-sky-50 font-medium text-sky-800 dark:bg-sky-900/30 dark:text-sky-300'
+              : 'border-zinc-300 dark:border-zinc-700 text-zinc-500'
+          }`}
+          title="Only mentions with a saved draft reply"
+        >
+          has draft
+        </Link>
       </div>
 
       {mentions.length === 0 ? (

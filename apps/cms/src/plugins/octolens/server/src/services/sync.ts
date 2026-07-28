@@ -21,6 +21,10 @@ const MAX_PAGES = 40; // hard stop: 2000 mentions per run
 
 const apiKey = () => process.env.OCTOLENS_API_KEY || process.env.OCTOLENS_API || '';
 
+/** overlap guard: the 5-min cron and a manual "Sync now" must never run
+ *  concurrently — that race is how duplicate mentions were created. */
+let syncRunning = false;
+
 export const sync = ({ strapi }: { strapi: Core.Strapi }) => ({
   enabled: () => Boolean(apiKey()),
 
@@ -43,6 +47,19 @@ export const sync = ({ strapi }: { strapi: Core.Strapi }) => ({
       strapi.log.info('[octolens-sync] skipped — no OCTOLENS_API key configured');
       return { created: 0, seen: 0, skippedIrrelevant: 0, pages: 0, createdItems: [] };
     }
+    if (syncRunning) {
+      strapi.log.info('[octolens-sync] skipped — another sync is already running');
+      return { created: 0, seen: 0, skippedIrrelevant: 0, pages: 0, createdItems: [], skippedOverlap: true };
+    }
+    syncRunning = true;
+    try {
+      return await this.runSync({ lookbackHours });
+    } finally {
+      syncRunning = false;
+    }
+  },
+
+  async runSync({ lookbackHours = 24 }: { lookbackHours?: number } = {}) {
     const intakeService = strapi.plugin('octolens').service('intake') as any;
     const cutoff = Date.now() - lookbackHours * 3600_000;
     let cursor: string | undefined;

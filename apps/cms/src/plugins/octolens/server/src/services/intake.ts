@@ -113,35 +113,30 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
       .findFirst({ filters: { externalId: normalized.externalId } });
     if (existing) return { created: false, documentId: existing.documentId };
 
+    // NOTE: the pre-check above is racy (concurrent cron + manual sync); the
+    // DB unique index on external_id (added in app bootstrap) is the real
+    // guard — a lost race throws below and we return the winner's row.
+
     const channel = await this.resolveChannel(normalized.platformKey);
     const competitorTopicIds = await this.resolveTopics(this.competitorTopicNames(raw), 'competitor');
 
     // Keyless mode: adopt Octolens' sentiment as the initial, provenance-stamped label.
     const octolens = !aiEnabled() ? this.octolensSentiment(raw) : null;
 
-    const mention = await strapi.documents('api::mention.mention').create({
-      data: {
-        externalId: normalized.externalId,
-        content: normalized.content,
-        authorHandle: normalized.authorHandle,
-        url: normalized.url,
-        postedAt: normalized.postedAt ?? new Date().toISOString(),
-        receivedAt: new Date().toISOString(),
-        channel: channel?.documentId ?? null,
-        ...(competitorTopicIds.length ? { topics: competitorTopicIds } : {}),
-        status: 'unanswered',
-        ...(octolens
-          ? {
-              analysisStatus: 'analyzed',
-              sentimentLabel: octolens.label,
-              sentimentScore: octolens.score,
-              modelVersion: 'octolens',
-              promptVersion: 'label-map-v1',
-            }
-          : { analysisStatus: 'pending' }),
-        raw,
-      } as any,
-    });
+    let mention: any;
+    try {
+      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens);
+    } catch (err: any) {
+      // unique-index violation → another writer created it between check and insert
+      const winner = await strapi
+        .documents('api::mention.mention')
+        .findFirst({ filters: { externalId: normalized.externalId } });
+      if (winner) {
+        strapi.log.info(`[ingest] duplicate race on ${normalized.externalId} — kept existing row`);
+        return { created: false, documentId: winner.documentId };
+      }
+      throw err;
+    }
     await strapi.documents('api::activity.activity').create({
       data: {
         mention: mention.documentId,
@@ -165,6 +160,38 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
         .catch(() => {});
     }
     return { created: true, documentId: mention.documentId, octolensLabeled: Boolean(octolens) };
+  },
+
+  createMention(
+    normalized: NormalizedMention,
+    raw: unknown,
+    channel: any,
+    competitorTopicIds: string[],
+    octolens: { label: string; score: number } | null
+  ) {
+    return strapi.documents('api::mention.mention').create({
+      data: {
+        externalId: normalized.externalId,
+        content: normalized.content,
+        authorHandle: normalized.authorHandle,
+        url: normalized.url,
+        postedAt: normalized.postedAt ?? new Date().toISOString(),
+        receivedAt: new Date().toISOString(),
+        channel: channel?.documentId ?? null,
+        ...(competitorTopicIds.length ? { topics: competitorTopicIds } : {}),
+        status: 'unanswered',
+        ...(octolens
+          ? {
+              analysisStatus: 'analyzed',
+              sentimentLabel: octolens.label,
+              sentimentScore: octolens.score,
+              modelVersion: 'octolens',
+              promptVersion: 'label-map-v1',
+            }
+          : { analysisStatus: 'pending' }),
+        raw,
+      } as any,
+    });
   },
 });
 
