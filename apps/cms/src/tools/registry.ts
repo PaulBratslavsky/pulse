@@ -23,6 +23,16 @@ export type PulseTool = {
   execute: (strapi: Core.Strapi, args: any, meta: { via: string }) => Promise<unknown>;
 };
 
+/**
+ * Every tool is gated by its OWN admin permission action — registered in
+ * bootstrap so each tool shows up as a checkbox on the Admin Token screen
+ * (Settings tab → "Pulse MCP tools"). Checking/unchecking a box there is the
+ * single source of truth for whether a token may call that tool.
+ * App-level registration (no pluginName) → actionId `api::<uid>`.
+ */
+export const toolActionUid = (tool: PulseTool) => `pulse-mcp.${tool.name.replace(/^pulse-/, '')}`;
+export const toolAction = (tool: PulseTool) => `api::${toolActionUid(tool)}`;
+
 const trimUser = (u: any) => (u ? { username: u.username } : null);
 
 export const PULSE_TOOLS: PulseTool[] = [
