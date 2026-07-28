@@ -11,6 +11,15 @@ export const readPolicy = (uid: string) => ({
   ] as [{ action: string }, ...{ action: string; subject?: string }[]],
 });
 
+/** Write-tool gate — satisfied by an Admin Token carrying either the content-api
+ *  update action or the content-manager update permission for the subject type. */
+export const writePolicy = (uid: string) => ({
+  policies: [
+    { action: `${uid}.update` },
+    { action: 'plugin::content-manager.explorer.update', subject: uid },
+  ] as [{ action: string }, ...{ action: string; subject?: string }[]],
+});
+
 export const asResult = (data: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
   structuredContent: { result: data },

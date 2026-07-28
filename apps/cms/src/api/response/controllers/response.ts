@@ -32,7 +32,8 @@ export default factories.createCoreController('api::response.response', ({ strap
     if (!isInternal) {
       await strapi.documents('api::mention.mention').update({
         documentId: mentionDocumentId,
-        data: { status: 'answered' } as any,
+        // the pending draft is consumed by the recorded reply (kept as response.draftText)
+        data: { status: 'answered', draftText: null, draftedAt: null, draftedVia: null } as any,
       })
     }
     await logActivity(strapi, {

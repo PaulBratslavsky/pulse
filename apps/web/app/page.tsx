@@ -119,6 +119,11 @@ export default async function QueuePage({
                 <SentimentBadge label={m.sentimentLabel} />
                 <StatusBadge status={m.status} />
                 <StalenessFlag receivedAt={m.receivedAt} />
+                {m.draftText && (
+                  <span className="inline-block rounded px-1.5 py-0.5 text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
+                    draft ready
+                  </span>
+                )}
                 <span className="text-xs text-zinc-500">
                   @{m.authorHandle ?? 'unknown'} · {m.channel?.name ?? '—'} ·
                 </span>

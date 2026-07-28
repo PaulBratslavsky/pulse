@@ -60,6 +60,9 @@
       "target": "api::topic.topic",
       "inversedBy": "mentions"
     },
+    "draftText": { "type": "text" },
+    "draftedAt": { "type": "datetime" },
+    "draftedVia": { "type": "string" },
     "humanCorrected": { "type": "boolean", "default": false },
     "modelVersion": { "type": "string" },
     "promptVersion": { "type": "string" },

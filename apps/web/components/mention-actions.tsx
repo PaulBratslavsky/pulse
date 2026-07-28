@@ -24,8 +24,9 @@ export default function MentionActions({
   aiEnabled: boolean
 }) {
   const router = useRouter()
-  const [draft, setDraft] = useState<string>('')
-  const [finalText, setFinalText] = useState('')
+  // a draft saved via MCP/chat (pulse-save-draft) pre-fills the reply form
+  const [draft, setDraft] = useState<string>(mention.draftText ?? '')
+  const [finalText, setFinalText] = useState(mention.draftText ?? '')
   const [notes, setNotes] = useState('')
   const [internal, setInternal] = useState(false)
   const [showCorrect, setShowCorrect] = useState(false)
@@ -272,7 +273,10 @@ export default function MentionActions({
         </p>
         {draft && (
           <div className="rounded bg-zinc-50 dark:bg-zinc-800 p-3 text-sm whitespace-pre-wrap border border-dashed border-zinc-300 dark:border-zinc-700">
-            <p className="text-xs font-medium text-zinc-400 mb-1">AI draft (edit below before posting)</p>
+            <p className="text-xs font-medium text-zinc-400 mb-1">
+              Draft{mention.draftedVia ? ` via ${mention.draftedVia}` : ' (AI)'} — edit below, post on the
+              platform, then record
+            </p>
             {draft}
           </div>
         )}

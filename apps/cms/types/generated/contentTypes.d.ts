@@ -467,6 +467,7 @@ export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
         'replayed',
         'acknowledged',
         'noted',
+        'drafted',
       ]
     > &
       Schema.Attribute.Required;
@@ -624,6 +625,9 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    draftedAt: Schema.Attribute.DateTime;
+    draftedVia: Schema.Attribute.String;
+    draftText: Schema.Attribute.Text;
     externalId: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;

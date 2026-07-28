@@ -11,6 +11,7 @@ export type ActivityAction =
   | 'replayed'
   | 'acknowledged'
   | 'noted'
+  | 'drafted'
 
 export async function logActivity(
   strapi: Core.Strapi,
