@@ -28,7 +28,7 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
     if (!mentionDocumentId || !String(body ?? '').trim()) {
       return ctx.badRequest('mentionDocumentId and body are required')
     }
-    if (kind && !['note', 'comment'].includes(kind)) return ctx.badRequest('invalid kind')
+    if (kind && !['note', 'comment', 'feedback'].includes(kind)) return ctx.badRequest('invalid kind')
     const cleanLinks = validateLinks(links)
     if (cleanLinks === null) return ctx.badRequest(`links must be up to ${MAX_LINKS} http(s) URLs`)
 
@@ -59,7 +59,7 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
       data.body = String(body).trim()
     }
     if (kind !== undefined) {
-      if (!['note', 'comment'].includes(kind)) return ctx.badRequest('invalid kind')
+      if (!['note', 'comment', 'feedback'].includes(kind)) return ctx.badRequest('invalid kind')
       data.kind = kind
     }
     if (links !== undefined) {

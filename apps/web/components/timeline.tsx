@@ -13,12 +13,14 @@ import { Link as LinkIcon, X, Pencil, Trash2, ChevronRight } from 'lucide-react'
  * Composer sits at the bottom, chat-style, oldest first.
  */
 
+type Kind = 'comment' | 'note' | 'feedback'
+
 type Entry =
   | { type: 'system'; at: string; action: string; actor: string | null; detail: any }
   | {
       type: 'discussion'
       at: string
-      kind: 'note' | 'comment'
+      kind: Kind
       body: string
       links: string[]
       author: string | null
@@ -26,6 +28,39 @@ type Entry =
       edited: boolean
       id: string
     }
+
+/** note = the team's take (amber, Zendesk internal convention);
+ *  feedback = the mention author responded / gave product insight (teal);
+ *  comment = quick chat (plain). One flat stream, one collection. */
+const KIND_META: Record<Kind, { chip: string; active: string; badge: string | null; card: string; badgeClass: string; placeholder: string; submit: string }> = {
+  comment: {
+    chip: 'Comment',
+    active: 'border-zinc-900 font-medium dark:border-white',
+    badge: null,
+    badgeClass: '',
+    card: 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900',
+    placeholder: 'Quick comment…',
+    submit: 'Comment',
+  },
+  note: {
+    chip: 'Note (with resources)',
+    active: 'border-amber-500 bg-amber-100 font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200',
+    badge: 'note',
+    badgeClass: 'bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100',
+    card: 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20',
+    placeholder: "The team's take, context, decisions…",
+    submit: 'Add note',
+  },
+  feedback: {
+    chip: 'Feedback',
+    active: 'border-teal-500 bg-teal-100 font-medium text-teal-900 dark:bg-teal-900/40 dark:text-teal-200',
+    badge: 'feedback',
+    badgeClass: 'bg-teal-200 text-teal-900 dark:bg-teal-800 dark:text-teal-100',
+    card: 'border-teal-300 bg-teal-50 dark:border-teal-700 dark:bg-teal-900/20',
+    placeholder: 'What the author said back / product insight to capture…',
+    submit: 'Add feedback',
+  },
+}
 
 async function call(method: string, path: string, body?: unknown) {
   const res = await fetch(`/api/pulse/${path}`, {
@@ -55,7 +90,7 @@ function Avatar({ name }: { name: string | null }) {
 
 export default function Timeline({ mention, meDocumentId }: { mention: any; meDocumentId?: string | null }) {
   const router = useRouter()
-  const [kind, setKind] = useState<'comment' | 'note'>('comment')
+  const [kind, setKind] = useState<Kind>('comment')
   const [body, setBody] = useState('')
   const [links, setLinks] = useState<string[]>([])
   const [linkDraft, setLinkDraft] = useState('')
@@ -192,20 +227,15 @@ export default function Timeline({ mention, meDocumentId }: { mention: any; meDo
             )
           }
           return (
-            <li
-              key={e.id}
-              className={`rounded-lg border p-3 ${
-                e.kind === 'note'
-                  ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20'
-                  : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900'
-              }`}
-            >
+            <li key={e.id} className={`rounded-lg border p-3 ${(KIND_META[e.kind] ?? KIND_META.comment).card}`}>
               <div className="mb-1 flex items-center gap-2 text-xs text-zinc-500">
                 <Avatar name={e.author} />
                 <span className="font-medium text-zinc-700 dark:text-zinc-300">{e.author ?? '—'}</span>
-                {e.kind === 'note' && (
-                  <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:bg-amber-800 dark:text-amber-100">
-                    note
+                {(KIND_META[e.kind] ?? KIND_META.comment).badge && (
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${(KIND_META[e.kind] ?? KIND_META.comment).badgeClass}`}
+                  >
+                    {(KIND_META[e.kind] ?? KIND_META.comment).badge}
                   </span>
                 )}
                 <span>{e.at ? new Date(e.at).toLocaleString() : ''}</span>
@@ -320,28 +350,24 @@ export default function Timeline({ mention, meDocumentId }: { mention: any; meDo
       </ol>
 
       <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mb-2 flex gap-1.5 text-xs">
-          {(['comment', 'note'] as const).map((k) => (
+        <div className="mb-2 flex gap-1.5 text-xs flex-wrap">
+          {(Object.keys(KIND_META) as Kind[]).map((k) => (
             <button
               key={k}
               onClick={() => setKind(k)}
               className={`rounded-full border px-2.5 py-1 ${
-                kind === k
-                  ? k === 'note'
-                    ? 'border-amber-500 bg-amber-100 font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200'
-                    : 'border-zinc-900 font-medium dark:border-white'
-                  : 'border-zinc-300 text-zinc-500 dark:border-zinc-700'
+                kind === k ? KIND_META[k].active : 'border-zinc-300 text-zinc-500 dark:border-zinc-700'
               }`}
             >
-              {k === 'note' ? 'Note (with resources)' : 'Comment'}
+              {KIND_META[k].chip}
             </button>
           ))}
         </div>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder={kind === 'note' ? "The team's take, context, decisions…" : 'Quick comment…'}
-          rows={kind === 'note' ? 3 : 2}
+          placeholder={KIND_META[kind].placeholder}
+          rows={kind === 'comment' ? 2 : 3}
           className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
         />
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -378,7 +404,7 @@ export default function Timeline({ mention, meDocumentId }: { mention: any; meDo
             disabled={submit.isPending || !body.trim()}
             className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-zinc-900"
           >
-            {submit.isPending ? 'Saving…' : kind === 'note' ? 'Add note' : 'Comment'}
+            {submit.isPending ? 'Saving…' : KIND_META[kind].submit}
           </button>
           {submit.isError && <p className="text-sm text-red-600">{String(submit.error)}</p>}
         </div>

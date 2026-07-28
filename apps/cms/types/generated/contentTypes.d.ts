@@ -552,7 +552,7 @@ export interface ApiCommentComment extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     editedAt: Schema.Attribute.DateTime;
-    kind: Schema.Attribute.Enumeration<['note', 'comment']> &
+    kind: Schema.Attribute.Enumeration<['note', 'comment', 'feedback']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'comment'>;
     links: Schema.Attribute.JSON;

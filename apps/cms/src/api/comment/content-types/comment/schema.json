@@ -17,7 +17,7 @@
     },
     "kind": {
       "type": "enumeration",
-      "enum": ["note", "comment"],
+      "enum": ["note", "comment", "feedback"],
       "default": "comment",
       "required": true
     },
