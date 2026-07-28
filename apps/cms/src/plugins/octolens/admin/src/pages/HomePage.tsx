@@ -40,8 +40,11 @@ export const HomePage = () => {
     try {
       const { data } = await get('/octolens/status');
       setStatus(data.data);
-    } catch {
+    } catch (e: any) {
       setStatus(null);
+      if (e?.response?.status === 403) {
+        setError("Your role doesn't have the Octolens read permission (Settings → Roles → Plugins → octolens).");
+      }
     }
   };
 

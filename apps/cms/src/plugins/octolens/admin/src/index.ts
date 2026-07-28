@@ -8,6 +8,8 @@ export default {
       to: `plugins/${PLUGIN_ID}`,
       icon: Cog,
       intlLabel: { id: `${PLUGIN_ID}.plugin.name`, defaultMessage: 'Octolens' },
+      // hidden for admins whose role lacks the plugin's read permission
+      permissions: [{ action: `plugin::${PLUGIN_ID}.settings.read`, subject: null }],
       Component: async () => {
         const { HomePage } = await import('./pages/HomePage');
         return HomePage;
@@ -24,6 +26,7 @@ export default {
           pluginId: PLUGIN_ID,
           icon: Cog,
           title: { id: `${PLUGIN_ID}.widget.title`, defaultMessage: 'Octolens sync' },
+          permissions: [{ action: `plugin::${PLUGIN_ID}.settings.read` }],
           component: async () => {
             const { SyncWidget } = await import('./components/SyncWidget');
             return SyncWidget;
