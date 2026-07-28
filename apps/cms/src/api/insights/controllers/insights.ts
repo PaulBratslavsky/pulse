@@ -19,6 +19,11 @@ export default {
     return { data: await (strapi.service('api::analysis.insights') as any).stale({ days }) }
   },
 
+  async snapshot(ctx: any) {
+    const days = ctx.query.days ? Number(ctx.query.days) : undefined
+    return { data: await (strapi.service('api::analysis.insights') as any).snapshot({ days }) }
+  },
+
   /** Feature flags the frontend renders against (AI is optional by design). */
   async config(_ctx: any) {
     return { data: { aiEnabled: (strapi.service('api::analysis.ai') as any).enabled() } }

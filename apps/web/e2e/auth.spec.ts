@@ -5,7 +5,7 @@ test.describe('auth', () => {
   test('anonymous visitor is redirected to sign-in', async ({ page }) => {
     await page.goto('/')
     await expect(page).toHaveURL(/\/sign-in/)
-    await expect(page.getByRole('heading', { name: /sign in to pulse/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /sign in to strapi pulse/i })).toBeVisible()
   })
 
   test('protected routes are all guarded', async ({ page }) => {

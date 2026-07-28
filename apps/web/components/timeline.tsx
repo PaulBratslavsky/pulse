@@ -47,7 +47,7 @@ const hostname = (url: string) => {
 
 function Avatar({ name }: { name: string | null }) {
   return (
-    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[10px] font-semibold">
+    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#4945FF] to-[#7B79FF] text-white text-[10px] font-semibold">
       {(name ?? '?').charAt(0).toUpperCase()}
     </span>
   )

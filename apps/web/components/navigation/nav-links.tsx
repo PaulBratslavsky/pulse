@@ -25,7 +25,7 @@ export function NavLinks() {
             href={href}
             className={
               isActive
-                ? 'flex items-center gap-3 rounded-lg px-4 py-3 bg-gradient-to-r from-rose-500 to-orange-400 text-white font-semibold shadow-sm'
+                ? 'flex items-center gap-3 rounded-lg px-4 py-3 bg-gradient-to-r from-[#4945FF] to-[#7B79FF] text-white font-semibold shadow-sm'
                 : 'flex items-center gap-3 rounded-lg px-4 py-3 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium'
             }
           >

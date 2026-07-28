@@ -78,7 +78,7 @@ export default async function QueuePage({
         {params.topic && (
           <Link
             href={filterUrl({ topic: undefined, page: 0 })}
-            className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white px-3 py-1 font-medium"
+            className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-[#4945FF] to-[#7B79FF] text-white px-3 py-1 font-medium"
             title="Clear topic filter"
           >
             #{params.topic} ✕
@@ -129,7 +129,7 @@ export default async function QueuePage({
                 </span>
                 <PostedDate postedAt={m.postedAt ?? m.receivedAt} />
                 {(m.topics ?? []).map((t: any) => (
-                  <Link key={t.slug} href={filterUrl({ topic: t.slug, page: 0 })} className="text-xs text-zinc-400 hover:text-rose-500">
+                  <Link key={t.slug} href={filterUrl({ topic: t.slug, page: 0 })} className="text-xs text-zinc-400 hover:text-[#4945FF]">
                     #{t.name}
                   </Link>
                 ))}
@@ -150,7 +150,7 @@ export default async function QueuePage({
                 {m.status === 'unanswered' && <ClaimButton documentId={m.documentId} />}
                 {m.owner && (
                   <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-sm text-zinc-700 dark:text-zinc-300">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[10px] font-semibold">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-[#4945FF] to-[#7B79FF] text-white text-[10px] font-semibold">
                       {m.owner.username.charAt(0).toUpperCase()}
                     </span>
                     Claimed by <strong>{m.owner.username}</strong>

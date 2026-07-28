@@ -39,7 +39,7 @@ export async function RightSidebar() {
               href={`/mentions/${m.documentId}`}
               className="flex items-start gap-2 group"
             >
-              <ArrowRight size={16} className="mt-1 shrink-0 text-zinc-400 group-hover:text-rose-500" />
+              <ArrowRight size={16} className="mt-1 shrink-0 text-zinc-400 group-hover:text-[#4945FF]" />
               <span className="text-sm text-zinc-700 dark:text-zinc-300 group-hover:text-zinc-950 dark:group-hover:text-white line-clamp-2">
                 <SentimentBadge label={m.sentimentLabel} />{' '}
                 {m.content}
@@ -57,7 +57,7 @@ export async function RightSidebar() {
             <Link
               key={t.topic.slug}
               href={`/?topic=${encodeURIComponent(t.topic.slug)}`}
-              className="inline-flex items-center gap-2 rounded-md bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-rose-500"
+              className="inline-flex items-center gap-2 rounded-md bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-[#4945FF]"
             >
               #{t.topic.name}
               <span className="text-zinc-400">{t.mentions}</span>

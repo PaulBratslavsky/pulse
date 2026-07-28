@@ -117,6 +117,99 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     });
     return { staleAfterDays: days, mentions };
   },
+
+  /**
+   * Insights snapshot: team-facing stats over a trailing window (7/30/90d).
+   * Windowed on postedAt (consistent with staleness/queue semantics).
+   */
+  async snapshot(opts: { days?: number } = {}) {
+    const days = [7, 30, 90].includes(Number(opts.days)) ? Number(opts.days) : 30;
+    const since = new Date(Date.now() - days * DAY).toISOString();
+
+    const mentions = await strapi.documents('api::mention.mention').findMany({
+      filters: { postedAt: { $gte: since } },
+      fields: ['sentimentLabel', 'sentimentScore', 'status', 'acknowledgeReason', 'postedAt'],
+      populate: { channel: { fields: ['name'] } } as any,
+      limit: 10000,
+    });
+
+    const byStatus: Record<string, number> = {};
+    const bySentiment: Record<string, number> = { positive: 0, neutral: 0, negative: 0, unscored: 0 };
+    const byChannel: Record<string, number> = {};
+    const ackByReason: Record<string, number> = {};
+    let scoreSum = 0;
+    let scoreCount = 0;
+    for (const m of mentions as any[]) {
+      byStatus[m.status] = (byStatus[m.status] ?? 0) + 1;
+      bySentiment[m.sentimentLabel ?? 'unscored'] = (bySentiment[m.sentimentLabel ?? 'unscored'] ?? 0) + 1;
+      const ch = m.channel?.name ?? 'Unknown';
+      byChannel[ch] = (byChannel[ch] ?? 0) + 1;
+      if (m.status === 'acknowledged' && m.acknowledgeReason)
+        ackByReason[m.acknowledgeReason] = (ackByReason[m.acknowledgeReason] ?? 0) + 1;
+      if (typeof m.sentimentScore === 'number') {
+        scoreSum += m.sentimentScore;
+        scoreCount += 1;
+      }
+    }
+    const answered = (byStatus.answered ?? 0) + (byStatus.resolved ?? 0);
+
+    // public replies in the window: who answered, and how fast
+    const responses = await strapi.documents('api::response.response').findMany({
+      filters: { internal: { $ne: true }, respondedAt: { $gte: since } } as any,
+      fields: ['respondedAt'],
+      populate: {
+        respondedBy: { fields: ['username'] },
+        mention: { fields: ['postedAt'] },
+      } as any,
+      limit: 10000,
+    });
+    const byUser: Record<string, number> = {};
+    const answerHours: number[] = [];
+    for (const r of responses as any[]) {
+      const who = r.respondedBy?.username ?? '—';
+      byUser[who] = (byUser[who] ?? 0) + 1;
+      if (r.mention?.postedAt && r.respondedAt) {
+        const h = (new Date(r.respondedAt).getTime() - new Date(r.mention.postedAt).getTime()) / 3600000;
+        if (h >= 0) answerHours.push(h);
+      }
+    }
+    answerHours.sort((a, b) => a - b);
+    const medianHoursToAnswer = answerHours.length
+      ? Math.round(answerHours[Math.floor(answerHours.length / 2)] * 10) / 10
+      : null;
+
+    // Pulse score: current vs. window start (from the single trends implementation)
+    const trends = await (this as any).trends({ from: since });
+    const scored = trends.series.filter((p: any) => p.score != null);
+    const current = scored.length ? scored[scored.length - 1].score : null;
+    const first = scored.length ? scored[0].score : null;
+    const delta = current != null && first != null ? Math.round((current - first) * 10) / 10 : null;
+
+    const top = (rec: Record<string, number>) =>
+      Object.entries(rec)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+
+    return {
+      windowDays: days,
+      mentions: {
+        total: mentions.length,
+        byStatus,
+        answered,
+        answeredRate: mentions.length ? Math.round((answered / mentions.length) * 100) : 0,
+        bySentiment,
+        avgScore: scoreCount ? Math.round((scoreSum / scoreCount) * 100) / 100 : null,
+        byChannel: top(byChannel).slice(0, 6),
+        acknowledgedByReason: top(ackByReason),
+      },
+      responses: {
+        total: responses.length,
+        byUser: top(byUser),
+        medianHoursToAnswer,
+      },
+      pulse: { current, delta },
+    };
+  },
 });
 
 export default insights;

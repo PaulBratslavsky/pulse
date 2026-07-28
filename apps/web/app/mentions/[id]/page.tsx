@@ -42,7 +42,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           </span>
           {m.owner && (
             <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-xs text-zinc-700 dark:text-zinc-300">
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[9px] font-semibold">
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-r from-[#4945FF] to-[#7B79FF] text-white text-[9px] font-semibold">
                 {m.owner.username.charAt(0).toUpperCase()}
               </span>
               Claimed by <strong>{m.owner.username}</strong>

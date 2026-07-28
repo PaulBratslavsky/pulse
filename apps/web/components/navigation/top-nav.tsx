@@ -10,7 +10,7 @@ export function TopNav({ me }: { me: { username: string } | null }) {
         {/* official Strapi 2022 mark, extracted from @strapi/admin */}
         <img src="/strapi-logo.svg" alt="Strapi" className="h-7 w-7" />
         <p className="text-xl font-bold max-sm:hidden">
-          Strapi <span className="text-rose-500">Pulse</span>
+          Strapi <span className="text-[#4945FF]">Pulse</span>
         </p>
       </Link>
 
@@ -21,7 +21,7 @@ export function TopNav({ me }: { me: { username: string } | null }) {
       <div className="flex items-center gap-2 shrink-0">
         {me && (
           <>
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-xs font-semibold">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-[#4945FF] to-[#7B79FF] text-white text-xs font-semibold">
               {me.username.charAt(0).toUpperCase()}
             </span>
             <span className="text-sm text-zinc-600 dark:text-zinc-300 max-sm:hidden">{me.username}</span>
