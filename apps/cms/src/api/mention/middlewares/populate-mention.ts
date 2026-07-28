@@ -22,6 +22,7 @@ export default () => async (ctx: any, next: () => Promise<void>) => {
     },
     comments: {
       fields: ['kind', 'body', 'links', 'createdAt', 'editedAt'],
+      filters: { archived: { $ne: true } }, // soft-deleted comments stay in the DB, never in the API
       populate: { author: { fields: ['username'] } },
       sort: 'createdAt:asc',
     },

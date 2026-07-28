@@ -6,10 +6,11 @@ import { logoutUserAction } from '@/data/actions/auth'
 export function TopNav({ me }: { me: { username: string } | null }) {
   return (
     <nav className="fixed top-0 z-50 flex w-full items-center gap-5 bg-white dark:bg-zinc-900 p-4 sm:px-10 shadow-sm dark:shadow-none border-b border-zinc-200 dark:border-zinc-800">
-      <Link href="/" className="flex items-center gap-1 shrink-0">
-        <span className="text-xl">🫀</span>
+      <Link href="/" className="flex items-center gap-2 shrink-0">
+        {/* official Strapi 2022 mark, extracted from @strapi/admin */}
+        <img src="/strapi-logo.svg" alt="Strapi" className="h-7 w-7" />
         <p className="text-xl font-bold max-sm:hidden">
-          Pu<span className="text-rose-500">lse</span>
+          Strapi <span className="text-rose-500">Pulse</span>
         </p>
       </Link>
 

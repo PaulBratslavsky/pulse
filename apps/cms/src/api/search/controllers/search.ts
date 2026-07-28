@@ -30,7 +30,7 @@ export default {
         limit: 25,
       }),
       strapi.documents('api::comment.comment').findMany({
-        filters: { body: { $containsi: q } },
+        filters: { body: { $containsi: q }, archived: { $ne: true } },
         fields: ['kind', 'body', 'links', 'createdAt'],
         populate: {
           mention: { fields: ['content', 'status', 'url'] },

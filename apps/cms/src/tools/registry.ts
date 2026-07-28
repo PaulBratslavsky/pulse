@@ -85,6 +85,7 @@ export const PULSE_TOOLS: PulseTool[] = [
           activities: { fields: ['action', 'detail', 'at'], sort: 'at:asc' },
           comments: {
             fields: ['kind', 'body', 'links', 'createdAt'],
+            filters: { archived: { $ne: true } },
             populate: { author: { fields: ['username'] } },
             sort: 'createdAt:asc',
           },

@@ -24,7 +24,7 @@ export default function SignInPage() {
 
   return (
     <div className="max-w-sm mx-auto mt-20">
-      <h1 className="text-2xl font-semibold mb-1">Sign in to Pulse</h1>
+      <h1 className="text-2xl font-semibold mb-1">Sign in to Strapi Pulse</h1>
       <p className="text-sm text-zinc-500 mb-6">
         Accounts are created by the admin — ask if you don&apos;t have one.
       </p>

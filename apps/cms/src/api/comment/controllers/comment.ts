@@ -73,4 +73,16 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
     const updated = await strapi.documents('api::comment.comment').update({ documentId, data: data as any })
     return { data: updated }
   },
+
+  /** Soft delete (is-owner middleware guards ownership): comments are never
+   *  destroyed — DELETE flips `archived`, and every read path filters it out.
+   *  Full history stays in the database / admin panel. */
+  async delete(ctx) {
+    const documentId = ctx.params.documentId ?? ctx.params.id
+    await strapi.documents('api::comment.comment').update({
+      documentId,
+      data: { archived: true } as any,
+    })
+    return { data: { documentId, archived: true } }
+  },
 }))
