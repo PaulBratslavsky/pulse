@@ -28,10 +28,14 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin =>
 
   'users-permissions': {
     config: {
-      jwtManagement: 'refresh',
-      sessions: {
-        httpOnly: true,
-      },
+      // DECISION 2026-07-28: long-lived JWTs matching the 7-day auth cookie.
+      // 'refresh' mode issues 10-MINUTE access tokens (docs default:
+      // sessions.accessTokenLifespan = 600) and the Next app has no
+      // refresh-token loop yet — users were signed out every ~10 minutes.
+      // Revisit refresh mode when the frontend implements token rotation
+      // (parked item in 06-build-spec).
+      jwtManagement: 'legacy-support',
+      jwt: { expiresIn: '7d' },
       // Dev/test only: the default auth rate limit (small max per interval) trips
       // repeated e2e runs ("Too many requests"). Production keeps the default.
       ...(process.env.NODE_ENV !== 'production'
