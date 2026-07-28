@@ -24,10 +24,11 @@ const sentimentMeta: Record<string, { label: string; className: string }> = {
 
 function StatTile({ label, value, detail }: { label: string; value: React.ReactNode; detail?: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
-      <p className="text-xs text-zinc-500 mb-1">{label}</p>
-      <p className="text-2xl font-semibold tabular-nums">{value}</p>
-      {detail && <p className="text-xs text-zinc-500 mt-1">{detail}</p>}
+    <div className="flex h-full flex-col rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+      {/* fixed two-line label zone so every tile's number sits on the same baseline */}
+      <p className="text-xs text-zinc-500 mb-1 min-h-[2rem]">{label}</p>
+      <p className="text-2xl font-semibold tabular-nums leading-none">{value}</p>
+      <p className="text-xs text-zinc-500 mt-2 min-h-[1rem]">{detail}</p>
     </div>
   )
 }
