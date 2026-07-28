@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
-import { Link as LinkIcon, X, Pencil, Trash2 } from 'lucide-react'
+import { Link as LinkIcon, X, Pencil, Trash2, ChevronRight } from 'lucide-react'
 
 /**
  * Unified mention timeline (GitHub-issue pattern): system events render as
@@ -139,11 +139,10 @@ export default function Timeline({ mention, meDocumentId }: { mention: any; meDo
 
       <ol className="space-y-3">
         {entries.length === 0 && <li className="text-sm text-zinc-500">No activity yet.</li>}
-        {entries.map((e, i) =>
-          e.type === 'system' ? (
-            <li key={`s-${i}`} className="flex items-baseline gap-2 pl-1 text-xs text-zinc-500">
-              <span className="h-1.5 w-1.5 shrink-0 translate-y-[-1px] rounded-full bg-zinc-300 dark:bg-zinc-600" />
-              <span>
+        {entries.map((e, i) => {
+          if (e.type === 'system') {
+            const line = (
+              <>
                 <span className="font-medium text-zinc-600 dark:text-zinc-400">{e.action}</span>
                 {e.actor ? ` by ${e.actor}` : ' (system)'}
                 {e.action === 'acknowledged' && e.detail?.reason && (
@@ -151,9 +150,48 @@ export default function Timeline({ mention, meDocumentId }: { mention: any; meDo
                 )}
                 {' · '}
                 {e.at ? new Date(e.at).toLocaleString() : ''}
-              </span>
-            </li>
-          ) : (
+              </>
+            )
+            // "answered" expands to the recorded reply (accordion via native <details>)
+            const response =
+              e.action === 'answered'
+                ? (mention.responses ?? []).find((r: any) => r.documentId === e.detail?.responseDocumentId)
+                : null
+            if (response) {
+              return (
+                <li key={`s-${i}`} className="pl-1 text-xs text-zinc-500">
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none items-baseline gap-2 [&::-webkit-details-marker]:hidden">
+                      <ChevronRight
+                        size={12}
+                        className="shrink-0 translate-y-[1px] text-zinc-400 transition-transform group-open:rotate-90"
+                      />
+                      <span>
+                        {line}
+                        <span className="text-zinc-400"> · view reply</span>
+                      </span>
+                    </summary>
+                    <div className="ml-5 mt-2 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+                      <p className="whitespace-pre-wrap break-words text-sm text-zinc-800 dark:text-zinc-200">
+                        {response.finalText}
+                      </p>
+                      <p className="mt-2 text-xs text-zinc-500">
+                        outcome: <span className="font-medium">{response.outcome?.result ?? 'not recorded'}</span>
+                        {response.notes && <> · notes: {response.notes}</>}
+                      </p>
+                    </div>
+                  </details>
+                </li>
+              )
+            }
+            return (
+              <li key={`s-${i}`} className="flex items-baseline gap-2 pl-1 text-xs text-zinc-500">
+                <span className="h-1.5 w-1.5 shrink-0 translate-y-[-1px] rounded-full bg-zinc-300 dark:bg-zinc-600" />
+                <span>{line}</span>
+              </li>
+            )
+          }
+          return (
             <li
               key={e.id}
               className={`rounded-lg border p-3 ${
@@ -278,7 +316,7 @@ export default function Timeline({ mention, meDocumentId }: { mention: any; meDo
               )}
             </li>
           )
-        )}
+        })}
       </ol>
 
       <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
