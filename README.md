@@ -1,8 +1,11 @@
 # Pulse
 
-The Strapi team's internal tool for tracking sentiment across social mentions, capturing the full response trail, and turning recurring signals into product decisions.
+The Strapi team's tool for tracking sentiment across social mentions, capturing the full response trail, and turning recurring signals into product decisions.
 
-- **Spec**: [`06-build-spec.md`](06-build-spec.md) (stages 1–5 in the sibling `0*.md` files)
+Mentions flow in from [Octolens](https://octolens.com) (webhook + pull-sync, all handled by the Strapi backend), land in a triage queue, and walk a tracked workflow — claim → reply (posted manually on the platform, recorded in Pulse) → outcome — with a full audit trail. Competitor threads can be **acknowledged** (closed without a public reply, reason recorded) and annotated with internal-only notes. Trends, themes, and a 0–100 Pulse score come out the other end. AI is optional everywhere; when enabled it adds sentiment analysis, docs-grounded reply drafts, and a chat assistant. The same six tools the assistant uses are exposed over Strapi's built-in **MCP server**, so Claude Desktop / Claude Code can read the queue and save reply drafts for human review.
+
+- **Docs**: [`docs/architecture.md`](docs/architecture.md) — system overview, data model, ingestion, permissions, tool registry
+- **Spec**: [`06-build-spec.md`](06-build-spec.md) (stages 1–5 in the sibling `0*.md` files; revision log at the bottom)
 - **Backend**: Strapi v5 (≥ 5.49) — `apps/cms` (local plugins in `apps/cms/src/plugins/`)
 - **Frontend**: Next.js 16 (App Router) — `apps/web`
 
@@ -21,8 +24,8 @@ Other root scripts:
 |---|---|
 | `npm run dev:demo` | same as `dev`, but seeds demo data on first boot (10 mentions, 3 users — `dana`/`mark`/`priya`, password `PulseDemo1!`) |
 | `npm run backend` / `npm run frontend` | run one side only |
-| `npm run test:e2e` | Playwright suite (11 tests) against the running dev servers |
-| `npm run db:export` / `npm run db:import` | snapshot / restore Strapi data via `seed-data.tar.gz` |
+| `npm run test:e2e` | Playwright suite (17 tests) against the running dev servers |
+| `npm run db:export` / `npm run db:import` | snapshot / restore local Strapi data via `seed-data.tar.gz` (local file, not tracked in git) |
 
 ### Demo data (dev only)
 
@@ -30,7 +33,7 @@ Start the CMS once with `PULSE_SEED_DEMO=true` to get 10 pre-analyzed mentions, 
 
 ### AI is optional
 
-Without `AI_API_KEY`, Pulse **runs fully** — mentions ingest, the queue/claim/respond/outcome loop, Slack notifications, search, and the activity trail all work. The three AI features are cleanly **disabled** (not degraded with fake heuristics): automatic sentiment/topic analysis (mentions get `analysisStatus: skipped`; labeling is manual via "Set sentiment / topics"), draft generation (button hidden; API returns 503), and chat (page shows a disabled notice). Add a key later and the cron sweep **auto-analyzes previously skipped mentions**. The frontend reads `GET /api/insights/config` (`{ aiEnabled }`).
+Without `AI_API_KEY`, Pulse **runs fully** — mentions ingest (with Octolens' own sentiment adopted as the initial, provenance-stamped label), the queue/claim/respond/outcome loop, acknowledge + internal notes, Slack notifications, search, and the activity trail all work. The three AI features are cleanly **disabled** (not degraded with fake heuristics): automatic sentiment/topic analysis, draft generation, and chat. Add a key later and the cron sweep **auto-analyzes previously skipped mentions**; human corrections are never overwritten. The frontend reads `GET /api/insights/config` (`{ aiEnabled }`).
 
 ### Webhook smoke test
 
@@ -41,26 +44,28 @@ curl -X POST http://localhost:1337/api/octolens/ingest \
 # analyzed by the cron sweep within ~1 minute; malformed payloads → dead letter + ops alert
 ```
 
-## Production
+## Deploy
 
-- **Frontend**: https://pulse-omega-eight.vercel.app (Vercel, auto-deploys from `master`, root dir `apps/web`)
-- **Backend**: https://ambitious-diamond-2dbe462fe9.strapiapp.com (Strapi Cloud, auto-deploys from `master`, root dir `apps/cms`)
-
-## Deploy (user-performed)
-
-1. **Strapi → Strapi Cloud**: create a project at https://cloud.strapi.io, connect this repo, root dir `apps/cms`, Node ≥ 20. Set env vars: `OCTOLENS_WEBHOOK_SECRET`, `AI_API_KEY`, `AI_MODEL`, `AI_DAILY_TOKEN_BUDGET`, `STRAPI_DOCS_MCP_URL`, `SLACK_WEBHOOK_URL`, `SLACK_OPS_WEBHOOK_URL`, `PULSE_APP_URL`, `STALE_AFTER_DAYS` (DB + core secrets are auto-injected). **Verify backups are active on your plan.**
+1. **Strapi → Strapi Cloud**: create a project at https://cloud.strapi.io, connect this repo, root dir `apps/cms`, Node ≥ 20. Set env vars: `OCTOLENS_WEBHOOK_SECRET`, `OCTOLENS_API`, `AI_API_KEY`, `AI_MODEL`, `AI_DAILY_TOKEN_BUDGET`, `STRAPI_DOCS_MCP_URL`, `SLACK_WEBHOOK_URL`, `SLACK_OPS_WEBHOOK_URL`, `PULSE_APP_URL`, `STALE_AFTER_DAYS` (DB + core secrets are auto-injected). **Verify backups are active on your plan.**
 2. **Frontend → Vercel**: import repo, root dir `apps/web`, set `NEXT_PUBLIC_STRAPI_URL` to the Strapi Cloud URL.
 3. **CORS**: set `strapi::cors` origin in `apps/cms/config/middlewares.ts` to the Vercel URL.
 4. **Octolens** — all integration is Strapi-backend-only:
-   - **Pull-sync (primary)**: with `OCTOLENS_API` set, Strapi pulls mentions every 5 minutes (`OCTOLENS_SYNC_CRON` to change). This is the active ingestion path.
+   - **Pull-sync (primary)**: with `OCTOLENS_API` set, Strapi pulls mentions every 5 minutes (`OCTOLENS_SYNC_CRON` to change). Manual "Sync now" (with report) lives on the Octolens page in the Strapi admin.
    - **Webhook (ready, currently blocked upstream)**: `https://<strapi-cloud-url>/api/octolens/ingest?secret=<OCTOLENS_WEBHOOK_SECRET>` (or header `x-pulse-secret`). ⚠️ As of 2026-07-27 Octolens' webhook validator false-positives on Strapi Cloud's public Cloudflare IPs (`172.66/16` misread as private) and refuses the URL — bug reported. The endpoint is live and verified; deliveries start working the moment they fix their range check.
-5. **MCP clients** (Claude Desktop etc.): the `/mcp` endpoint requires an **Admin Token** (`kind: admin`) — a classic content-API token is rejected. Create one scoped to read-only reporting (verified on 5.51):
+
+## Connecting AI clients (MCP)
+
+The backend exposes Strapi's built-in MCP server at `POST /mcp` with six Pulse tools (queue, mention detail, **save-draft**, search, trends, themes) — the same registry the in-app assistant uses. Drafts saved by an agent pre-fill the reply form for a human to review and post; nothing auto-posts.
+
+1. In the Strapi admin, create an **Admin Token** (Settings → Admin Tokens — a classic content-API token is rejected by `/mcp`).
+2. On the token's permission screen, open the **Settings tab → "Pulse MCP tools"** and check the tools this token may call (per-tool, granular — `save-draft` is the only write). The **Plugins tab → octolens** similarly gates the plugin's admin sync UI per role/token.
+3. Point your client at the endpoint, e.g. Claude Desktop `claude_desktop_config.json`:
+   ```json
+   "pulse": {
+     "command": "npx",
+     "args": ["-y", "mcp-remote", "https://<strapi-url>/mcp",
+              "--header", "Authorization: Bearer <admin-token-access-key>"]
+   }
    ```
-   POST /admin/admin-tokens   (as a logged-in admin)
-   { "name": "pulse-mcp-reporting", "lifespan": null,
-     "adminPermissions": [
-       { "action": "plugin::content-manager.explorer.read", "subject": "api::mention.mention" },
-       { "action": "plugin::content-manager.explorer.read", "subject": "api::topic.topic" },
-       { "action": "plugin::content-manager.explorer.read", "subject": "api::event.event" } ] }
-   ```
-   Connect to `POST https://<strapi-cloud-url>/mcp` with `Authorization: Bearer <accessKey>`. The token's permissions gate tool visibility — this token sees only read tools for those three types plus the custom `pulse-search-mentions`, `pulse-trend-summary`, `pulse-theme-report`.
+
+Unchecking a tool's box revokes it for that token immediately — permissions are managed entirely from the admin UI.
