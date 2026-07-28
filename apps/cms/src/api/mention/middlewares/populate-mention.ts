@@ -21,7 +21,7 @@ export default () => async (ctx: any, next: () => Promise<void>) => {
       sort: 'at:desc',
     },
     comments: {
-      fields: ['kind', 'body', 'links', 'createdAt'],
+      fields: ['kind', 'body', 'links', 'createdAt', 'editedAt'],
       populate: { author: { fields: ['username'] } },
       sort: 'createdAt:asc',
     },

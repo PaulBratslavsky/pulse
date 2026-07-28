@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { LogOut } from 'lucide-react'
 import SearchBox from '@/components/search-box'
 import { logoutUserAction } from '@/data/actions/auth'
 
@@ -16,18 +17,20 @@ export function TopNav({ me }: { me: { username: string } | null }) {
         <SearchBox />
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         {me && (
           <>
-            <span className="text-sm text-zinc-600 dark:text-zinc-300 max-sm:hidden">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-xs font-semibold mr-1.5 align-middle">
-                {me.username.charAt(0).toUpperCase()}
-              </span>
-              {me.username}
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-xs font-semibold">
+              {me.username.charAt(0).toUpperCase()}
             </span>
-            <form action={logoutUserAction}>
-              <button className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white">
-                Sign out
+            <span className="text-sm text-zinc-600 dark:text-zinc-300 max-sm:hidden">{me.username}</span>
+            <form action={logoutUserAction} className="flex">
+              <button
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white"
+                aria-label="Sign out"
+                title="Sign out"
+              >
+                <LogOut size={16} />
               </button>
             </form>
           </>

@@ -21,7 +21,8 @@ async function proxy(request: Request, path: string[], method: string) {
     body: body || undefined,
   })
   const text = await res.text()
-  return new NextResponse(text, {
+  // 204/304 are null-body statuses — Response throws if given even an empty string
+  return new NextResponse(text || null, {
     status: res.status,
     headers: { 'content-type': 'application/json' },
   })
@@ -38,4 +39,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ path: stri
 export async function PUT(request: Request, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params
   return proxy(request, path, 'PUT')
+}
+export async function DELETE(request: Request, ctx: { params: Promise<{ path: string[] }> }) {
+  const { path } = await ctx.params
+  return proxy(request, path, 'DELETE')
 }

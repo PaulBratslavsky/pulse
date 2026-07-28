@@ -46,4 +46,31 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
     })
     return { data: comment }
   },
+
+  /** Overridden update (is-owner middleware guards ownership): only body,
+   *  links, and kind are editable — author and mention are immutable. */
+  async update(ctx) {
+    const documentId = ctx.params.documentId ?? ctx.params.id
+    const { kind, body, links } = ctx.request.body?.data ?? ctx.request.body ?? {}
+
+    const data: Record<string, unknown> = {}
+    if (body !== undefined) {
+      if (!String(body).trim()) return ctx.badRequest('body cannot be empty')
+      data.body = String(body).trim()
+    }
+    if (kind !== undefined) {
+      if (!['note', 'comment'].includes(kind)) return ctx.badRequest('invalid kind')
+      data.kind = kind
+    }
+    if (links !== undefined) {
+      const cleanLinks = validateLinks(links)
+      if (cleanLinks === null) return ctx.badRequest(`links must be up to ${MAX_LINKS} http(s) URLs`)
+      data.links = cleanLinks
+    }
+    if (!Object.keys(data).length) return ctx.badRequest('nothing to update')
+    data.editedAt = new Date().toISOString()
+
+    const updated = await strapi.documents('api::comment.comment').update({ documentId, data: data as any })
+    return { data: updated }
+  },
 }))

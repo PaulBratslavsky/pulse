@@ -10,6 +10,8 @@ const AUTHENTICATED_ACTIONS = [
   'api::mention.mention.claim',
   'api::mention.mention.acknowledge',
   'api::comment.comment.create',
+  'api::comment.comment.update',
+  'api::comment.comment.delete',
   'api::mention.mention.route',
   'api::mention.mention.correct',
   'api::mention.mention.replay',

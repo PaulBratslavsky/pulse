@@ -93,6 +93,22 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
 
     // discussion never changes workflow status
     await expect(page.getByText('unanswered', { exact: true }).first()).toBeVisible()
+
+    // edit own comment (is-owner gated) — scope to the card, entries created
+    // ms apart can swap positions, so positional selectors are unreliable
+    const commentCard = page.locator('li').filter({ hasText: 'E2E follow-up comment' })
+    await commentCard.getByRole('button', { name: 'Edit' }).click()
+    await commentCard.locator('textarea').fill('E2E follow-up comment (revised)')
+    await commentCard.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(page.getByText('E2E follow-up comment (revised)')).toBeVisible()
+    await expect(page.getByText('(edited)')).toBeVisible()
+
+    // delete own comment — inline confirm, no browser dialog
+    const revisedCard = page.locator('li').filter({ hasText: '(revised)' })
+    await revisedCard.getByRole('button', { name: 'Delete', exact: true }).click()
+    await revisedCard.getByRole('button', { name: 'Delete?' }).click()
+    await expect(page.getByText('E2E follow-up comment (revised)')).not.toBeVisible()
+    await expect(page.getByText('E2E note — competitor context')).toBeVisible() // note untouched
   })
 
   test('new topics can be created inline from the labeling panel', async ({ page, request }) => {
