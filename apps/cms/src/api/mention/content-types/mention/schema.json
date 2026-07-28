@@ -78,6 +78,12 @@
       "target": "api::activity.activity",
       "mappedBy": "mention"
     },
+    "comments": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::comment.comment",
+      "mappedBy": "mention"
+    },
     "raw": { "type": "json" }
   }
 }

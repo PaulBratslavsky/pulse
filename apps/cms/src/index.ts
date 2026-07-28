@@ -9,6 +9,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::mention.mention.findOne',
   'api::mention.mention.claim',
   'api::mention.mention.acknowledge',
+  'api::comment.comment.create',
   'api::mention.mention.route',
   'api::mention.mention.correct',
   'api::mention.mention.replay',

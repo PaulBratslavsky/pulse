@@ -18,6 +18,7 @@ const shapeMention = (m: any) => ({
   assignee: trimUser(m.assignee),
   responses: (m.responses ?? []).map((r: any) => ({ ...r, respondedBy: trimUser(r.respondedBy) })),
   activities: (m.activities ?? []).map((a: any) => ({ ...a, actor: trimUser(a.actor) })),
+  comments: (m.comments ?? []).map((c: any) => ({ ...c, author: trimUser(c.author) })),
   raw: undefined, // raw payload is admin-panel material, not API surface
 })
 

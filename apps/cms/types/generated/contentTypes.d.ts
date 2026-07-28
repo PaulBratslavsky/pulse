@@ -530,6 +530,44 @@ export interface ApiChannelChannel extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiCommentComment extends Struct.CollectionTypeSchema {
+  collectionName: 'comments';
+  info: {
+    description: 'Flat team discussion on a mention \u2014 notes (substantive, with resources) and comments (quick chat), one collection distinguished by kind. Never nested.';
+    displayName: 'Comment';
+    pluralName: 'comments';
+    singularName: 'comment';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    author: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    body: Schema.Attribute.Text & Schema.Attribute.Required;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    kind: Schema.Attribute.Enumeration<['note', 'comment']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'comment'>;
+    links: Schema.Attribute.JSON;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::comment.comment'
+    > &
+      Schema.Attribute.Private;
+    mention: Schema.Attribute.Relation<'manyToOne', 'api::mention.mention'>;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiDeadLetterDeadLetter extends Struct.CollectionTypeSchema {
   collectionName: 'dead_letters';
   info: {
@@ -621,6 +659,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     >;
     authorHandle: Schema.Attribute.String;
     channel: Schema.Attribute.Relation<'manyToOne', 'api::channel.channel'>;
+    comments: Schema.Attribute.Relation<'oneToMany', 'api::comment.comment'>;
     content: Schema.Attribute.Text & Schema.Attribute.Required;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -1256,6 +1295,7 @@ declare module '@strapi/strapi' {
       'admin::user': AdminUser;
       'api::activity.activity': ApiActivityActivity;
       'api::channel.channel': ApiChannelChannel;
+      'api::comment.comment': ApiCommentComment;
       'api::dead-letter.dead-letter': ApiDeadLetterDeadLetter;
       'api::event.event': ApiEventEvent;
       'api::mention.mention': ApiMentionMention;

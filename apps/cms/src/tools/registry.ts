@@ -83,6 +83,11 @@ export const PULSE_TOOLS: PulseTool[] = [
             populate: { respondedBy: { fields: ['username'] } },
           },
           activities: { fields: ['action', 'detail', 'at'], sort: 'at:asc' },
+          comments: {
+            fields: ['kind', 'body', 'links', 'createdAt'],
+            populate: { author: { fields: ['username'] } },
+            sort: 'createdAt:asc',
+          },
         } as any,
       });
       if (!m) return { error: `mention ${args.documentId} not found` };
@@ -121,6 +126,13 @@ export const PULSE_TOOLS: PulseTool[] = [
             respondedBy: trimUser(r.respondedBy)?.username ?? null,
           })),
           activity: (m.activities ?? []).map((a: any) => ({ action: a.action, detail: a.detail, at: a.at })),
+          discussion: (m.comments ?? []).map((c: any) => ({
+            kind: c.kind,
+            body: c.body,
+            links: c.links ?? [],
+            author: trimUser(c.author)?.username ?? null,
+            at: c.createdAt,
+          })),
         },
         similarPastReplies: similar.map((r: any) => ({ finalText: r.finalText, respondedAt: r.respondedAt })),
       };

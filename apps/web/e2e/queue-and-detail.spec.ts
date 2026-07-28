@@ -14,7 +14,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await page.locator('a', { hasText: externalId }).first().click()
     await expect(page).toHaveURL(new RegExp(documentId))
     await expect(page.getByText(externalId)).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Timeline' })).toBeVisible()
     await expect(page.getByText('ingested')).toBeVisible()
 
     // claim
@@ -71,17 +71,27 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText(/acknowledged.*—.*competitor/).first()).toBeVisible()
   })
 
-  test('internal note records commentary without answering the mention', async ({ page, request }) => {
+  test('timeline: notes with links and flat comments, no status change', async ({ page, request }) => {
     const { documentId } = await injectMention(request)
     await page.goto(`/mentions/${documentId}`)
 
-    await page.getByRole('checkbox', { name: /internal note only/i }).check()
-    await page.getByPlaceholder('The team’s take on this mention…').fill('E2E internal-only commentary')
-    await page.getByRole('button', { name: 'Save internal note' }).click()
+    // add a note with an attached resource link
+    await page.getByRole('button', { name: 'Note (with resources)' }).click()
+    await page.getByPlaceholder("The team's take, context, decisions…").fill('E2E note — competitor context')
+    await page.getByPlaceholder('Attach a link…').fill('https://example.com/thread')
+    await page.getByRole('button', { name: '+ Add link' }).click()
+    await page.getByRole('button', { name: 'Add note' }).click()
+    await expect(page.getByText('E2E note — competitor context')).toBeVisible()
+    await expect(page.getByRole('link', { name: /example\.com/ })).toBeVisible()
+    await expect(page.getByText('note', { exact: true })).toBeVisible() // amber badge
 
-    await expect(page.getByText('E2E internal-only commentary')).toBeVisible()
-    await expect(page.getByText('internal note', { exact: true })).toBeVisible()
-    // status must NOT flip to answered
+    // add a flat follow-up comment (chat-style, no nesting)
+    await page.getByPlaceholder('Quick comment…').fill('E2E follow-up comment')
+    // two buttons read "Comment": the kind toggle and the submit — submit is last
+    await page.getByRole('button', { name: 'Comment', exact: true }).last().click()
+    await expect(page.getByText('E2E follow-up comment')).toBeVisible()
+
+    // discussion never changes workflow status
     await expect(page.getByText('unanswered', { exact: true }).first()).toBeVisible()
   })
 

@@ -1,0 +1,32 @@
+{
+  "kind": "collectionType",
+  "collectionName": "comments",
+  "info": {
+    "singularName": "comment",
+    "pluralName": "comments",
+    "displayName": "Comment",
+    "description": "Flat team discussion on a mention — notes (substantive, with resources) and comments (quick chat), one collection distinguished by kind. Never nested."
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "mention": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::mention.mention",
+      "inversedBy": "comments"
+    },
+    "kind": {
+      "type": "enumeration",
+      "enum": ["note", "comment"],
+      "default": "comment",
+      "required": true
+    },
+    "body": { "type": "text", "required": true },
+    "links": { "type": "json" },
+    "author": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  }
+}

@@ -20,6 +20,11 @@ export default () => async (ctx: any, next: () => Promise<void>) => {
       populate: { actor: { fields: ['username'] } },
       sort: 'at:desc',
     },
+    comments: {
+      fields: ['kind', 'body', 'links', 'createdAt'],
+      populate: { author: { fields: ['username'] } },
+      sort: 'createdAt:asc',
+    },
   }
   await next()
 }

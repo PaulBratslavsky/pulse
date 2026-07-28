@@ -28,7 +28,6 @@ export default function MentionActions({
   const [draft, setDraft] = useState<string>(mention.draftText ?? '')
   const [finalText, setFinalText] = useState(mention.draftText ?? '')
   const [notes, setNotes] = useState('')
-  const [internal, setInternal] = useState(false)
   const [showCorrect, setShowCorrect] = useState(false)
   const [corrLabel, setCorrLabel] = useState(mention.sentimentLabel ?? 'neutral')
   const [corrTopics, setCorrTopics] = useState<string[]>((mention.topics ?? []).map((t: any) => t.documentId))
@@ -57,13 +56,11 @@ export default function MentionActions({
           finalText,
           draftText: draft || undefined,
           notes: notes || undefined,
-          internal,
         },
       }),
     onSuccess: () => {
       setFinalText('')
       setNotes('')
-      setInternal(false)
       router.refresh()
     },
   })
@@ -267,9 +264,8 @@ export default function MentionActions({
 
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-3">
         <p className="text-sm font-medium">
-          {internal
-            ? 'Internal note (searchable team commentary — no public reply, status unchanged)'
-            : 'Record your reply (post it on the platform first — Pulse tracks it)'}
+          Record your reply (post it on the platform first — Pulse tracks it). For internal-only
+          commentary, add a note in the timeline instead.
         </p>
         {draft && (
           <div className="rounded bg-zinc-50 dark:bg-zinc-800 p-3 text-sm whitespace-pre-wrap border border-dashed border-zinc-300 dark:border-zinc-700">
@@ -280,14 +276,10 @@ export default function MentionActions({
             {draft}
           </div>
         )}
-        <label className="text-sm flex items-center gap-2">
-          <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
-          Internal note only (no public reply — e.g. competitor threads)
-        </label>
         <textarea
           value={finalText}
           onChange={(e) => setFinalText(e.target.value)}
-          placeholder={internal ? 'The team’s take on this mention…' : 'What you actually replied…'}
+          placeholder="What you actually replied…"
           rows={4}
           className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
         />
@@ -302,7 +294,7 @@ export default function MentionActions({
           disabled={respond.isPending || !finalText.trim()}
           className="text-sm rounded-md bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-1.5 font-medium disabled:opacity-50"
         >
-          {respond.isPending ? 'Saving…' : internal ? 'Save internal note' : 'Record response'}
+          {respond.isPending ? 'Saving…' : 'Record response'}
         </button>
         {respond.isError && <p className="text-sm text-red-600">{String(respond.error)}</p>}
       </div>

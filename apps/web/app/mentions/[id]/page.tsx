@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import { strapiFetch } from '@/lib/strapi'
 import { SentimentBadge, StatusBadge } from '@/components/badges'
 import MentionActions from '@/components/mention-actions'
+import Timeline from '@/components/timeline'
 
 export default async function MentionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -116,22 +117,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <aside>
-        <h2 className="font-medium mb-3">Activity</h2>
-        <ol className="space-y-2 border-l border-zinc-200 dark:border-zinc-800 pl-4">
-          {(m.activities ?? []).map((a: any) => (
-            <li key={a.documentId} className="text-sm">
-              <span className="font-medium">{a.action}</span>
-              {a.actor ? <span className="text-zinc-500"> by {a.actor.username}</span> : <span className="text-zinc-500"> (system)</span>}
-              {a.action === 'acknowledged' && a.detail?.reason && (
-                <span className="text-zinc-500"> — {a.detail.reason}{a.detail.note ? `: ${a.detail.note}` : ''}</span>
-              )}
-              <div className="text-xs text-zinc-400">{a.at ? new Date(a.at).toLocaleString() : ''}</div>
-            </li>
-          ))}
-          {(m.activities ?? []).length === 0 && (
-            <li className="text-sm text-zinc-500">No activity yet.</li>
-          )}
-        </ol>
+        <Timeline mention={m} />
       </aside>
     </div>
   )

@@ -8,7 +8,7 @@ export default {
     const q = String(ctx.query.q ?? '').trim()
     if (q.length < 2) return ctx.badRequest('q must be at least 2 characters')
 
-    const [mentions, responses] = await Promise.all([
+    const [mentions, responses, comments] = await Promise.all([
       strapi.documents('api::mention.mention').findMany({
         filters: { content: { $containsi: q } },
         fields: ['content', 'sentimentLabel', 'status', 'postedAt', 'url'],
@@ -29,6 +29,16 @@ export default {
         sort: 'respondedAt:desc' as any,
         limit: 25,
       }),
+      strapi.documents('api::comment.comment').findMany({
+        filters: { body: { $containsi: q } },
+        fields: ['kind', 'body', 'links', 'createdAt'],
+        populate: {
+          mention: { fields: ['content', 'status', 'url'] },
+          author: { fields: ['username'] },
+        } as any,
+        sort: 'createdAt:desc' as any,
+        limit: 25,
+      }),
     ])
 
     return {
@@ -36,6 +46,7 @@ export default {
         query: q,
         mentions: mentions.map((m: any) => ({ type: 'mention', ...m })),
         responses: responses.map((r: any) => ({ type: 'response', ...r })),
+        comments: comments.map((c: any) => ({ type: 'comment', ...c })),
       },
     }
   },
