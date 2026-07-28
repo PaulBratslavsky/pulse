@@ -40,16 +40,33 @@ export function PostedDate({ postedAt }: { postedAt?: string | null }) {
   )
 }
 
-/** Age is measured from when the comment was PUBLISHED on the platform
- *  (postedAt), not when Pulse ingested it — a synced backlog item that has
- *  gone unanswered for weeks must flag immediately. */
-export function StalenessFlag({ postedAt, days = 2 }: { postedAt?: string; days?: number }) {
+/** Age since the comment was PUBLISHED on the platform (postedAt), not since
+ *  Pulse ingested it. Always visible so age never appears "from nowhere":
+ *  neutral gray under the SLA threshold, red alarm once it crosses it. */
+export function StalenessFlag({
+  postedAt,
+  days = 2,
+  awaitingReply = true,
+}: {
+  postedAt?: string
+  days?: number
+  /** red SLA style only applies while the mention still needs action */
+  awaitingReply?: boolean
+}) {
   if (!postedAt) return null
   const age = (Date.now() - new Date(postedAt).getTime()) / 86400000
-  if (age < days) return null
+  if (age < 0) return null
+  const label = age < 1 ? `${Math.max(1, Math.floor(age * 24))}h old` : `${Math.floor(age)}d old`
+  const breached = awaitingReply && age >= days
   return (
-    <span className="inline-block rounded px-1.5 py-0.5 text-xs font-semibold bg-red-600 text-white">
-      ⏰ {Math.floor(age)}d old
+    <span
+      className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold ${
+        breached ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+      }`}
+      title={breached ? `unanswered past the ${days}-day SLA` : 'time since published'}
+    >
+      {breached ? '⏰ ' : ''}
+      {label}
     </span>
   )
 }

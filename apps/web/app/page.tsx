@@ -119,7 +119,10 @@ export default async function QueuePage({
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <SentimentBadge label={m.sentimentLabel} />
                 <StatusBadge status={m.status} />
-                <StalenessFlag postedAt={m.postedAt ?? m.receivedAt} />
+                <StalenessFlag
+                  postedAt={m.postedAt ?? m.receivedAt}
+                  awaitingReply={['unanswered', 'claimed'].includes(m.status)}
+                />
                 {m.draftText && (
                   <span className="inline-block rounded px-1.5 py-0.5 text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
                     draft ready
