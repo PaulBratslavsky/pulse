@@ -108,7 +108,7 @@ export default async function InsightsPage({
         <StatTile
           label="Answered"
           value={snap.mentions.answered}
-          detail={`${snap.mentions.answeredRate}% of mentions`}
+          detail={`${snap.mentions.answeredRate}% of mentions · ${snap.mentions.byStatus.resolved ?? 0} of them resolved`}
         />
         <StatTile
           label="Acknowledged (no reply)"
