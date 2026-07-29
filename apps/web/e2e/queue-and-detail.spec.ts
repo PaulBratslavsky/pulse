@@ -133,6 +133,26 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('#Payload').first()).toBeVisible()
   })
 
+  test('sort toggle flips the queue between oldest- and newest-first', async ({ page, request }) => {
+    const tag = `sort${Date.now().toString(36)}`
+    // one very old, one brand new — each must lead its respective ordering
+    await injectMention(request, { text: `sort test ${tag} ancient`, timestamp: '2018-01-01 00:00:00.000' })
+    await injectMention(request, { text: `sort test ${tag} freshest` })
+
+    await page.goto('/')
+    await expect(page.getByText('Unanswered and claimed mentions, oldest first.')).toBeVisible()
+    await expect(page.locator('li').first()).toContainText('ancient')
+
+    await page.getByRole('link', { name: 'newest', exact: true }).click()
+    await expect(page).toHaveURL(/sort=newest/)
+    await expect(page.getByText('Unanswered and claimed mentions, newest first.')).toBeVisible()
+    await expect(page.locator('li').first()).toContainText('freshest')
+
+    // back to the default drops the param
+    await page.getByRole('link', { name: 'oldest', exact: true }).click()
+    await expect(page).not.toHaveURL(/sort=/)
+  })
+
   test('queue filter chips can CLEAR their filters (all / topic ✕ / status)', async ({ page }) => {
     await page.goto('/?sentiment=negative&topic=docs&status=claimed')
 

@@ -21,6 +21,7 @@ export default async function QueuePage({
     draft?: string
     quality?: string
     topics?: string
+    sort?: string
   }>
 }) {
   const params = await searchParams
@@ -41,7 +42,7 @@ export default async function QueuePage({
           ...(params.quality
             ? { 'filters[quality][$eq]': params.quality }
             : { 'filters[quality][$ne]': 'spam' }),
-          sort: 'postedAt:asc',
+          sort: params.sort === 'newest' ? 'postedAt:desc' : 'postedAt:asc',
           'pagination[page]': page,
           'pagination[pageSize]': 25,
         })
@@ -63,6 +64,7 @@ export default async function QueuePage({
     draft?: string
     quality?: string
     topics?: string
+    sort?: string
   }) => {
     const q = new URLSearchParams()
     // 'key' in over — NOT !== undefined — so passing an explicit undefined
@@ -74,11 +76,13 @@ export default async function QueuePage({
     const draft = 'draft' in over ? over.draft : params.draft
     const quality = 'quality' in over ? over.quality : params.quality
     const noTopics = 'topics' in over ? over.topics : params.topics
+    const sort = 'sort' in over ? over.sort : params.sort
     if (sentiment) q.set('sentiment', sentiment)
     if (topic) q.set('topic', topic)
     if (draft) q.set('draft', draft)
     if (quality) q.set('quality', quality)
     if (noTopics) q.set('topics', noTopics)
+    if (sort) q.set('sort', sort)
     if (over.page && over.page > 1) q.set('page', String(over.page))
     const qs = q.toString()
     return qs ? `/?${qs}` : '/'
@@ -91,10 +95,21 @@ export default async function QueuePage({
         <div>
           <h1 className="text-2xl font-semibold">Queue</h1>
           <p className="text-sm text-zinc-500">
-            {params.status ? `${params.status} mentions, oldest first.` : 'Unanswered and claimed mentions, oldest first.'}
+            {params.status ? `${params.status} mentions` : 'Unanswered and claimed mentions'}
+            {params.sort === 'newest' ? ', newest first.' : ', oldest first.'}
           </p>
         </div>
-        <SyncButton />
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 text-sm" role="group" aria-label="Sort order">
+            <FilterPill href={filterUrl({ sort: undefined, page: 0 })} active={params.sort !== 'newest'} title="Oldest first — SLA order: what has waited longest">
+              oldest
+            </FilterPill>
+            <FilterPill href={filterUrl({ sort: 'newest', page: 0 })} active={params.sort === 'newest'} title="Newest first — catching up on what just arrived">
+              newest
+            </FilterPill>
+          </div>
+          <SyncButton />
+        </div>
       </div>
 
       <div className="flex gap-2 mb-2 text-sm items-center flex-wrap">
