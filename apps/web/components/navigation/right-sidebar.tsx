@@ -1,25 +1,42 @@
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, CornerUpLeft, EyeOff, CheckCircle2, Tag, PenLine, StickyNote, Hand } from 'lucide-react'
 import { strapiFetch, qs } from '@/lib/strapi'
 import { SentimentBadge } from '@/components/badges'
 import { Avatar } from '@/components/ui'
 
-/** Categories shown in the celebration panel, in priority order. Only
- *  non-zero ones render — "0 resolved" is noise, and one opaque "triaged"
- *  number tells nobody what the week actually looked like. */
-const WORK_LABELS: Array<[key: string, singular: string, plural: string]> = [
-  ['replies', 'reply', 'replies'],
-  ['acknowledged', 'acknowledged', 'acknowledged'],
-  ['resolved', 'resolved', 'resolved'],
-  ['labeled', 'labeled', 'labeled'],
-  ['drafts', 'draft', 'drafts'],
-  ['notes', 'note', 'notes'],
-  ['claimed', 'claimed', 'claimed'],
+/** Celebration stats as icon chips: a 330px rail can't carry a sentence like
+ *  "31 replies · 85 acknowledged · 21 resolved · 41 labeled" without wrapping
+ *  badly and truncating names. Icon + number, with the word in the tooltip.
+ *  Only non-zero categories render. */
+const WORK: Array<{ key: string; Icon: any; label: string }> = [
+  { key: 'replies', Icon: CornerUpLeft, label: 'replies posted' },
+  { key: 'acknowledged', Icon: EyeOff, label: 'acknowledged (no reply)' },
+  { key: 'resolved', Icon: CheckCircle2, label: 'resolved' },
+  { key: 'labeled', Icon: Tag, label: 'sentiment/topics labeled' },
+  { key: 'drafts', Icon: PenLine, label: 'drafts written' },
+  { key: 'notes', Icon: StickyNote, label: 'notes & feedback' },
+  { key: 'claimed', Icon: Hand, label: 'claimed' },
 ]
-const workParts = (row: any) =>
-  WORK_LABELS.filter(([k]) => (row?.[k] ?? 0) > 0).map(
-    ([k, one, many]) => `${row[k]} ${row[k] === 1 ? one : many}`
+
+function StatChips({ row, className = '' }: { row: any; className?: string }) {
+  const parts = WORK.filter((w) => (row?.[w.key] ?? 0) > 0)
+  if (parts.length === 0) return null
+  return (
+    <span className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 ${className}`}>
+      {parts.map(({ key, Icon, label }) => (
+        <span
+          key={key}
+          className="inline-flex items-center gap-1 text-zinc-500"
+          title={`${row[key]} ${label}`}
+        >
+          <Icon size={12} className="shrink-0" aria-hidden />
+          <span className="tabular-nums text-zinc-700 dark:text-zinc-300">{row[key]}</span>
+          <span className="sr-only">{label}</span>
+        </span>
+      ))}
+    </span>
   )
+}
 
 /** DevFlow-style right rail: needs-attention mentions + top topics. */
 export async function RightSidebar() {
@@ -76,21 +93,25 @@ export async function RightSidebar() {
         <h3 className="text-lg font-bold mb-1">Team celebration 🎉</h3>
         {/* What WE did, then who chipped in. Everyone with activity is listed,
             replies shown even at zero — opting out is the escape hatch. */}
-        <p className="mb-3 text-xs text-zinc-500">
-          {workParts(team).length > 0
-            ? `Last 7 days: ${workParts(team).join(' · ')}`
-            : 'Nothing yet this week — first one on the board sets the pace 🙂'}
-        </p>
+        <p className="mb-1 text-xs text-zinc-500">Last 7 days</p>
+        {WORK.some((w) => (team?.[w.key] ?? 0) > 0) ? (
+          <StatChips row={team} className="mb-4 text-sm" />
+        ) : (
+          <p className="mb-4 text-sm text-zinc-500">
+            Nothing yet this week — first one on the board sets the pace 🙂
+          </p>
+        )}
         {leaders.length > 0 && (
-          <ol className="flex flex-col gap-2">
+          <ol className="flex flex-col gap-3">
             {leaders.map((u: any) => (
               // no medals, no rank numbers — this is a contribution list, not a
               // competition (team decision 2026-07-29)
-              <li key={u.username} className="flex items-center gap-2 text-sm">
+              // name on its own line so it never truncates; stats beneath it
+              <li key={u.username} className="flex items-start gap-2 text-sm">
                 <Avatar name={u.username} size="sm" />
-                <span className="truncate text-zinc-700 dark:text-zinc-300">{u.username}</span>
-                <span className="ml-auto shrink-0 text-right text-xs text-zinc-500">
-                  {workParts(u).join(' · ')}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-zinc-700 dark:text-zinc-300">{u.username}</span>
+                  <StatChips row={u} className="mt-0.5 text-xs" />
                 </span>
               </li>
             ))}
