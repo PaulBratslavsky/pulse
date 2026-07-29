@@ -201,10 +201,10 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
 
   /**
    * Team leaderboard over a trailing window. Design constraints, in order:
-   *  1. **Encouraging, not surveillance.** Only people who posted at least one
-   *     reply are listed — nobody is published in last place with a zero, and
-   *     a quiet week simply doesn't appear. Participation is opt-out per user
-   *     (api::preference.hideFromLeaderboard).
+   *  1. **Celebration, not surveillance.** Everyone with any activity is
+   *     listed — including zero replies, because this team isn't judged on
+   *     reply count and hiding people read as a consolation prize. Anyone who
+   *     would rather not appear opts out (api::preference.hideFromLeaderboard).
    *  2. **Ranked by replies posted, NOT triage volume** — a board that counts
    *     acknowledges rewards mass-dismissing the queue, the opposite of what
    *     this tool exists to encourage. Triage shows as context, never rank.
@@ -254,22 +254,15 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
       contributors: all.filter((u) => u.replies > 0).length,
     };
 
-    const visible = all.filter((u) => !optedOut.has(u.username));
+    // EVERYONE who did anything is listed, replies shown even at zero (team
+    // decision 2026-07-29: nobody here is judged on reply count, and a separate
+    // "also helping" line read as a consolation prize). Opting out is the
+    // escape hatch for anyone who'd rather not appear.
+    const leaders = all
+      .filter((u) => !optedOut.has(u.username) && u.replies + u.resolved + u.triaged > 0)
+      .sort((a, b) => b.replies - a.replies || b.triaged - a.triaged);
 
-    // Ranked: people who posted replies (the behaviour the board exists to
-    // encourage). No zero rows — nobody is published in last place.
-    const leaders = visible
-      .filter((u) => u.replies > 0)
-      .sort((a, b) => b.replies - a.replies || b.resolved - a.resolved);
-
-    // Unranked but named: whoever kept the queue moving. Triage is real work —
-    // erasing it because it isn't a reply is exactly the discouraging outcome
-    // this board must avoid.
-    const helpers = visible
-      .filter((u) => u.replies === 0 && u.triaged > 0)
-      .sort((a, b) => b.triaged - a.triaged);
-
-    return { windowDays: days, team, leaders, helpers };
+    return { windowDays: days, team, leaders };
   },
 
   /**

@@ -346,9 +346,9 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     const { documentId } = await injectMention(request)
 
     await page.goto('/')
-    const board = page.locator('aside').filter({ hasText: 'This week' })
+    const board = page.locator('aside').filter({ hasText: 'Team celebration' })
     test.skip((await board.count()) === 0, 'right rail is hidden below xl')
-    await expect(board.getByRole('heading', { name: /This week/ })).toBeVisible()
+    await expect(board.getByRole('heading', { name: /Team celebration/ })).toBeVisible()
 
     // record a public reply, which must credit the signed-in user
     await page.goto(`/mentions/${documentId}`)

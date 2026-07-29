@@ -9,7 +9,6 @@ export async function RightSidebar() {
   let attention: any[] = []
   let themes: any[] = []
   let leaders: any[] = []
-  let helpers: any[] = []
   let team: any = { replies: 0, resolved: 0, triaged: 0, contributors: 0 }
   try {
     const [mentions, themesRes, boardRes] = await Promise.all([
@@ -26,9 +25,8 @@ export async function RightSidebar() {
     ])
     attention = mentions.data ?? []
     themes = (themesRes.data?.themes ?? []).slice(0, 6)
-    leaders = (boardRes.data?.leaders ?? []).slice(0, 5)
+    leaders = (boardRes.data?.leaders ?? []).slice(0, 8)
     team = boardRes.data?.team ?? team
-    helpers = (boardRes.data?.helpers ?? []).slice(0, 4)
   } catch {
     return null
   }
@@ -58,53 +56,38 @@ export async function RightSidebar() {
       </div>
 
       <div>
-        <h3 className="text-lg font-bold mb-1">This week 🎉</h3>
-        {/* team-first: the headline is what WE did, the list celebrates who
-            chipped in. Nobody appears with a zero, so a quiet week is simply
-            absent rather than publicly last. */}
+        <h3 className="text-lg font-bold mb-1">Team celebration 🎉</h3>
+        {/* What WE did, then who chipped in. Everyone with activity is listed,
+            replies shown even at zero — opting out is the escape hatch. */}
         <p className="mb-3 text-xs text-zinc-500">
-          {team.replies > 0
-            ? `The team posted ${team.replies} ${team.replies === 1 ? 'reply' : 'replies'}${
-                team.contributors > 1 ? ` across ${team.contributors} people` : ''
-              } in the last 7 days`
-            : 'Replies posted in the last 7 days'}
+          {team.replies + team.triaged + team.resolved > 0 ? (
+            <>
+              Last 7 days:{' '}
+              <strong className="text-zinc-700 dark:text-zinc-300">{team.replies}</strong>{' '}
+              {team.replies === 1 ? 'reply' : 'replies'} ·{' '}
+              <strong className="text-zinc-700 dark:text-zinc-300">{team.resolved}</strong> resolved ·{' '}
+              <strong className="text-zinc-700 dark:text-zinc-300">{team.triaged}</strong> triaged
+            </>
+          ) : (
+            'Nothing yet this week — first one on the board sets the pace 🙂'
+          )}
         </p>
-        {leaders.length === 0 ? (
-          <p className="text-sm text-zinc-500">
-            Nobody&apos;s replied yet this week — first one on the board sets the pace 🙂
-          </p>
-        ) : (
+        {leaders.length > 0 && (
           <ol className="flex flex-col gap-2">
-            {leaders.map((u: any, i: number) => (
+            {leaders.map((u: any) => (
+              // no medals, no rank numbers — this is a contribution list, not a
+              // competition (team decision 2026-07-29)
               <li key={u.username} className="flex items-center gap-2 text-sm">
-                <span className="w-5 shrink-0 text-center" aria-hidden>
-                  {['🥇', '🥈', '🥉'][i] ?? <span className="text-xs text-zinc-400">{i + 1}</span>}
-                </span>
                 <Avatar name={u.username} size="sm" />
                 <span className="truncate text-zinc-700 dark:text-zinc-300">{u.username}</span>
-                <span className="ml-auto flex items-baseline gap-1.5 shrink-0">
-                  <span className="font-semibold tabular-nums">{u.replies}</span>
-                  <span className="text-xs text-zinc-400">
-                    {u.replies === 1 ? 'reply' : 'replies'}
-                  </span>
+                <span className="ml-auto shrink-0 text-xs text-zinc-500">
+                  <strong className="tabular-nums text-zinc-700 dark:text-zinc-300">{u.replies}</strong>{' '}
+                  {u.replies === 1 ? 'reply' : 'replies'}
+                  {u.triaged > 0 && <> · {u.triaged} triaged</>}
                 </span>
               </li>
             ))}
           </ol>
-        )}
-        {helpers.length > 0 && (
-          <p className="mt-3 text-xs text-zinc-500">
-            🧹 Also keeping the queue moving:{' '}
-            <span className="text-zinc-700 dark:text-zinc-300">
-              {helpers.map((u: any) => u.username).join(', ')}
-            </span>
-          </p>
-        )}
-        {(team.triaged > 0 || team.resolved > 0) && (
-          <p className="mt-2 text-xs text-zinc-400">
-            {team.triaged} triage actions
-            {team.resolved > 0 && ` · ${team.resolved} resolved`} — counted for the team, not ranked
-          </p>
         )}
       </div>
 
