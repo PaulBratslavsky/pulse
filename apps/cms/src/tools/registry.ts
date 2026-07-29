@@ -82,7 +82,9 @@ export const PULSE_TOOLS: PulseTool[] = [
       const [rows, total] = await Promise.all([
         strapi.documents('api::mention.mention').findMany({
           filters,
-          fields: ['content', 'sentimentLabel', 'status', 'postedAt', 'url', 'draftText', 'externalId'],
+          // 'quality' must be selected explicitly — an omitted field reads back
+          // as undefined, which silently blanked the marker below
+          fields: ['content', 'sentimentLabel', 'status', 'postedAt', 'url', 'draftText', 'externalId', 'quality'],
           populate: { topics: { fields: ['name', 'slug', 'kind'] }, channel: { fields: ['name'] } } as any,
           sort: 'postedAt:asc' as any,
           limit,
@@ -105,6 +107,10 @@ export const PULSE_TOOLS: PulseTool[] = [
           postedAt: m.postedAt,
           url: m.url,
           hasDraft: Boolean(m.draftText),
+          // so a spam sweep skips what's already flagged instead of re-judging
+          // the same items each run; emitted only when set, to keep the payload
+          // small ('normal' is the overwhelming default)
+          ...(m.quality && m.quality !== 'normal' ? { quality: m.quality } : {}),
           channel: m.channel?.name ?? null,
           topics: (m.topics ?? []).map((t: any) => t.name),
         })),
@@ -168,6 +174,12 @@ export const PULSE_TOOLS: PulseTool[] = [
           sentimentLabel: m.sentimentLabel,
           status: m.status,
           acknowledgeReason: m.acknowledgeReason ?? null,
+          // current spam judgement + WHY, so an agent can see a mention is
+          // already flagged instead of re-judging it on every sweep, and can
+          // read back what it just wrote
+          quality: m.quality ?? 'normal',
+          qualityReason: m.qualityReason ?? null,
+          qualityVia: m.qualityVia ?? null,
           topics: (m.topics ?? []).map((t: any) => ({ name: t.name, kind: t.kind })),
           draftText: m.draftText ?? null,
           responses: (m.responses ?? []).map((r: any) => ({
@@ -438,7 +450,18 @@ export const PULSE_TOOLS: PulseTool[] = [
     execute: (strapi, args) =>
       strapi.documents('api::mention.mention').findMany({
         filters: { content: { $containsi: args.query } },
-        fields: ['content', 'sentimentLabel', 'sentimentScore', 'status', 'postedAt', 'url'],
+        // quality/qualityReason so a search used to hunt spam can see what has
+        // already been judged rather than re-judging it
+        fields: [
+          'content',
+          'sentimentLabel',
+          'sentimentScore',
+          'status',
+          'postedAt',
+          'url',
+          'quality',
+          'qualityReason',
+        ],
         populate: { topics: { fields: ['name'] }, channel: { fields: ['name'] } } as any,
         sort: 'postedAt:desc' as any,
         limit: args.limit ?? 20,
