@@ -19,7 +19,7 @@ export default async function SettingsPage() {
   ]
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <h1 className="text-2xl font-semibold mb-1">Settings</h1>
       <p className="text-sm text-zinc-500 mb-6">
         Noise control lives here; the rest of the configuration lives in the Strapi admin panel —

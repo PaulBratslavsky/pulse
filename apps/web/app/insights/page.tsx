@@ -25,14 +25,59 @@ const sentimentMeta: Record<string, { label: string; className: string }> = {
 }
 const sentimentFallback = { label: 'other', className: 'bg-zinc-200 dark:bg-zinc-700' }
 
-function StatTile({ label, value, detail }: { label: string; value: React.ReactNode; detail?: React.ReactNode }) {
+/** One headline number. Labels are kept short enough to never wrap, which is
+ *  what keeps every tile's number on the same baseline — no min-height props.
+ *  `sub` rides next to the value (a rate, a delta); `detail` is the line under. */
+function StatTile({
+  label,
+  value,
+  sub,
+  detail,
+  title,
+  accent = false,
+}: {
+  label: string
+  value: React.ReactNode
+  sub?: React.ReactNode
+  detail?: React.ReactNode
+  title?: string
+  accent?: boolean
+}) {
   return (
-    <div className="flex h-full flex-col rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
-      {/* fixed two-line label zone so every tile's number sits on the same baseline */}
-      <p className="text-xs text-zinc-500 mb-1 min-h-[2rem]">{label}</p>
-      <p className="text-2xl font-semibold tabular-nums leading-none">{value}</p>
-      <p className="text-xs text-zinc-500 mt-2 min-h-[1rem]">{detail}</p>
+    <div
+      className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4"
+      title={title}
+    >
+      <p className="truncate text-xs text-zinc-500">{label}</p>
+      <p className="mt-2 flex items-baseline gap-1.5">
+        <span
+          className={`text-3xl font-semibold tabular-nums leading-none ${
+            accent ? 'text-[#4945FF] dark:text-[#7B79FF]' : ''
+          }`}
+        >
+          {value}
+        </span>
+        {sub}
+      </p>
+      {detail && <p className="mt-2 text-xs text-zinc-500">{detail}</p>}
     </div>
+  )
+}
+
+/** Signed change, colored + arrowed — sits inline beside the Pulse score. */
+function Delta({ value }: { value: number }) {
+  const up = value >= 0
+  const Icon = up ? ArrowUpRight : ArrowDownRight
+  return (
+    <span
+      className={`inline-flex items-center text-sm font-medium tabular-nums ${
+        up ? 'text-emerald-600' : 'text-red-600'
+      }`}
+    >
+      <Icon size={14} />
+      {up ? '+' : ''}
+      {value}
+    </span>
   )
 }
 
@@ -81,6 +126,25 @@ export default async function InsightsPage({
   )
   const sentimentTotal = sentimentEntries.reduce((s, [, n]) => s + n, 0)
 
+  // the three "closed out" statuses roll into one Handled tile; only non-zero
+  // slices are named, so a 0 never takes up room on the detail line
+  const byStatus = snap.mentions.byStatus
+  const handled =
+    (byStatus.answered ?? 0) + (byStatus.resolved ?? 0) + (byStatus.acknowledged ?? 0)
+  const open = snap.mentions.total - handled
+  const handledParts = [
+    { n: byStatus.answered ?? 0, word: 'replied' },
+    { n: byStatus.resolved ?? 0, word: 'resolved' },
+    { n: byStatus.acknowledged ?? 0, word: 'acknowledged' },
+  ]
+    .filter((p) => p.n > 0)
+    .map((p) => `${p.n} ${p.word}`)
+    .join(' · ')
+  const ackReasons = snap.mentions.acknowledgedByReason.length
+    ? 'Acknowledged: ' +
+      snap.mentions.acknowledgedByReason.map((r: any) => `${r.name} ${r.count}`).join(' · ')
+    : undefined
+
   return (
     <div>
       <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
@@ -97,34 +161,39 @@ export default async function InsightsPage({
         </div>
       </div>
 
-      {/* headline tiles — statuses match the queue filters one-to-one */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
+      {/* Headline tiles. Four, not six: answered/resolved/acknowledged are three
+          slices of one question ("did we close it out?"), so they collapse into
+          Handled with the split on the detail line and the acknowledge reasons
+          in the tooltip. Zero-count slices drop out rather than spending a whole
+          tile to say nothing. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <StatTile
+          accent
+          label="Pulse score"
+          value={snap.pulse.current ?? '—'}
+          sub={snap.pulse.delta == null ? undefined : <Delta value={snap.pulse.delta} />}
+          detail={snap.pulse.delta == null ? 'no trend yet' : `vs ${days}d ago`}
+        />
         <StatTile
           label="Mentions"
           value={snap.mentions.total}
-          detail={`${snap.mentions.answeredRate}% got a reply`}
+          detail={open > 0 ? `${open} still open` : 'all caught up'}
         />
         <StatTile
-          label="Answered"
-          value={snap.mentions.byStatus.answered ?? 0}
-          detail="replied — outcome pending"
-        />
-        <StatTile
-          label="Resolved"
-          value={snap.mentions.byStatus.resolved ?? 0}
-          detail="replied & closed out"
-        />
-        <StatTile
-          label="Acknowledged (no reply)"
-          value={snap.mentions.byStatus.acknowledged ?? 0}
-          detail={
-            snap.mentions.acknowledgedByReason.length
-              ? snap.mentions.acknowledgedByReason.map((r: any) => `${r.name} ${r.count}`).join(' · ')
-              : undefined
+          label="Handled"
+          value={handled}
+          sub={
+            snap.mentions.total > 0 ? (
+              <span className="text-sm text-zinc-400 tabular-nums">
+                {Math.round((handled / snap.mentions.total) * 100)}%
+              </span>
+            ) : undefined
           }
+          detail={handledParts || 'nothing closed out yet'}
+          title={ackReasons}
         />
         <StatTile
-          label="Median time to answer"
+          label="Median reply"
           value={
             snap.responses.medianHoursToAnswer == null
               ? '—'
@@ -132,26 +201,7 @@ export default async function InsightsPage({
                 ? `${Math.round(snap.responses.medianHoursToAnswer / 24)}d`
                 : `${snap.responses.medianHoursToAnswer}h`
           }
-          detail={`${snap.responses.total} replies recorded`}
-        />
-        <StatTile
-          label="Pulse score"
-          value={snap.pulse.current ?? '—'}
-          detail={
-            snap.pulse.delta == null ? (
-              'no trend yet'
-            ) : (
-              <span className="inline-flex items-center gap-1">
-                {snap.pulse.delta >= 0 ? (
-                  <ArrowUpRight size={12} className="text-emerald-600" />
-                ) : (
-                  <ArrowDownRight size={12} className="text-red-600" />
-                )}
-                {snap.pulse.delta >= 0 ? '+' : ''}
-                {snap.pulse.delta} vs window start
-              </span>
-            )
-          }
+          detail={snap.responses.total > 0 ? `from ${snap.responses.total} replies` : 'no replies yet'}
         />
       </div>
 

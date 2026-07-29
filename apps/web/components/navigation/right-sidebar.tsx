@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, CornerUpLeft, EyeOff, ListChecks } from 'lucide-react'
+import { ArrowRight, MessageSquare, Eye, ListChecks } from 'lucide-react'
 import { strapiFetch, qs } from '@/lib/strapi'
 import { SentimentBadge } from '@/components/badges'
 import { Avatar } from '@/components/ui'
@@ -9,27 +9,30 @@ import { Avatar } from '@/components/ui'
  *  badly and truncating names. Icon + number, with the word in the tooltip.
  *  Only non-zero categories render. */
 const WORK: Array<{ key: string; Icon: any; label: string }> = [
-  { key: 'replies', Icon: CornerUpLeft, label: 'replies posted' },
-  { key: 'acknowledged', Icon: EyeOff, label: 'acknowledged (closed without a reply)' },
+  // chat bubble, not an envelope — these are public replies, not email
+  { key: 'replies', Icon: MessageSquare, label: 'replies posted' },
+  // an open eye: acknowledged means "we saw it and closed it", not "we hid it"
+  { key: 'acknowledged', Icon: Eye, label: 'acknowledged (closed without a reply)' },
   { key: 'triaged', Icon: ListChecks, label: 'triaged (claimed, labeled, resolved, notes, drafts)' },
 ]
 
-function StatChips({ row, className = '' }: { row: any; className?: string }) {
-  const parts = WORK.filter((w) => (row?.[w.key] ?? 0) > 0)
-  if (parts.length === 0) return null
+/** Shared column template: avatar · name · three stat columns. Both the team
+ *  totals line and each teammate row use it, which is what makes the icons
+ *  line up in columns down the panel. */
+const ROW = 'grid grid-cols-[1.25rem_1fr_repeat(3,2.75rem)] items-center gap-x-1.5'
+
+/** One stat cell. Always occupies its grid column even at zero — that is what
+ *  keeps the icon columns aligned down the whole panel — but renders empty
+ *  rather than printing a row of noisy 0s. */
+function StatCell({ row, stat }: { row: any; stat: (typeof WORK)[number] }) {
+  const n = row?.[stat.key] ?? 0
+  if (n === 0) return <span aria-hidden />
+  const { Icon, label } = stat
   return (
-    <span className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 ${className}`}>
-      {parts.map(({ key, Icon, label }) => (
-        <span
-          key={key}
-          className="inline-flex items-center gap-1 text-zinc-500"
-          title={`${row[key]} ${label}`}
-        >
-          <Icon size={12} className="shrink-0" aria-hidden />
-          <span className="tabular-nums text-zinc-700 dark:text-zinc-300">{row[key]}</span>
-          <span className="sr-only">{label}</span>
-        </span>
-      ))}
+    <span className="inline-flex items-center gap-1 text-zinc-500" title={`${n} ${label}`}>
+      <Icon size={12} className="shrink-0" aria-hidden />
+      <span className="tabular-nums text-zinc-700 dark:text-zinc-300">{n}</span>
+      <span className="sr-only">{label}</span>
     </span>
   )
 }
@@ -89,29 +92,39 @@ export async function RightSidebar() {
         <h3 className="text-lg font-bold mb-1">Team celebration 🎉</h3>
         {/* What WE did, then who chipped in. Everyone with activity is listed,
             replies shown even at zero — opting out is the escape hatch. */}
-        <p className="mb-1 text-xs text-zinc-500">Last 7 days</p>
         {WORK.some((w) => (team?.[w.key] ?? 0) > 0) ? (
-          <StatChips row={team} className="mb-4 text-sm" />
+          // The team totals line and every teammate row use the SAME fixed
+          // column template, so the stat icons line up vertically down the
+          // panel instead of drifting with each row's content. Per-row grids
+          // (rather than one big one) keep the list semantics — and a real
+          // element per teammate — while giving identical alignment.
+          // no medals, no rank numbers — a contribution list, not a competition
+          // (team decision 2026-07-29)
+          <>
+            <p className={`${ROW} text-xs text-zinc-500 mb-3`}>
+              <span className="col-span-2">Last 7 days</span>
+              {WORK.map((w) => (
+                <StatCell key={w.key} row={team} stat={w} />
+              ))}
+            </p>
+            <ol className="flex flex-col gap-3">
+              {leaders.map((u: any) => (
+                <li key={u.username} className={`${ROW} text-xs`}>
+                  <Avatar name={u.username} size="sm" />
+                  <span className="min-w-0 truncate text-sm text-zinc-700 dark:text-zinc-300">
+                    {u.username}
+                  </span>
+                  {WORK.map((w) => (
+                    <StatCell key={w.key} row={u} stat={w} />
+                  ))}
+                </li>
+              ))}
+            </ol>
+          </>
         ) : (
           <p className="mb-4 text-sm text-zinc-500">
             Nothing yet this week — first one on the board sets the pace 🙂
           </p>
-        )}
-        {leaders.length > 0 && (
-          <ol className="flex flex-col gap-3">
-            {leaders.map((u: any) => (
-              // no medals, no rank numbers — this is a contribution list, not a
-              // competition (team decision 2026-07-29)
-              // name on its own line so it never truncates; stats beneath it
-              <li key={u.username} className="flex items-start gap-2 text-sm">
-                <Avatar name={u.username} size="sm" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-zinc-700 dark:text-zinc-300">{u.username}</span>
-                  <StatChips row={u} className="mt-0.5 text-xs" />
-                </span>
-              </li>
-            ))}
-          </ol>
         )}
       </div>
 
