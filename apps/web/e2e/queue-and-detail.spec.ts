@@ -276,6 +276,35 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('acknowledged', { exact: true }).first()).toBeVisible()
   })
 
+  test('theme toggle cycles light → dark → system and persists', async ({ page }) => {
+    await page.goto('/')
+    const toggle = page.getByRole('button', { name: /^Theme:/ })
+    const htmlIsDark = () => page.evaluate(() => document.documentElement.classList.contains('dark'))
+    const stored = () => page.evaluate(() => localStorage.getItem('pulse-theme'))
+
+    // starts on system (nothing stored yet)
+    await expect(toggle).toBeVisible()
+
+    // system → light
+    await toggle.click()
+    expect(await stored()).toBe('light')
+    expect(await htmlIsDark()).toBe(false)
+
+    // light → dark
+    await toggle.click()
+    expect(await stored()).toBe('dark')
+    expect(await htmlIsDark()).toBe(true)
+
+    // survives a full reload with no flash-of-wrong-theme (script runs pre-paint)
+    await page.reload()
+    expect(await htmlIsDark()).toBe(true)
+    expect(await stored()).toBe('dark')
+
+    // dark → system
+    await page.getByRole('button', { name: /^Theme:/ }).click()
+    expect(await stored()).toBe('system')
+  })
+
   test('search finds recorded responses', async ({ page }) => {
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')

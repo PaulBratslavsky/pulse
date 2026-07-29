@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { LogOut } from 'lucide-react'
 import SearchBox from '@/components/search-box'
 import { Avatar } from '@/components/ui'
+import ThemeToggle from '@/components/theme-toggle'
 import { logoutUserAction } from '@/data/actions/auth'
 
 export function TopNav({ me }: { me: { username: string } | null }) {
@@ -20,6 +21,7 @@ export function TopNav({ me }: { me: { username: string } | null }) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+        <ThemeToggle />
         {me && (
           <>
             <Avatar name={me.username} size="lg" />
