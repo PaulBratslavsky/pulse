@@ -222,7 +222,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     request,
   }) => {
     const handle = `slopbot_${Date.now().toString(36)}`
-    const { externalId } = await injectMention(request, { author: { handle } })
+    const { externalId, documentId } = await injectMention(request, { author: { handle } })
     const search = () => page.getByPlaceholder('Search mentions & past responses…')
 
     // visible before the mute
@@ -230,10 +230,14 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await search().fill(externalId)
     await expect(page.locator('a', { hasText: externalId }).first()).toBeVisible()
 
-    // mute the author from Settings (the shadow-block list)
-    await page.goto('/settings')
-    await page.getByPlaceholder('author handle (without @)').fill(handle)
+    // mute from the mention detail page — where you decide it, right after reading
+    await page.goto(`/mentions/${documentId}`)
     await page.getByRole('button', { name: 'Mute author' }).click()
+    await page.getByRole('button', { name: 'Mute', exact: true }).click()
+    await expect(page.getByText('author muted')).toBeVisible()
+
+    // and it shows up on the Settings list
+    await page.goto('/settings')
     await expect(page.getByText(`@${handle}`)).toBeVisible()
     // scope to this handle's row — earlier test runs leave other muted authors
     await expect(page.locator('li').filter({ hasText: handle }).getByText('1 mention hidden')).toBeVisible()

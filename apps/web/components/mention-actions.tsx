@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
 import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
+import MuteAuthorButton from '@/components/mute-author-button'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 
@@ -128,6 +129,17 @@ export default function MentionActions({
           >
             Acknowledge — no reply
           </button>
+        )}
+        {mention.authorHandle && mention.quality !== 'spam' && (
+          <MuteAuthorButton handle={mention.authorHandle} />
+        )}
+        {mention.quality === 'spam' && (
+          <span
+            className="inline-flex items-center rounded-md bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300"
+            title="This author is muted — their mentions stay out of the queue and all reports"
+          >
+            author muted
+          </span>
         )}
         {lastResponse && !lastResponse.outcome?.result && (
           <div className="flex items-center gap-1 text-sm">
