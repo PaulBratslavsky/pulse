@@ -348,7 +348,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await page.goto('/')
     const board = page.locator('aside').filter({ hasText: 'This week' })
     test.skip((await board.count()) === 0, 'right rail is hidden below xl')
-    await expect(board.getByText('Replies posted in the last 7 days')).toBeVisible()
+    await expect(board.getByRole('heading', { name: /This week/ })).toBeVisible()
 
     // record a public reply, which must credit the signed-in user
     await page.goto(`/mentions/${documentId}`)
@@ -359,6 +359,37 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
 
     await page.goto('/')
     await expect(board.getByText('dana')).toBeVisible()
+  })
+
+  test('feedback captured in the timeline lands on the Feedback page', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    const tag = `fb${Date.now().toString(36)}`
+
+    await page.goto(`/mentions/${documentId}`)
+    await page.getByRole('button', { name: 'Feedback' }).click()
+    await page
+      .getByPlaceholder('What the author said back / product insight to capture…')
+      .fill(`Pain point ${tag}: populate API is confusing for newcomers`)
+    await page.getByRole('button', { name: 'Add feedback' }).click()
+    await expect(page.getByText(`Pain point ${tag}`)).toBeVisible()
+
+    await page.goto('/feedback')
+    await expect(page.getByRole('heading', { name: 'Product feedback' })).toBeVisible()
+    await expect(page.getByText(`Pain point ${tag}`)).toBeVisible()
+  })
+
+  test('"mentions Strapi" filter narrows the queue to posts naming us', async ({ page, request }) => {
+    const tag = `q${Date.now().toString(36)}`
+    const old = { timestamp: '2017-03-01 00:00:00.000' }
+    await injectMention(request, { text: `${tag} this one names Strapi explicitly`, ...old })
+    await injectMention(request, { text: `${tag} this one is about something else entirely`, ...old })
+
+    await page.goto('/')
+    await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(2)
+
+    await page.getByRole('link', { name: 'mentions Strapi' }).click()
+    await expect(page).toHaveURL(/q=strapi/)
+    await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(1)
   })
 
   test('search finds recorded responses', async ({ page }) => {

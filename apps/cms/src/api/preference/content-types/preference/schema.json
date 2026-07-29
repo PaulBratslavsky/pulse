@@ -1,0 +1,19 @@
+{
+  "kind": "collectionType",
+  "collectionName": "preferences",
+  "info": {
+    "singularName": "preference",
+    "pluralName": "preferences",
+    "displayName": "Preference",
+    "description": "Per-user settings. Kept as its own type rather than extending the U&P user schema (a partial extension file silently REPLACES the base schema and drops email/password columns)."
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "hideFromLeaderboard": { "type": "boolean", "default": false }
+  }
+}

@@ -137,12 +137,80 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 
   /**
-   * Team leaderboard over a trailing window. Ranked by **replies posted** —
-   * deliberately NOT by triage volume: a board that counts acknowledges
-   * rewards mass-dismissing the queue, which is the opposite of the behaviour
-   * this tool exists to encourage. Triage is shown as context, not rank.
-   * Sourced from the activity trail (one row per transition, with the actor),
-   * so it stays honest even when work happens via MCP or bulk actions.
+   * Product-feedback digest: every `kind: feedback` comment the team captured,
+   * with the source mention for context. This is the "what should we build"
+   * surface — it deliberately reads from human-captured feedback rather than
+   * raw mention text, because the team's framing of a pain point is worth more
+   * than a keyword match. Grouped counts by topic give the prioritisation
+   * signal; archived comments and spam mentions are excluded.
+   */
+  async feedback(opts: { days?: number; topic?: string } = {}) {
+    const days = opts.days ?? 90;
+    const since = new Date(Date.now() - days * DAY).toISOString();
+
+    const comments = await strapi.documents('api::comment.comment').findMany({
+      filters: { kind: 'feedback', archived: { $ne: true }, createdAt: { $gte: since } } as any,
+      fields: ['body', 'links', 'createdAt'],
+      populate: {
+        author: { fields: ['username'] },
+        mention: {
+          fields: ['content', 'url', 'sentimentLabel', 'postedAt', 'quality', 'authorHandle'],
+          populate: { topics: { fields: ['name', 'slug'] }, channel: { fields: ['name'] } },
+        },
+      } as any,
+      sort: 'createdAt:desc' as any,
+      limit: 500,
+    });
+
+    const items = (comments as any[])
+      .filter((c) => c.mention && c.mention.quality !== 'spam')
+      .filter((c) => !opts.topic || (c.mention.topics ?? []).some((t: any) => t.slug === opts.topic))
+      .map((c) => ({
+        documentId: c.documentId,
+        body: c.body,
+        links: Array.isArray(c.links) ? c.links : [],
+        capturedBy: c.author?.username ?? null,
+        capturedAt: c.createdAt,
+        mention: {
+          documentId: c.mention.documentId,
+          excerpt: String(c.mention.content ?? '').slice(0, 300),
+          url: c.mention.url,
+          authorHandle: c.mention.authorHandle,
+          sentimentLabel: c.mention.sentimentLabel,
+          channel: c.mention.channel?.name ?? null,
+          topics: (c.mention.topics ?? []).map((t: any) => ({ name: t.name, slug: t.slug })),
+        },
+      }));
+
+    // prioritisation signal: which topics keep coming up in captured feedback
+    const byTopic = new Map<string, { name: string; slug: string; count: number }>();
+    for (const i of items)
+      for (const t of i.mention.topics) {
+        const e = byTopic.get(t.slug) ?? { ...t, count: 0 };
+        e.count += 1;
+        byTopic.set(t.slug, e);
+      }
+
+    return {
+      windowDays: days,
+      total: items.length,
+      topics: [...byTopic.values()].sort((a, b) => b.count - a.count),
+      items,
+    };
+  },
+
+  /**
+   * Team leaderboard over a trailing window. Design constraints, in order:
+   *  1. **Encouraging, not surveillance.** Only people who posted at least one
+   *     reply are listed — nobody is published in last place with a zero, and
+   *     a quiet week simply doesn't appear. Participation is opt-out per user
+   *     (api::preference.hideFromLeaderboard).
+   *  2. **Ranked by replies posted, NOT triage volume** — a board that counts
+   *     acknowledges rewards mass-dismissing the queue, the opposite of what
+   *     this tool exists to encourage. Triage shows as context, never rank.
+   *  3. Sourced from the activity trail, so UI, bulk and MCP work all count.
+   * Returns team totals too, so the headline can be collective rather than a
+   * ranking of individuals.
    */
   async leaderboard(opts: { days?: number } = {}) {
     const days = opts.days ?? 7;
@@ -167,11 +235,41 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
       byUser.set(username, e);
     }
 
-    const leaders = [...byUser.values()]
-      .filter((u) => u.replies + u.resolved + u.triaged > 0)
-      .sort((a, b) => b.replies - a.replies || b.resolved - a.resolved || b.triaged - a.triaged);
+    // opted-out teammates never appear (their work still counts in the team total)
+    const optedOut = new Set(
+      (
+        await strapi.documents('api::preference.preference').findMany({
+          filters: { hideFromLeaderboard: true } as any,
+          populate: { user: { fields: ['username'] } } as any,
+          limit: 500,
+        })
+      ).map((p: any) => p.user?.username).filter(Boolean)
+    );
 
-    return { windowDays: days, leaders };
+    const all = [...byUser.values()];
+    const team = {
+      replies: all.reduce((n, u) => n + u.replies, 0),
+      resolved: all.reduce((n, u) => n + u.resolved, 0),
+      triaged: all.reduce((n, u) => n + u.triaged, 0),
+      contributors: all.filter((u) => u.replies > 0).length,
+    };
+
+    const visible = all.filter((u) => !optedOut.has(u.username));
+
+    // Ranked: people who posted replies (the behaviour the board exists to
+    // encourage). No zero rows — nobody is published in last place.
+    const leaders = visible
+      .filter((u) => u.replies > 0)
+      .sort((a, b) => b.replies - a.replies || b.resolved - a.resolved);
+
+    // Unranked but named: whoever kept the queue moving. Triage is real work —
+    // erasing it because it isn't a reply is exactly the discouraging outcome
+    // this board must avoid.
+    const helpers = visible
+      .filter((u) => u.replies === 0 && u.triaged > 0)
+      .sort((a, b) => b.triaged - a.triaged);
+
+    return { windowDays: days, team, leaders, helpers };
   },
 
   /**

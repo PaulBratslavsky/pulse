@@ -757,6 +757,40 @@ export interface ApiMutedAuthorMutedAuthor extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiPreferencePreference extends Struct.CollectionTypeSchema {
+  collectionName: 'preferences';
+  info: {
+    description: 'Per-user settings. Kept as its own type rather than extending the U&P user schema (a partial extension file silently REPLACES the base schema and drops email/password columns).';
+    displayName: 'Preference';
+    pluralName: 'preferences';
+    singularName: 'preference';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    hideFromLeaderboard: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::preference.preference'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiResponseResponse extends Struct.CollectionTypeSchema {
   collectionName: 'responses';
   info: {
@@ -1349,6 +1383,7 @@ declare module '@strapi/strapi' {
       'api::event.event': ApiEventEvent;
       'api::mention.mention': ApiMentionMention;
       'api::muted-author.muted-author': ApiMutedAuthorMutedAuthor;
+      'api::preference.preference': ApiPreferencePreference;
       'api::response.response': ApiResponseResponse;
       'api::topic.topic': ApiTopicTopic;
       'plugin::content-releases.release': PluginContentReleasesRelease;

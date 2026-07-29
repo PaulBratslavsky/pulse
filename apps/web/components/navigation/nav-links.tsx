@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Inbox, TrendingUp, Tags, MessagesSquare, Settings, FileBarChart } from 'lucide-react'
+import { Inbox, TrendingUp, Tags, MessagesSquare, Settings, FileBarChart, MessageSquareHeart } from 'lucide-react'
 
 const links = [
   { href: '/', label: 'Queue', Icon: Inbox },
   { href: '/trends', label: 'Trends', Icon: TrendingUp },
   { href: '/themes', label: 'Themes', Icon: Tags },
+  { href: '/feedback', label: 'Feedback', Icon: MessageSquareHeart },
   { href: '/insights', label: 'Insights', Icon: FileBarChart },
   { href: '/chat', label: 'Chat', Icon: MessagesSquare },
   { href: '/settings', label: 'Settings', Icon: Settings },

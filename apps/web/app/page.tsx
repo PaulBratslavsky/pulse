@@ -22,6 +22,7 @@ export default async function QueuePage({
     quality?: string
     topics?: string
     sort?: string
+    q?: string
   }>
 }) {
   const params = await searchParams
@@ -37,6 +38,9 @@ export default async function QueuePage({
           ...(params.topic ? { 'filters[topics][slug][$eq]': params.topic } : {}),
           // unlabeled backlog — the set a bulk topic pass exists for
           ...(params.topics === 'none' ? { 'filters[topics][documentId][$null]': 'true' } : {}),
+          // "is this actually about us?" — most of the queue arrives via
+          // competitor keyword monitoring and never names Strapi
+          ...(params.q ? { 'filters[content][$containsi]': params.q } : {}),
           ...(params.draft ? { 'filters[draftText][$notNull]': 'true' } : {}),
           // spam is stored but never queued; suspected-spam stays visible with a badge
           ...(params.quality
@@ -65,6 +69,7 @@ export default async function QueuePage({
     quality?: string
     topics?: string
     sort?: string
+    q?: string
   }) => {
     const q = new URLSearchParams()
     // 'key' in over — NOT !== undefined — so passing an explicit undefined
@@ -77,12 +82,14 @@ export default async function QueuePage({
     const quality = 'quality' in over ? over.quality : params.quality
     const noTopics = 'topics' in over ? over.topics : params.topics
     const sort = 'sort' in over ? over.sort : params.sort
+    const qText = 'q' in over ? over.q : params.q
     if (sentiment) q.set('sentiment', sentiment)
     if (topic) q.set('topic', topic)
     if (draft) q.set('draft', draft)
     if (quality) q.set('quality', quality)
     if (noTopics) q.set('topics', noTopics)
     if (sort) q.set('sort', sort)
+    if (qText) q.set('q', qText)
     if (over.page && over.page > 1) q.set('page', String(over.page))
     const qs = q.toString()
     return qs ? `/?${qs}` : '/'
@@ -142,6 +149,14 @@ export default async function QueuePage({
           title="Only mentions with a saved draft reply"
         >
           has draft
+        </FilterPill>
+        <FilterPill
+          href={filterUrl({ q: params.q ? undefined : 'strapi', page: 0 })}
+          active={Boolean(params.q)}
+          activeClassName="border-[#4945FF] bg-[#4945FF]/10 font-medium text-[#4945FF]"
+          title="Only mentions whose text actually says Strapi — most of the queue arrives via competitor keyword monitoring"
+        >
+          mentions Strapi
         </FilterPill>
         <FilterPill
           href={filterUrl({ topics: params.topics === 'none' ? undefined : 'none', page: 0 })}

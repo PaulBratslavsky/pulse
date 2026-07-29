@@ -1,12 +1,14 @@
 import { strapiFetch } from '@/lib/strapi'
 import MutedAuthors from '@/components/muted-authors'
+import LeaderboardOptOut from '@/components/leaderboard-optout'
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1337'
 
 export default async function SettingsPage() {
-  const muted = await strapiFetch('/api/muted-authors?sort=updatedAt:desc&pagination[pageSize]=100').catch(
-    () => ({ data: [] })
-  )
+  const [muted, prefs] = await Promise.all([
+    strapiFetch('/api/muted-authors?sort=updatedAt:desc&pagination[pageSize]=100').catch(() => ({ data: [] })),
+    strapiFetch('/api/preferences/me').catch(() => ({ data: { hideFromLeaderboard: false } })),
+  ])
 
   const links = [
     { href: `${STRAPI_URL}/admin`, label: 'Strapi admin panel', note: 'accounts, roles, dead letters' },
@@ -24,8 +26,12 @@ export default async function SettingsPage() {
         Pulse doesn&apos;t duplicate CRUD UI.
       </p>
 
-      <div className="mb-8">
+      <div className="mb-4">
         <MutedAuthors muted={muted.data ?? []} />
+      </div>
+
+      <div className="mb-8">
+        <LeaderboardOptOut hidden={Boolean(prefs.data?.hideFromLeaderboard)} />
       </div>
 
       <h2 className="font-medium mb-3">Admin panel</h2>
