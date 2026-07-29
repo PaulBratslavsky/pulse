@@ -79,30 +79,13 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 
   async resolveTopics(names: string[], kind: string): Promise<string[]> {
-    const ids: string[] = [];
-    for (const name of names) {
-      let topic = await strapi
-        .documents('api::topic.topic')
-        .findFirst({ filters: { name: { $eqi: name } } });
-      if (!topic) {
-        topic = await strapi.documents('api::topic.topic').create({ data: { name, kind } as any });
-        strapi.log.info(`[ingest] auto-created ${kind} topic '${name}'`);
-      }
-      ids.push(topic.documentId);
-    }
-    return ids;
+    // single creator lives in the app's topic service (race-safe ensure)
+    return (strapi.service('api::topic.topic') as any).ensure(names, kind);
   },
 
   async resolveChannel(platformKey: string) {
     const key = PLATFORM_MAP[platformKey] ?? platformKey;
-    let channel = await strapi.documents('api::channel.channel').findFirst({ filters: { key } });
-    if (!channel) {
-      channel = await strapi
-        .documents('api::channel.channel')
-        .create({ data: { key, name: titleCase(key) } as any });
-      strapi.log.info(`[ingest] auto-created channel '${key}'`);
-    }
-    return channel;
+    return (strapi.service('api::channel.channel') as any).ensure(key, titleCase(key));
   },
 
   /**

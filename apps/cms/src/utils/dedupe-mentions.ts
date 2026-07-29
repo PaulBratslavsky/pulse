@@ -77,7 +77,31 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
 
   // real DB-level guard (works on SQLite and Postgres; NULLs unaffected)
   await knex.raw('CREATE UNIQUE INDEX IF NOT EXISTS mentions_external_id_uq ON mentions (external_id)')
+
+  // Same v5 gotcha for the other schema-unique fields (Document Service writes
+  // bypass content-API unique validation), plus hot-filter indexes for the
+  // queue/stale/sweep/search access paths — cheap now, painful to miss at 100k
+  // rows on Postgres. Each guarded individually: one failure (e.g. pre-existing
+  // case-variant topic dupes blocking the unique index) must not sink the rest.
+  const INDEXES = [
+    'CREATE UNIQUE INDEX IF NOT EXISTS channels_key_uq ON channels (key)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS topics_slug_uq ON topics (slug)',
+    'CREATE INDEX IF NOT EXISTS mentions_status_posted_at_idx ON mentions (status, posted_at)',
+    'CREATE INDEX IF NOT EXISTS mentions_analysis_status_received_at_idx ON mentions (analysis_status, received_at)',
+    'CREATE INDEX IF NOT EXISTS comments_archived_idx ON comments (archived)',
+  ]
+  for (const ddl of INDEXES) {
+    try {
+      await knex.raw(ddl)
+    } catch (err: any) {
+      strapi.log.error(`pulse: index creation failed (${ddl}): ${err.message}`)
+      await (strapi.service('api::notify.slack') as any)
+        .ops(`index creation failed at boot: ${ddl} — ${err.message}`)
+        .catch(() => {})
+    }
+  }
+
   strapi.log.info(
-    `pulse: mention dedupe done (${dupes.length} duplicated externalId(s) merged), unique index ensured`
+    `pulse: mention dedupe done (${dupes.length} duplicated externalId(s) merged), unique + hot-filter indexes ensured`
   )
 }
