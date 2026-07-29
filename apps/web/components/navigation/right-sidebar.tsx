@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, CornerUpLeft, EyeOff, CheckCircle2, Tag, PenLine, StickyNote, Hand } from 'lucide-react'
+import { ArrowRight, CornerUpLeft, EyeOff, ListChecks } from 'lucide-react'
 import { strapiFetch, qs } from '@/lib/strapi'
 import { SentimentBadge } from '@/components/badges'
 import { Avatar } from '@/components/ui'
@@ -10,12 +10,8 @@ import { Avatar } from '@/components/ui'
  *  Only non-zero categories render. */
 const WORK: Array<{ key: string; Icon: any; label: string }> = [
   { key: 'replies', Icon: CornerUpLeft, label: 'replies posted' },
-  { key: 'acknowledged', Icon: EyeOff, label: 'acknowledged (no reply)' },
-  { key: 'resolved', Icon: CheckCircle2, label: 'resolved' },
-  { key: 'labeled', Icon: Tag, label: 'sentiment/topics labeled' },
-  { key: 'drafts', Icon: PenLine, label: 'drafts written' },
-  { key: 'notes', Icon: StickyNote, label: 'notes & feedback' },
-  { key: 'claimed', Icon: Hand, label: 'claimed' },
+  { key: 'acknowledged', Icon: EyeOff, label: 'acknowledged (closed without a reply)' },
+  { key: 'triaged', Icon: ListChecks, label: 'triaged (claimed, labeled, resolved, notes, drafts)' },
 ]
 
 function StatChips({ row, className = '' }: { row: any; className?: string }) {

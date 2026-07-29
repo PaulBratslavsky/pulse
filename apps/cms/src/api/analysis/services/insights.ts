@@ -288,8 +288,14 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
       ).map((p: any) => p.user?.username).filter(Boolean)
     );
 
-    const all = [...byUser.values()];
-    const sum = (k: keyof Row) => all.reduce((n, u) => n + (u[k] as number), 0);
+    const all = [...byUser.values()].map((u) => ({
+      ...u,
+      // everything that isn't a public reply or an acknowledge, rolled up:
+      // the rail shows replies · acknowledged · triaged, the detail stays
+      // available for future breakdowns
+      triaged: u.resolved + u.labeled + u.notes + u.drafts + u.claimed + u.routed,
+    }));
+    const sum = (k: string) => all.reduce((n, u) => n + ((u as any)[k] as number), 0);
     const team = {
       replies: sum('replies'),
       resolved: sum('resolved'),
@@ -299,6 +305,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
       drafts: sum('drafts'),
       claimed: sum('claimed'),
       routed: sum('routed'),
+      triaged: sum('triaged'),
       contributors: all.length,
     };
 
@@ -306,8 +313,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     // decision 2026-07-29: nobody here is judged on reply count, and a separate
     // "also helping" line read as a consolation prize). Opting out is the
     // escape hatch for anyone who'd rather not appear.
-    const total = (u: Row) =>
-      u.replies + u.resolved + u.acknowledged + u.labeled + u.notes + u.drafts + u.claimed + u.routed;
+    const total = (u: any) => u.replies + u.acknowledged + u.triaged;
     const leaders = all
       .filter((u) => !optedOut.has(u.username) && total(u) > 0)
       .sort((a, b) => b.replies - a.replies || total(b) - total(a));
