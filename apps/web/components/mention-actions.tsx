@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, X } from 'lucide-react'
 import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
 import MuteAuthorButton from '@/components/mute-author-button'
@@ -36,6 +36,18 @@ export default function MentionActions({
   const [showAck, setShowAck] = useState(false)
   const [ackReason, setAckReason] = useState('competitor')
   const [ackNote, setAckNote] = useState('')
+
+  // Escape dismisses an open panel (nothing is saved until the explicit button)
+  useEffect(() => {
+    if (!showAck && !showCorrect) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setShowAck(false)
+      setShowCorrect(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showAck, showCorrect])
 
   const claim = useMutation({
     mutationFn: () => post(`mentions/${mention.documentId}/claim`),
@@ -166,7 +178,17 @@ export default function MentionActions({
 
       {showAck && (
         <div className="rounded-lg border border-violet-300 dark:border-violet-800 p-4 space-y-3">
-          <p className="text-sm font-medium">Close without a public reply</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-medium">Close without a public reply</p>
+            <button
+              onClick={() => setShowAck(false)}
+              className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
+              aria-label="Close without acknowledging"
+              title="Close this panel"
+            >
+              <X size={14} />
+            </button>
+          </div>
           <p className="text-xs text-zinc-500">
             The mention leaves the queue but keeps feeding trends, themes, and reports. Use internal
             notes below to record the team&apos;s take.
@@ -203,11 +225,21 @@ export default function MentionActions({
 
       {showCorrect && (
         <div className="rounded-lg border border-violet-300 dark:border-violet-800 p-4 space-y-3">
-          <p className="text-sm font-medium">
-            {aiEnabled
-              ? 'Human correction (never overwritten by re-analysis)'
-              : 'Manual labeling (AI analysis is disabled — labels are set by the team)'}
-          </p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-medium">
+              {aiEnabled
+                ? 'Human correction (never overwritten by re-analysis)'
+                : 'Manual labeling (AI analysis is disabled — labels are set by the team)'}
+            </p>
+            <button
+              onClick={() => setShowCorrect(false)}
+              className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
+              aria-label="Close without saving"
+              title="Close this panel"
+            >
+              <X size={14} />
+            </button>
+          </div>
           <div className="flex gap-3 flex-wrap">
             {[
               { value: 'positive', label: 'positive' },

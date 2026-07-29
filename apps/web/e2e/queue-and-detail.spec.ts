@@ -423,6 +423,25 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByRole('button', { name: 'Possible spam' })).toBeVisible()
   })
 
+  test('labeling and acknowledge panels can be dismissed (X and Escape)', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+
+    // labeling panel: close with the X, nothing saved
+    await page.getByRole('button', { name: /correct analysis|set sentiment/i }).click()
+    await expect(page.getByRole('button', { name: 'Save correction' })).toBeVisible()
+    await page.getByRole('button', { name: 'Close without saving' }).click()
+    await expect(page.getByRole('button', { name: 'Save correction' })).not.toBeVisible()
+    await expect(page.getByText('human-corrected')).not.toBeVisible()
+
+    // acknowledge panel: close with Escape, mention stays unanswered
+    await page.getByRole('button', { name: 'Acknowledge — no reply' }).click()
+    await expect(page.getByText('Close without a public reply')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByText('Close without a public reply')).not.toBeVisible()
+    await expect(page.getByText('unanswered', { exact: true }).first()).toBeVisible()
+  })
+
   test('search finds recorded responses', async ({ page }) => {
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')
