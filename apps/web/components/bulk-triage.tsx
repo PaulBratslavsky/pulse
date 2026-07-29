@@ -21,6 +21,8 @@ type Ctx = {
   isSelected: (id: string) => boolean
   focusedId: string | null
   openHelp: () => void
+  bulkMode: boolean
+  setBulkMode: (on: boolean) => void
 }
 const SelectionContext = createContext<Ctx | null>(null)
 
@@ -51,11 +53,12 @@ export function SelectionProvider({
   const [ackReason, setAckReason] = useState('not-relevant')
   const [topicId, setTopicId] = useState('')
 
+  const [bulkMode, setBulkModeState] = useState(false)
   const [focusIndex, setFocusIndex] = useState(-1)
   const [showHelp, setShowHelp] = useState(false)
   const focusedId = focusIndex >= 0 ? (allIds[focusIndex] ?? null) : null
-  const stateRef = useRef({ focusIndex, selected, ackReason, topicId })
-  stateRef.current = { focusIndex, selected, ackReason, topicId }
+  const stateRef = useRef({ focusIndex, selected, ackReason, topicId, bulkMode })
+  stateRef.current = { focusIndex, selected, ackReason, topicId, bulkMode }
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -64,6 +67,10 @@ export function SelectionProvider({
       return next
     })
   const clear = () => setSelected(new Set())
+  const setBulkMode = (on: boolean) => {
+    setBulkModeState(on)
+    if (!on) setSelected(new Set())
+  }
   const isSelected = (id: string) => selected.has(id)
 
   const run = useMutation({
@@ -129,8 +136,15 @@ export function SelectionProvider({
         case 'x':
           if (focused) {
             e.preventDefault()
+            // selecting from the keyboard implies bulk mode — no need to
+            // click the toggle first
+            setBulkModeState(true)
             toggle(focused)
           }
+          return
+        case 'b':
+          e.preventDefault()
+          setBulkMode(!stateRef.current.bulkMode)
           return
         case 'a':
           if (targets.length) run.mutate({ ids: targets, action: 'acknowledge', reason })
@@ -171,7 +185,16 @@ export function SelectionProvider({
 
   return (
     <SelectionContext.Provider
-      value={{ selected, toggle, clear, isSelected, focusedId, openHelp: () => setShowHelp(true) }}
+      value={{
+        selected,
+        toggle,
+        clear,
+        isSelected,
+        focusedId,
+        openHelp: () => setShowHelp(true),
+        bulkMode,
+        setBulkMode,
+      }}
     >
       {children}
 
@@ -190,7 +213,8 @@ export function SelectionProvider({
             <dl className="space-y-1.5 text-sm">
               {[
                 ['j / k', 'move down / up'],
-                ['x', 'select the focused mention'],
+                ['b', 'toggle bulk edit (checkboxes)'],
+                ['x', 'select the focused mention (turns bulk edit on)'],
                 ['a', 'acknowledge (selection, else focused)'],
                 ['c', 'claim'],
                 ['n', 'mark n/a — not about Strapi'],
@@ -302,7 +326,8 @@ export function SelectionProvider({
 
 /** Per-card checkbox. */
 export function SelectCheckbox({ documentId }: { documentId: string }) {
-  const { isSelected, toggle } = useSelection()
+  const { isSelected, toggle, bulkMode } = useSelection()
+  if (!bulkMode) return null
   return (
     <label className="inline-flex cursor-pointer items-center" title="Select for bulk triage">
       <input
@@ -318,14 +343,26 @@ export function SelectCheckbox({ documentId }: { documentId: string }) {
 
 /** Small header affordance so the feature is discoverable when nothing is selected. */
 export function SelectionHint({ count }: { count: number }) {
-  const { selected, openHelp } = useSelection()
-  if (selected.size > 0 || count === 0) return null
+  const { selected, openHelp, bulkMode, setBulkMode } = useSelection()
+  if (count === 0) return null
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-zinc-400">
-      <CheckSquare size={12} /> select mentions for bulk triage ·{' '}
-      <button onClick={openHelp} className="inline-flex items-center gap-1 underline hover:text-zinc-600">
-        <Keyboard size={12} /> keyboard shortcuts
+    <span className="inline-flex items-center gap-3 text-xs text-zinc-400">
+      <button
+        onClick={() => setBulkMode(!bulkMode)}
+        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${
+          bulkMode
+            ? 'border-[#4945FF] bg-[#4945FF]/10 font-medium text-[#4945FF]'
+            : 'border-zinc-300 hover:text-zinc-600 dark:border-zinc-700'
+        }`}
+        title="Show selection checkboxes for bulk triage (b)"
+      >
+        <CheckSquare size={12} /> {bulkMode ? `Bulk edit on${selected.size ? ` · ${selected.size}` : ''}` : 'Bulk edit'}
       </button>
+      {selected.size === 0 && (
+        <button onClick={openHelp} className="inline-flex items-center gap-1 underline hover:text-zinc-600">
+          <Keyboard size={12} /> keyboard shortcuts
+        </button>
+      )}
     </span>
   )
 }

@@ -153,7 +153,8 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await search.fill('')
     await page.getByRole('heading', { name: 'Queue' }).click()
 
-    // j focuses the first card, x selects it; j+x adds the second
+    // j focuses the first card; x selects it AND turns bulk edit on implicitly
+    await expect(page.getByRole('checkbox', { name: 'Select mention' })).toHaveCount(0)
     await page.keyboard.press('j')
     await page.keyboard.press('x')
     await expect(page.getByText('1 selected')).toBeVisible()
@@ -259,7 +260,9 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await injectMention(request, { text: `bulk triage test ${tag} two`, ...old })
 
     await page.goto('/')
-    // the action bar only appears once something is selected
+    // checkboxes are hidden until bulk edit is on (queue stays readable)
+    await expect(page.getByRole('checkbox', { name: 'Select mention' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Bulk edit' }).click()
     await expect(page.getByText(/\d+ selected/)).not.toBeVisible()
 
     const cards = page.locator('li').filter({ hasText: tag })
