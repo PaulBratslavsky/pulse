@@ -394,15 +394,28 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
   test('"mentions Strapi" filter narrows the queue to posts naming us', async ({ page, request }) => {
     const tag = `q${Date.now().toString(36)}`
     const old = { timestamp: '2017-03-01 00:00:00.000' }
-    await injectMention(request, { text: `${tag} this one names Strapi explicitly`, ...old })
-    await injectMention(request, { text: `${tag} this one is about something else entirely`, ...old })
+    // `q` is a single $containsi substring, not an AND of terms — so the
+    // Strapi-naming fixture embeds the discriminator IN the tag token, letting
+    // one substring select it alone.
+    await injectMention(request, { text: `${tag}strapi this one names Strapi explicitly`, ...old })
+    await injectMention(request, { text: `${tag}other this one is about something else`, ...old })
 
-    await page.goto('/')
+    // Scope by this run's tag rather than trusting the fixtures onto page 1:
+    // every run backdates to the SAME instant, so once 25+ mentions tie on
+    // postedAt, which ones make the first page is arbitrary. Searching is
+    // deterministic at any data volume.
+    await page.goto(`/?q=${tag}`)
     await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(2)
 
+    // narrowing: the substring that only the Strapi-naming fixture carries
+    await page.goto(`/?q=${tag}strapi`)
+    await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(1)
+    await expect(page.locator('li').filter({ hasText: `${tag}other` })).toHaveCount(0)
+
+    // and the "mentions Strapi" pill still wires up to the strapi query
+    await page.goto('/')
     await page.getByRole('link', { name: 'mentions Strapi' }).click()
     await expect(page).toHaveURL(/q=strapi/)
-    await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(1)
   })
 
   test('possible-spam flag marks a mention and can be cleared', async ({ page, request }) => {
