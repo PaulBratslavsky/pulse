@@ -5,9 +5,11 @@
     "singularName": "comment",
     "pluralName": "comments",
     "displayName": "Comment",
-    "description": "Flat team discussion on a mention — notes (substantive, with resources) and comments (quick chat), one collection distinguished by kind. Never nested."
+    "description": "Flat team discussion on a mention \u2014 notes (substantive, with resources) and comments (quick chat), one collection distinguished by kind. Never nested."
   },
-  "options": { "draftAndPublish": false },
+  "options": {
+    "draftAndPublish": false
+  },
   "attributes": {
     "mention": {
       "type": "relation",
@@ -17,18 +19,38 @@
     },
     "kind": {
       "type": "enumeration",
-      "enum": ["note", "comment", "feedback"],
+      "enum": [
+        "note",
+        "comment",
+        "feedback"
+      ],
       "default": "comment",
       "required": true
     },
-    "body": { "type": "text", "required": true },
-    "links": { "type": "json" },
-    "editedAt": { "type": "datetime" },
-    "archived": { "type": "boolean", "default": false },
+    "body": {
+      "type": "text",
+      "required": true
+    },
+    "links": {
+      "type": "json"
+    },
+    "editedAt": {
+      "type": "datetime"
+    },
+    "archived": {
+      "type": "boolean",
+      "default": false
+    },
     "author": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user"
+    },
+    "topics": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::topic.topic",
+      "description": "product-area tags on the feedback itself (visual editor, admin panel\u2026) \u2014 the mention's own topics come from keyword matching and are a different axis"
     }
   }
 }

@@ -564,6 +564,7 @@ export interface ApiCommentComment extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     mention: Schema.Attribute.Relation<'manyToOne', 'api::mention.mention'>;
     publishedAt: Schema.Attribute.DateTime;
+    topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;

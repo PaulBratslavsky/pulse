@@ -115,6 +115,20 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
     }
   },
 
+  /** POST /mentions/:documentId/quality — { quality } */
+  async quality(ctx) {
+    try {
+      const data = await (strapi.service('api::mention.mention') as any).setQuality(
+        ctx.params.documentId,
+        ctx.state.user,
+        ctx.request.body?.quality
+      )
+      return { data }
+    } catch (err) {
+      return sendWorkflowError(ctx, err)
+    }
+  },
+
   /** POST /mentions/bulk — { action, documentIds[], ...payload } */
   async bulk(ctx) {
     try {

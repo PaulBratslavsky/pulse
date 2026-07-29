@@ -205,6 +205,31 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
     }
   },
 
+  /**
+   * Manual spam judgement. Heuristics only ever mark `suspected-spam` at
+   * intake; this is how a human (or an agent via MCP) confirms it, flags
+   * something the heuristics missed, or clears a false positive. Muting the
+   * author remains the stronger action — it applies retroactively and to
+   * everything they post next.
+   */
+  async setQuality(documentId: string, user: { id: number }, quality: string) {
+    if (!['normal', 'suspected-spam', 'spam'].includes(quality))
+      throw new WorkflowError(400, 'invalid quality')
+    const mention = await this.requireMention(documentId)
+    return strapi.db.transaction(async () => {
+      const updated = await strapi
+        .documents('api::mention.mention')
+        .update({ documentId, data: { quality } as any })
+      await logActivity(strapi, {
+        mentionDocumentId: documentId,
+        action: 'corrected',
+        actorId: user?.id ?? null,
+        detail: { quality: { from: mention.quality ?? 'normal', to: quality } },
+      })
+      return updated
+    })
+  },
+
   async replay(documentId: string, user: { id: number }) {
     const mention = await this.requireMention(documentId)
     if (!mention.raw) throw new WorkflowError(400, 'mention has no raw payload to replay')

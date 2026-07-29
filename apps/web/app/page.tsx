@@ -7,6 +7,7 @@ import { UserChip, FilterPill, EmptyState } from '@/components/ui'
 import { commentCount } from '@/lib/types'
 import ClaimButton from '@/components/claim-button'
 import MuteAuthorButton from '@/components/mute-author-button'
+import SpamFlagButton from '@/components/spam-flag-button'
 import { SelectionProvider, SelectCheckbox, SelectionHint, QueueCard } from '@/components/bulk-triage'
 import SyncButton from '@/components/sync-button'
 
@@ -267,6 +268,9 @@ export default async function QueuePage({
                 >
                   Open
                 </Link>
+                {m.quality !== 'spam' && (
+                  <SpamFlagButton documentId={m.documentId} quality={m.quality} compact />
+                )}
                 {m.authorHandle && m.quality !== 'spam' && (
                   <MuteAuthorButton handle={m.authorHandle} compact />
                 )}

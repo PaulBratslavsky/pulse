@@ -260,6 +260,14 @@ export const PULSE_TOOLS: PulseTool[] = [
           .describe("Human correction; 'na' = not about Strapi (clears the score)"),
         suggestedTeam: z.enum(['devrel', 'marketing', 'product']).optional(),
         topicSlugs: z.array(z.string()).max(20).optional().describe('Replace topics (by slug)'),
+        quality: z
+          .enum(['normal', 'suspected-spam', 'spam'])
+          .optional()
+          .describe(
+            "Spam judgement. Use 'suspected-spam' to flag promotional/AI-generated content for a " +
+              "human to confirm; 'spam' hides it from the queue and all analytics; 'normal' clears " +
+              'a false positive.'
+          ),
       }),
     execute: async (strapi, args, meta) => {
       const mention: any = await strapi.documents('api::mention.mention').findOne({ documentId: args.documentId });
@@ -282,6 +290,10 @@ export const PULSE_TOOLS: PulseTool[] = [
       if (args.suggestedTeam !== undefined) {
         data.suggestedTeam = args.suggestedTeam;
         changed.push('suggestedTeam');
+      }
+      if (args.quality !== undefined) {
+        data.quality = args.quality
+        changed.push('quality')
       }
       if (args.topicSlugs !== undefined) {
         const topics = await strapi

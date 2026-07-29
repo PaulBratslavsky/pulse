@@ -32,6 +32,16 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
               {m.acknowledgeReason}
             </span>
           )}
+          {m.quality === 'suspected-spam' && (
+            <span className="text-xs rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              suspected spam
+            </span>
+          )}
+          {m.quality === 'spam' && (
+            <span className="text-xs rounded px-1.5 py-0.5 bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+              spam
+            </span>
+          )}
           {m.humanCorrected && (
             <span className="text-xs rounded px-1.5 py-0.5 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
               human-corrected

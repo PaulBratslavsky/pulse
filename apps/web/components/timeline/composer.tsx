@@ -14,12 +14,16 @@ export function Composer({ mentionDocumentId }: { mentionDocumentId: string }) {
   const [kind, setKind] = useState<Kind>('comment')
   const [body, setBody] = useState('')
   const [links, setLinks] = useState<string[]>([])
+  const [tags, setTags] = useState<string[]>([])
+  const [tagDraft, setTagDraft] = useState('')
 
   const submit = useMutation({
-    mutationFn: () => pulseFetch('POST', 'comments', { data: { mentionDocumentId, kind, body, links } }),
+    mutationFn: () =>
+      pulseFetch('POST', 'comments', { data: { mentionDocumentId, kind, body, links, tags } }),
     onSuccess: () => {
       setBody('')
       setLinks([])
+      setTags([])
       setKind('comment')
       router.refresh()
     },
@@ -48,6 +52,46 @@ export function Composer({ mentionDocumentId }: { mentionDocumentId: string }) {
         className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
       />
       <LinkListEditor links={links} onChange={setLinks} />
+      {/* product-area tags — the prioritisation axis on the Feedback page.
+          Offered for feedback only; quick comments stay frictionless. */}
+      {kind === 'feedback' && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <input
+            value={tagDraft}
+            onChange={(e) => setTagDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && tagDraft.trim()) {
+                e.preventDefault()
+                setTags((prev) => [...new Set([...prev, tagDraft.trim()])])
+                setTagDraft('')
+              }
+            }}
+            placeholder="Tag the area (visual editor, admin panel…)"
+            className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          <button
+            onClick={() => {
+              if (!tagDraft.trim()) return
+              setTags((prev) => [...new Set([...prev, tagDraft.trim()])])
+              setTagDraft('')
+            }}
+            className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700"
+          >
+            + Add tag
+          </button>
+          {tags.map((t) => (
+            <span
+              key={t}
+              className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-900 dark:bg-teal-900/40 dark:text-teal-200"
+            >
+              #{t}
+              <button onClick={() => setTags((prev) => prev.filter((x) => x !== t))} aria-label={`Remove ${t}`}>
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="mt-2 flex items-center gap-3">
         <button
           onClick={() => submit.mutate()}

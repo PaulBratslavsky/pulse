@@ -8,6 +8,7 @@ import { ChevronRight } from 'lucide-react'
 import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
 import MuteAuthorButton from '@/components/mute-author-button'
+import SpamFlagButton from '@/components/spam-flag-button'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 
@@ -129,6 +130,9 @@ export default function MentionActions({
           >
             Acknowledge — no reply
           </button>
+        )}
+        {mention.quality !== 'spam' && (
+          <SpamFlagButton documentId={mention.documentId} quality={mention.quality} />
         )}
         {mention.authorHandle && mention.quality !== 'spam' && (
           <MuteAuthorButton handle={mention.authorHandle} />

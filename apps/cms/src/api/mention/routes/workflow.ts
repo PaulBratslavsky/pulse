@@ -8,6 +8,12 @@ export default {
     },
     {
       method: 'POST',
+      path: '/mentions/:documentId/quality',
+      handler: 'mention.quality',
+      config: { policies: [] },
+    },
+    {
+      method: 'POST',
       path: '/mentions/:documentId/claim',
       handler: 'mention.claim',
       config: { policies: [] },

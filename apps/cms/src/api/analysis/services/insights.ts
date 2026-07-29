@@ -153,6 +153,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
       fields: ['body', 'links', 'createdAt'],
       populate: {
         author: { fields: ['username'] },
+        topics: { fields: ['name', 'slug'] },
         mention: {
           fields: ['content', 'url', 'sentimentLabel', 'postedAt', 'quality', 'authorHandle'],
           populate: { topics: { fields: ['name', 'slug'] }, channel: { fields: ['name'] } },
@@ -164,11 +165,17 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     const items = (comments as any[])
       .filter((c) => c.mention && c.mention.quality !== 'spam')
-      .filter((c) => !opts.topic || (c.mention.topics ?? []).some((t: any) => t.slug === opts.topic))
+      .filter(
+        (c) =>
+          !opts.topic ||
+          (c.topics ?? []).some((t: any) => t.slug === opts.topic) ||
+          (c.mention.topics ?? []).some((t: any) => t.slug === opts.topic)
+      )
       .map((c) => ({
         documentId: c.documentId,
         body: c.body,
         links: Array.isArray(c.links) ? c.links : [],
+        tags: (c.topics ?? []).map((t: any) => ({ name: t.name, slug: t.slug })),
         capturedBy: c.author?.username ?? null,
         capturedAt: c.createdAt,
         mention: {
@@ -182,10 +189,12 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
         },
       }));
 
-    // prioritisation signal: which topics keep coming up in captured feedback
+    // Prioritisation signal = the tags the TEAM put on the feedback (product
+    // areas), not the mention's keyword topics — a pile of #Webflow tells you
+    // nothing about what to build.
     const byTopic = new Map<string, { name: string; slug: string; count: number }>();
     for (const i of items)
-      for (const t of i.mention.topics) {
+      for (const t of i.tags) {
         const e = byTopic.get(t.slug) ?? { ...t, count: 0 };
         e.count += 1;
         byTopic.set(t.slug, e);
@@ -223,15 +232,48 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
       limit: 10000,
     });
 
-    const TRIAGE = new Set(['claimed', 'acknowledged', 'corrected', 'routed', 'noted', 'drafted']);
-    const byUser = new Map<string, { username: string; replies: number; resolved: number; triaged: number }>();
+    // Named categories rather than one opaque "triaged" bucket — "49 triaged"
+    // tells nobody what the week actually looked like.
+    const CATEGORY: Record<string, string> = {
+      answered: 'replies',
+      resolved: 'resolved',
+      acknowledged: 'acknowledged',
+      corrected: 'labeled',
+      noted: 'notes',
+      drafted: 'drafts',
+      claimed: 'claimed',
+      routed: 'routed',
+    };
+    type Row = {
+      username: string;
+      replies: number;
+      resolved: number;
+      acknowledged: number;
+      labeled: number;
+      notes: number;
+      drafts: number;
+      claimed: number;
+      routed: number;
+    };
+    const blank = (username: string): Row => ({
+      username,
+      replies: 0,
+      resolved: 0,
+      acknowledged: 0,
+      labeled: 0,
+      notes: 0,
+      drafts: 0,
+      claimed: 0,
+      routed: 0,
+    });
+    const byUser = new Map<string, Row>();
     for (const a of activities as any[]) {
       const username = a.actor?.username;
       if (!username) continue; // system events have no actor
-      const e = byUser.get(username) ?? { username, replies: 0, resolved: 0, triaged: 0 };
-      if (a.action === 'answered') e.replies += 1;
-      else if (a.action === 'resolved') e.resolved += 1;
-      else if (TRIAGE.has(a.action)) e.triaged += 1;
+      const key = CATEGORY[a.action];
+      if (!key) continue;
+      const e = byUser.get(username) ?? blank(username);
+      (e as any)[key] += 1;
       byUser.set(username, e);
     }
 
@@ -247,20 +289,28 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     );
 
     const all = [...byUser.values()];
+    const sum = (k: keyof Row) => all.reduce((n, u) => n + (u[k] as number), 0);
     const team = {
-      replies: all.reduce((n, u) => n + u.replies, 0),
-      resolved: all.reduce((n, u) => n + u.resolved, 0),
-      triaged: all.reduce((n, u) => n + u.triaged, 0),
-      contributors: all.filter((u) => u.replies > 0).length,
+      replies: sum('replies'),
+      resolved: sum('resolved'),
+      acknowledged: sum('acknowledged'),
+      labeled: sum('labeled'),
+      notes: sum('notes'),
+      drafts: sum('drafts'),
+      claimed: sum('claimed'),
+      routed: sum('routed'),
+      contributors: all.length,
     };
 
     // EVERYONE who did anything is listed, replies shown even at zero (team
     // decision 2026-07-29: nobody here is judged on reply count, and a separate
     // "also helping" line read as a consolation prize). Opting out is the
     // escape hatch for anyone who'd rather not appear.
+    const total = (u: Row) =>
+      u.replies + u.resolved + u.acknowledged + u.labeled + u.notes + u.drafts + u.claimed + u.routed;
     const leaders = all
-      .filter((u) => !optedOut.has(u.username) && u.replies + u.resolved + u.triaged > 0)
-      .sort((a, b) => b.replies - a.replies || b.triaged - a.triaged);
+      .filter((u) => !optedOut.has(u.username) && total(u) > 0)
+      .sort((a, b) => b.replies - a.replies || total(b) - total(a));
 
     return { windowDays: days, team, leaders };
   },

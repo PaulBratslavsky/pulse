@@ -24,7 +24,7 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
    *  no workflow side effects — comments/notes never change mention status. */
   async create(ctx) {
     const user = ctx.state.user
-    const { mentionDocumentId, kind, body, links } = ctx.request.body?.data ?? ctx.request.body ?? {}
+    const { mentionDocumentId, kind, body, links, tags } = ctx.request.body?.data ?? ctx.request.body ?? {}
     if (!mentionDocumentId || !String(body ?? '').trim()) {
       return ctx.badRequest('mentionDocumentId and body are required')
     }
@@ -35,12 +35,19 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
     const mention = await strapi.documents('api::mention.mention').findOne({ documentId: mentionDocumentId })
     if (!mention) return ctx.badRequest('mention not found')
 
+    // tags reuse the shared topic vocabulary (race-safe ensure), so product
+    // areas stay curated in one place instead of a parallel free-text list
+    const topicIds = Array.isArray(tags) && tags.length
+      ? await (strapi.service('api::topic.topic') as any).ensure(tags.slice(0, 10), 'feature')
+      : []
+
     const comment = await strapi.documents('api::comment.comment').create({
       data: {
         mention: mentionDocumentId,
         kind: kind ?? 'comment',
         body: String(body).trim(),
         links: cleanLinks,
+        ...(topicIds.length ? { topics: topicIds } : {}),
         author: user.id,
       } as any,
     })
@@ -51,7 +58,7 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
    *  links, and kind are editable — author and mention are immutable. */
   async update(ctx) {
     const documentId = ctx.params.documentId ?? ctx.params.id
-    const { kind, body, links } = ctx.request.body?.data ?? ctx.request.body ?? {}
+    const { kind, body, links, tags } = ctx.request.body?.data ?? ctx.request.body ?? {}
 
     const data: Record<string, unknown> = {}
     if (body !== undefined) {
@@ -66,6 +73,11 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
       const cleanLinks = validateLinks(links)
       if (cleanLinks === null) return ctx.badRequest(`links must be up to ${MAX_LINKS} http(s) URLs`)
       data.links = cleanLinks
+    }
+    if (Array.isArray(tags)) {
+      data.topics = tags.length
+        ? await (strapi.service('api::topic.topic') as any).ensure(tags.slice(0, 10), 'feature')
+        : []
     }
     if (!Object.keys(data).length) return ctx.badRequest('nothing to update')
     data.editedAt = new Date().toISOString()

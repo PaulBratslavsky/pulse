@@ -142,7 +142,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await injectMention(request, { text: `keyboard test ${tag} first`, ...old })
     await injectMention(request, { text: `keyboard test ${tag} second`, ...old })
 
-    await page.goto('/')
+    await page.goto(`/?q=${tag}`)
     await expect(page.getByRole('button', { name: /keyboard shortcuts/i })).toBeVisible()
 
     // shortcuts must NOT hijack typing — the global search box lives in the nav
@@ -184,13 +184,13 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await injectMention(request, { text: `sort test ${tag} ancient`, timestamp: '2018-01-01 00:00:00.000' })
     await injectMention(request, { text: `sort test ${tag} freshest` })
 
-    await page.goto('/')
-    await expect(page.getByText('Unanswered and claimed mentions, oldest first.')).toBeVisible()
+    await page.goto(`/?q=${tag}`)
+    await expect(page.getByText(/oldest first\./)).toBeVisible()
     await expect(page.locator('li').first()).toContainText('ancient')
 
     await page.getByRole('link', { name: 'newest', exact: true }).click()
     await expect(page).toHaveURL(/sort=newest/)
-    await expect(page.getByText('Unanswered and claimed mentions, newest first.')).toBeVisible()
+    await expect(page.getByText(/newest first\./)).toBeVisible()
     await expect(page.locator('li').first()).toContainText('freshest')
 
     // back to the default drops the param
@@ -263,7 +263,9 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     const a = await injectMention(request, { text: `bulk triage test ${tag} one`, ...old })
     await injectMention(request, { text: `bulk triage test ${tag} two`, ...old })
 
-    await page.goto('/')
+    // scope the queue to this test's own fixtures — accumulated dev data would
+    // otherwise push them off page 1
+    await page.goto(`/?q=${tag}`)
     // checkboxes are hidden until bulk edit is on (queue stays readable)
     await expect(page.getByRole('checkbox', { name: 'Select mention' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Bulk edit' }).click()
@@ -345,9 +347,11 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
   }) => {
     const { documentId } = await injectMention(request)
 
+    // the right rail is display:none below the xl breakpoint — pin a wide
+    // viewport rather than skipping (a test that silently skips proves nothing)
+    await page.setViewportSize({ width: 1600, height: 900 })
     await page.goto('/')
     const board = page.locator('aside').filter({ hasText: 'Team celebration' })
-    test.skip((await board.count()) === 0, 'right rail is hidden below xl')
     await expect(board.getByRole('heading', { name: /Team celebration/ })).toBeVisible()
 
     // record a public reply, which must credit the signed-in user
@@ -358,7 +362,11 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('E2E leaderboard reply')).toBeVisible()
 
     await page.goto('/')
-    await expect(board.getByText('dana')).toBeVisible()
+    // the rail scrolls independently — bring the row into view before asserting
+    const row = board.locator('li').filter({ hasText: 'dana' }).first()
+    await row.scrollIntoViewIfNeeded()
+    await expect(row).toBeVisible()
+    await expect(row).toContainText('replies')
   })
 
   test('feedback captured in the timeline lands on the Feedback page', async ({ page, request }) => {
@@ -370,12 +378,17 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await page
       .getByPlaceholder('What the author said back / product insight to capture…')
       .fill(`Pain point ${tag}: populate API is confusing for newcomers`)
+    // tag the product area — this is the prioritisation axis on /feedback
+    await page.getByPlaceholder('Tag the area (visual editor, admin panel…)').fill(`Area ${tag}`)
+    await page.getByRole('button', { name: '+ Add tag' }).click()
     await page.getByRole('button', { name: 'Add feedback' }).click()
     await expect(page.getByText(`Pain point ${tag}`)).toBeVisible()
 
     await page.goto('/feedback')
     await expect(page.getByRole('heading', { name: 'Product feedback' })).toBeVisible()
     await expect(page.getByText(`Pain point ${tag}`)).toBeVisible()
+    // the tag renders on the entry AND becomes a filter chip with a count
+    await expect(page.getByRole('link', { name: `#Area ${tag}` }).first()).toBeVisible()
   })
 
   test('"mentions Strapi" filter narrows the queue to posts naming us', async ({ page, request }) => {
@@ -390,6 +403,24 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await page.getByRole('link', { name: 'mentions Strapi' }).click()
     await expect(page).toHaveURL(/q=strapi/)
     await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(1)
+  })
+
+  test('possible-spam flag marks a mention and can be cleared', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+
+    await page.getByRole('button', { name: 'Possible spam' }).click()
+    await expect(page.getByRole('button', { name: 'Not spam' })).toBeVisible()
+    await expect(page.getByText('suspected spam').first()).toBeVisible()
+
+    // it shows in the suspected-spam review bucket
+    await page.goto('/?quality=suspected-spam')
+    await expect(page.locator('li').filter({ hasText: 'suspected spam' }).first()).toBeVisible()
+
+    // clearing restores it
+    await page.goto(`/mentions/${documentId}`)
+    await page.getByRole('button', { name: 'Not spam' }).click()
+    await expect(page.getByRole('button', { name: 'Possible spam' })).toBeVisible()
   })
 
   test('search finds recorded responses', async ({ page }) => {

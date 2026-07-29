@@ -63,7 +63,8 @@ export default async function FeedbackPage({
       {data.topics.length > 0 && (
         <div className="mb-6">
           <p className="mb-2 text-xs text-zinc-500">
-            Recurring themes in captured feedback — the closest thing to a prioritisation signal
+            Product areas the team tagged — what keeps coming up, and the closest thing to a
+            prioritisation signal
           </p>
           <div className="flex flex-wrap gap-2">
             {params.topic && (
@@ -84,8 +85,9 @@ export default async function FeedbackPage({
         <EmptyState icon={<MessageSquareHeart className="mx-auto mb-4 text-zinc-400" size={40} />} title="No feedback captured yet">
           <p className="text-sm text-zinc-500 max-w-lg mx-auto">
             When someone tells you what hurts — a missing feature, a confusing API, a migration
-            snag — open the mention and add a <strong>Feedback</strong> entry in the timeline. It
-            lands here, grouped by topic, so the product team can see what keeps coming up.
+            snag — open the mention and add a <strong>Feedback</strong> entry in the timeline, tagging
+            the area it touches (visual editor, admin panel…). It lands here, grouped by those tags,
+            so the product team can see what keeps coming up.
           </p>
         </EmptyState>
       ) : (
@@ -96,6 +98,20 @@ export default async function FeedbackPage({
               className="rounded-lg border border-teal-300 bg-teal-50 p-4 dark:border-teal-800 dark:bg-teal-900/20"
             >
               <p className="whitespace-pre-wrap break-words text-sm">{f.body}</p>
+
+              {f.tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {f.tags.map((t: any) => (
+                    <Link
+                      key={t.slug}
+                      href={url({ topic: t.slug })}
+                      className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-900 hover:bg-teal-200 dark:bg-teal-900/40 dark:text-teal-200"
+                    >
+                      #{t.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
 
               {f.links.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
