@@ -12,10 +12,22 @@ import type { Core } from '@strapi/strapi';
 const DAY = 24 * 60 * 60 * 1000;
 const utcDay = (d: string | Date) => new Date(d).toISOString().slice(0, 10);
 
-/** Spam (muted authors / confirmed slop) is stored for the audit trail but must
- *  NEVER move a metric — one AI content farm would otherwise own the top topic
- *  and set the Pulse score. Every analytic query carries this filter. */
-const NOT_SPAM = { $or: [{ quality: { $null: true } }, { quality: { $ne: 'spam' } }] } as any;
+/**
+ * What counts as community signal. Two exclusions, for the same reason —
+ * neither is someone talking about Strapi in the wild:
+ *  - spam (muted authors / confirmed slop): one AI content farm would
+ *    otherwise own the top topic and set the Pulse score;
+ *  - our OWN social posts (acknowledged as `own-post`): announcements are
+ *    positive by construction, so counting them inflates our own score.
+ * Own posts stay visible in the acknowledged pile — they're excluded from the
+ * numbers, not hidden from the team.
+ */
+const NOT_SPAM = {
+  $and: [
+    { $or: [{ quality: { $null: true } }, { quality: { $ne: 'spam' } }] },
+    { $or: [{ acknowledgeReason: { $null: true } }, { acknowledgeReason: { $ne: 'own-post' } }] },
+  ],
+} as any;
 
 export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
   async trends(opts: { from?: string; to?: string; topic?: string } = {}) {

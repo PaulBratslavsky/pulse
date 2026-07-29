@@ -160,6 +160,7 @@ export default function MentionActions({
               { value: 'competitor', label: 'competitor (replying would look pushy)' },
               { value: 'not-relevant', label: 'not relevant' },
               { value: 'watching', label: 'watching (no reply needed yet)' },
+              { value: 'own-post', label: 'our own post (kept out of sentiment metrics)' },
             ].map((r) => (
               <label key={r.value} className="text-sm flex items-center gap-1">
                 <input type="radio" checked={ackReason === r.value} onChange={() => setAckReason(r.value)} />{' '}

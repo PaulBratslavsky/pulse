@@ -645,7 +645,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
   };
   attributes: {
     acknowledgeReason: Schema.Attribute.Enumeration<
-      ['competitor', 'not-relevant', 'watching']
+      ['competitor', 'not-relevant', 'watching', 'own-post']
     >;
     activities: Schema.Attribute.Relation<
       'oneToMany',

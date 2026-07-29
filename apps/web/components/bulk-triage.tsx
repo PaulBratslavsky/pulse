@@ -36,6 +36,7 @@ const ACK_REASONS = [
   { value: 'competitor', label: 'competitor' },
   { value: 'not-relevant', label: 'not relevant' },
   { value: 'watching', label: 'watching' },
+  { value: 'own-post', label: 'our own post' },
 ]
 
 export function SelectionProvider({

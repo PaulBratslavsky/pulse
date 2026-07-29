@@ -91,8 +91,10 @@
       "enum": [
         "competitor",
         "not-relevant",
-        "watching"
-      ]
+        "watching",
+        "own-post"
+      ],
+      "description": "why a mention was closed without a public reply. own-post = our own social/marketing account \u2014 relevant but not repliable, and excluded from sentiment analytics so our own announcements can't inflate the Pulse score"
     },
     "owner": {
       "type": "relation",

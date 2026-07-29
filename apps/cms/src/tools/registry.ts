@@ -364,15 +364,22 @@ export const PULSE_TOOLS: PulseTool[] = [
     name: 'pulse-acknowledge',
     title: 'Pulse: acknowledge (close without a public reply)',
     description:
-      'Close a mention deliberately without replying (competitor threads, off-topic, watch-list). ' +
-      'Keeps full analytics value. Legal only from unanswered/claimed — otherwise returns the ' +
-      'current status so you can explain why.',
+      'Close a mention deliberately without replying (competitor threads, off-topic, watch-list, or ' +
+      'our own social posts). Keeps full analytics value EXCEPT for own-post, which is excluded from ' +
+      'sentiment metrics. Legal only from unanswered/claimed — otherwise returns the current status ' +
+      'so you can explain why.',
     access: 'write',
     subject: 'api::mention.mention',
     input: () =>
       z.object({
         documentId: z.string(),
-        reason: z.enum(['competitor', 'not-relevant', 'watching']),
+        reason: z
+          .enum(['competitor', 'not-relevant', 'watching', 'own-post'])
+          .describe(
+            "competitor = replying would look pushy; not-relevant = off-topic; watching = no reply " +
+              "needed yet; own-post = OUR OWN social/marketing account (relevant but not repliable — " +
+              'use this instead of not-relevant, and it keeps our announcements out of the sentiment metrics)'
+          ),
         note: z.string().max(500).optional(),
       }),
     execute: async (strapi, args, meta) => {

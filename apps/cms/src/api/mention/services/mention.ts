@@ -19,7 +19,7 @@ import { WorkflowError } from '../../../utils/workflow-error'
  */
 const CLAIM_SOURCES = ['unanswered']
 const ACK_SOURCES = ['unanswered', 'claimed']
-const ACK_REASONS = ['competitor', 'not-relevant', 'watching']
+const ACK_REASONS = ['competitor', 'not-relevant', 'watching', 'own-post']
 const TEAMS = ['devrel', 'marketing', 'product']
 const SENTIMENTS = ['positive', 'neutral', 'negative', 'na']
 
