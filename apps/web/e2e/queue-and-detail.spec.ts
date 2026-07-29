@@ -133,6 +133,25 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('#Payload').first()).toBeVisible()
   })
 
+  test('queue filter chips can CLEAR their filters (all / topic ✕ / status)', async ({ page }) => {
+    await page.goto('/?sentiment=negative&topic=docs&status=claimed')
+
+    // "all" must drop the sentiment param (regression: explicit-undefined override was ignored)
+    await page.getByRole('link', { name: 'all', exact: true }).click()
+    await expect(page).toHaveURL(/status=claimed/)
+    await expect(page).not.toHaveURL(/sentiment=/)
+    await expect(page).toHaveURL(/topic=docs/)
+
+    // topic ✕ chip must drop the topic param
+    await page.getByTitle('Clear topic filter').click()
+    await expect(page).not.toHaveURL(/topic=/)
+    await expect(page).toHaveURL(/status=claimed/)
+
+    // "queue" status chip must drop the status param
+    await page.getByRole('link', { name: 'queue', exact: true }).click()
+    await expect(page).not.toHaveURL(/status=/)
+  })
+
   test('search finds recorded responses', async ({ page }) => {
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')

@@ -11,8 +11,8 @@
   "attributes": {
     "externalId": { "type": "string", "required": true, "unique": true },
     "content": { "type": "text", "required": true },
-    "authorHandle": { "type": "string" },
-    "url": { "type": "string" },
+    "authorHandle": { "type": "text" },
+    "url": { "type": "text" },
     "postedAt": { "type": "datetime" },
     "receivedAt": { "type": "datetime" },
     "channel": {
@@ -32,6 +32,7 @@
       "enum": ["pending", "analyzed", "failed", "skipped"],
       "default": "pending"
     },
+    "analysisAttempts": { "type": "integer", "default": 0 },
     "status": {
       "type": "enumeration",
       "enum": ["unanswered", "claimed", "answered", "resolved", "acknowledged"],

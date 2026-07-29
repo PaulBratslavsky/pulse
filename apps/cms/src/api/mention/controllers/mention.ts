@@ -194,7 +194,8 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
 
     await strapi.documents('api::mention.mention').update({
       documentId,
-      data: { analysisStatus: 'pending' } as any,
+      // reset the attempt counter — replay is the explicit un-park action
+      data: { analysisStatus: 'pending', analysisAttempts: 0 } as any,
     })
     await logActivity(strapi, {
       mentionDocumentId: documentId,

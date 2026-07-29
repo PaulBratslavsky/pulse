@@ -14,9 +14,11 @@ import type { Core } from '@strapi/strapi';
  * octolens-labeled history (bulk replay is an explicit action).
  */
 
-const aiEnabled = () => Boolean(process.env.AI_API_KEY);
-
 const OCTOLENS_SCORE: Record<string, number> = { positive: 0.5, neutral: 0, negative: -0.5 };
+
+/** Slack-notify only for fresh mentions — a 30-day backfill must not post
+ *  hundreds of individual messages to the team channel. */
+const NOTIFY_FRESHNESS_MS = 6 * 3600_000;
 
 export type NormalizedMention = {
   externalId: string;
@@ -121,7 +123,10 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     const competitorTopicIds = await this.resolveTopics(this.competitorTopicNames(raw), 'competitor');
 
     // Keyless mode: adopt Octolens' sentiment as the initial, provenance-stamped label.
-    const octolens = !aiEnabled() ? this.octolensSentiment(raw) : null;
+    // single source of truth for the AI flag — the analysis service, not a
+    // second env read that could drift from it
+    const aiOn = (strapi.service('api::analysis.ai') as any).enabled();
+    const octolens = !aiOn ? this.octolensSentiment(raw) : null;
 
     let mention: any;
     try {
@@ -154,10 +159,14 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
           at: new Date().toISOString(),
         } as any,
       });
-      // already labeled — the sweep will never see this mention, so notify here
-      await (strapi.service('api::notify.slack') as any)
-        .newMention({ ...mention, sentimentLabel: octolens.label })
-        .catch(() => {});
+      // already labeled — the sweep will never see this mention, so notify here.
+      // Freshness-gated: backfills of old mentions must not flood the channel.
+      const postedMs = normalized.postedAt ? new Date(normalized.postedAt).getTime() : Date.now();
+      if (Date.now() - postedMs <= NOTIFY_FRESHNESS_MS) {
+        await (strapi.service('api::notify.slack') as any)
+          .newMention({ ...mention, sentimentLabel: octolens.label })
+          .catch(() => {});
+      }
     }
     return { created: true, documentId: mention.documentId, octolensLabeled: Boolean(octolens) };
   },

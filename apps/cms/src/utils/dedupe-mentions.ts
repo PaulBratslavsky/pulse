@@ -24,7 +24,7 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
   for (const { external_id } of dupes) {
     const rows: any[] = await strapi.documents('api::mention.mention').findMany({
       filters: { externalId: external_id },
-      populate: { responses: true, comments: true, owner: true } as any,
+      populate: { responses: true, comments: true, activities: true, owner: true, assignee: true } as any,
       sort: 'createdAt:asc' as any,
     })
     if (rows.length < 2) continue
@@ -32,14 +32,45 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
       (m.responses?.length ?? 0) * 10 +
       (m.comments?.length ?? 0) * 10 +
       (m.owner ? 5 : 0) +
+      (m.assignee ? 4 : 0) +
       (m.status !== 'unanswered' ? 3 : 0)
     // highest workflow value wins; tie → oldest row
     const keep = [...rows].sort((a, b) => score(b) - score(a))[0]
     for (const row of rows) {
       if (row.documentId === keep.documentId) continue
+      // MERGE, not just delete: re-parent the spare's children to the keeper
+      // (deleting a mention drops the relation link rows — orphaning the very
+      // response trail this tool exists to preserve), and carry over workflow
+      // fields the keeper lacks.
+      for (const r of row.responses ?? []) {
+        await strapi
+          .documents('api::response.response')
+          .update({ documentId: r.documentId, data: { mention: keep.documentId } as any })
+      }
+      for (const c of row.comments ?? []) {
+        await strapi
+          .documents('api::comment.comment')
+          .update({ documentId: c.documentId, data: { mention: keep.documentId } as any })
+      }
+      for (const a of row.activities ?? []) {
+        await strapi
+          .documents('api::activity.activity')
+          .update({ documentId: a.documentId, data: { mention: keep.documentId } as any })
+      }
+      const carry: Record<string, unknown> = {}
+      if (!keep.owner && row.owner) carry.owner = row.owner.id
+      if (!keep.assignee && row.assignee) carry.assignee = row.assignee.id
+      if (keep.status === 'unanswered' && row.status !== 'unanswered') carry.status = row.status
+      if (Object.keys(carry).length) {
+        await strapi.documents('api::mention.mention').update({ documentId: keep.documentId, data: carry as any })
+        // keep the in-memory keeper current so a third+ spare can't re-carry
+        if (carry.owner) keep.owner = row.owner
+        if (carry.assignee) keep.assignee = row.assignee
+        if (carry.status) keep.status = row.status
+      }
       await strapi.documents('api::mention.mention').delete({ documentId: row.documentId })
       strapi.log.warn(
-        `pulse: removed duplicate mention ${row.documentId} (externalId ${external_id}, kept ${keep.documentId})`
+        `pulse: merged duplicate mention ${row.documentId} into ${keep.documentId} (externalId ${external_id}; moved ${row.responses?.length ?? 0} response(s), ${row.comments?.length ?? 0} comment(s), ${row.activities?.length ?? 0} activit(ies))`
       )
     }
   }

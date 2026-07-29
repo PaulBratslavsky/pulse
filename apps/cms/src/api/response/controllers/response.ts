@@ -64,7 +64,9 @@ export default factories.createCoreController('api::response.response', ({ strap
     })
 
     const mention = (response as any).mention
-    if (result === 'resolved' && mention) {
+    // outcomes on internal notes must never resolve the mention — only a real
+    // public reply's outcome closes the workflow (documented state machine)
+    if (result === 'resolved' && mention && !(response as any).internal) {
       await strapi.documents('api::mention.mention').update({
         documentId: mention.documentId,
         data: { status: 'resolved' } as any,

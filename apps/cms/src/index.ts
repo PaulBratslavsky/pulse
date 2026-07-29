@@ -84,9 +84,14 @@ export default {
 
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     // ---- Repair duplicate mentions + enforce a real unique index on externalId ----
-    await dedupeMentionsAndEnforceUnique(strapi).catch((err: Error) =>
-      strapi.log.error(`pulse: mention dedupe failed: ${err.message}`)
-    )
+    // A failure here leaves ingest WITHOUT its race guard (and the index create
+    // itself fails while duplicates remain) — alert ops, never just log.
+    await dedupeMentionsAndEnforceUnique(strapi).catch(async (err: Error) => {
+      strapi.log.error(`pulse: mention dedupe/unique-index FAILED — ingest race guard may be absent: ${err.message}`)
+      await (strapi.service('api::notify.slack') as any)
+        .ops(`mention dedupe/unique-index failed at boot: ${err.message} — duplicates may accumulate until fixed`)
+        .catch(() => {})
+    })
 
     // ---- Seed Authenticated role permissions (idempotent) ----
     const authRole = await strapi

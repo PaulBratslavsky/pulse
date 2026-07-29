@@ -7,8 +7,38 @@ import { aiEnabled } from './ai';
  * and STILL Slack-notify — ingest → queue → respond works fully without AI;
  * labeling is manual. humanCorrected fields are never overwritten.
  */
+
+/** overlap guard: 20 sequential AI calls easily exceed the 60s cron cadence —
+ *  overlapping runs double AI spend and duplicate activities/notifications
+ *  (same race the octolens sync service guards against). */
+let sweepRunning = false;
+
+/** failed mentions are retried at most this many times, then parked with ONE
+ *  ops alert — otherwise a permanently-failing mention (or a globally bad AI
+ *  key) starves the queue and pings ops every minute forever. */
+const MAX_ATTEMPTS = 5;
+
+/** Slack-notify only for fresh mentions — backfills of old content must not
+ *  flood the team channel (same gate as the octolens intake). */
+const NOTIFY_FRESHNESS_MS = 6 * 3600_000;
+const isFresh = (m: any) =>
+  Date.now() - new Date(m.postedAt ?? m.receivedAt ?? Date.now()).getTime() <= NOTIFY_FRESHNESS_MS;
+
 export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
   async run() {
+    if (sweepRunning) {
+      strapi.log.info('[analysis] sweep skipped — previous run still in progress');
+      return 0;
+    }
+    sweepRunning = true;
+    try {
+      return await this.runSweep();
+    } finally {
+      sweepRunning = false;
+    }
+  },
+
+  async runSweep() {
     const notifySlack = () => strapi.service('api::notify.slack') as any;
 
     if (!aiEnabled()) {
@@ -47,7 +77,7 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
               at: new Date().toISOString(),
             } as any,
           });
-          if (mention.analysisStatus === 'pending') {
+          if (mention.analysisStatus === 'pending' && isFresh(mention)) {
             await notifySlack().newMention(updated).catch(() => {});
           }
         } else if (mention.analysisStatus === 'pending') {
@@ -55,14 +85,23 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
             documentId: mention.documentId,
             data: { analysisStatus: 'skipped' } as any,
           });
-          await notifySlack().newMention(updated).catch(() => {});
+          if (isFresh(mention)) await notifySlack().newMention(updated).catch(() => {});
         }
       }
       return pending.length;
     }
 
     const pending = await strapi.documents('api::mention.mention').findMany({
-      filters: { analysisStatus: { $in: ['pending', 'failed', 'skipped'] } },
+      filters: {
+        $or: [
+          { analysisStatus: { $in: ['pending', 'skipped'] } },
+          // failed: retry only until the attempt cap; parked rows leave the window
+          {
+            analysisStatus: 'failed',
+            $or: [{ analysisAttempts: { $lt: MAX_ATTEMPTS } }, { analysisAttempts: { $null: true } }],
+          },
+        ],
+      } as any,
       populate: { topics: true } as any,
       limit: 20,
       sort: 'receivedAt:asc' as any,
@@ -82,9 +121,10 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
 
         // humanCorrected fields are never overwritten (spec rule)
         const data: any = mention.humanCorrected
-          ? { analysisStatus: 'analyzed', modelVersion: result.modelVersion, promptVersion: result.promptVersion }
+          ? { analysisStatus: 'analyzed', analysisAttempts: 0, modelVersion: result.modelVersion, promptVersion: result.promptVersion }
           : {
               analysisStatus: 'analyzed',
+              analysisAttempts: 0,
               sentimentScore: result.score,
               sentimentLabel: result.label,
               topics: topicIds,
@@ -103,18 +143,30 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
             at: new Date().toISOString(),
           } as any,
         });
-        if (mention.analysisStatus === 'pending') {
+        if (mention.analysisStatus === 'pending' && isFresh(mention)) {
           await notifySlack().newMention(updated).catch(() => {});
         }
       } catch (err: any) {
-        strapi.log.error(`[analysis] sweep failed for ${mention.documentId}: ${err.message}`);
+        const attempts = ((mention as any).analysisAttempts ?? 0) + 1;
+        const parked = attempts >= MAX_ATTEMPTS;
+        strapi.log.error(
+          `[analysis] sweep failed for ${mention.documentId} (attempt ${attempts}/${MAX_ATTEMPTS}): ${err.message}`
+        );
         await strapi
           .documents('api::mention.mention')
-          .update({ documentId: mention.documentId, data: { analysisStatus: 'failed' } as any })
+          .update({
+            documentId: mention.documentId,
+            data: { analysisStatus: 'failed', analysisAttempts: attempts } as any,
+          })
           .catch(() => {});
-        await notifySlack()
-          .ops(`analysis failed for mention ${mention.documentId}: ${err.message}`)
-          .catch(() => {});
+        // ONE ops alert when a mention parks — not one per minute forever
+        if (parked) {
+          await notifySlack()
+            .ops(
+              `analysis PARKED for mention ${mention.documentId} after ${attempts} attempts: ${err.message} — fix the cause, then use replay to re-queue`
+            )
+            .catch(() => {});
+        }
       }
     }
     return pending.length;

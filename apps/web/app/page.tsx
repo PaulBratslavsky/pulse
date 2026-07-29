@@ -36,10 +36,12 @@ export default async function QueuePage({
   const pagination = data.meta?.pagination ?? { page: 1, pageCount: 1, total: mentions.length }
   const filterUrl = (over: { status?: string; sentiment?: string; topic?: string; page?: number; draft?: string }) => {
     const q = new URLSearchParams()
+    // 'key' in over — NOT !== undefined — so passing an explicit undefined
+    // actually CLEARS the filter (the "all" chip and topic ✕ depend on it)
     const status = 'status' in over ? over.status : params.status
     if (status) q.set('status', status)
-    const sentiment = over.sentiment !== undefined ? over.sentiment : params.sentiment
-    const topic = over.topic !== undefined ? over.topic : params.topic
+    const sentiment = 'sentiment' in over ? over.sentiment : params.sentiment
+    const topic = 'topic' in over ? over.topic : params.topic
     const draft = 'draft' in over ? over.draft : params.draft
     if (sentiment) q.set('sentiment', sentiment)
     if (topic) q.set('topic', topic)

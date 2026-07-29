@@ -651,6 +651,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::activity.activity'
     >;
+    analysisAttempts: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     analysisStatus: Schema.Attribute.Enumeration<
       ['pending', 'analyzed', 'failed', 'skipped']
     > &
@@ -659,7 +660,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
       'manyToOne',
       'plugin::users-permissions.user'
     >;
-    authorHandle: Schema.Attribute.String;
+    authorHandle: Schema.Attribute.Text;
     channel: Schema.Attribute.Relation<'manyToOne', 'api::channel.channel'>;
     comments: Schema.Attribute.Relation<'oneToMany', 'api::comment.comment'>;
     content: Schema.Attribute.Text & Schema.Attribute.Required;
@@ -706,7 +707,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    url: Schema.Attribute.String;
+    url: Schema.Attribute.Text;
   };
 }
 
