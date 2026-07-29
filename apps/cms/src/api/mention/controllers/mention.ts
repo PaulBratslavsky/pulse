@@ -115,6 +115,24 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
     }
   },
 
+  /** POST /mentions/bulk — { action, documentIds[], ...payload } */
+  async bulk(ctx) {
+    try {
+      const { action, documentIds, ...payload } = ctx.request.body ?? {}
+      if (!['acknowledge', 'claim', 'correct'].includes(action))
+        return ctx.badRequest('action must be acknowledge | claim | correct')
+      const data = await (strapi.service('api::mention.mention') as any).bulk(
+        action,
+        documentIds,
+        ctx.state.user,
+        payload
+      )
+      return { data }
+    } catch (err) {
+      return sendWorkflowError(ctx, err)
+    }
+  },
+
   async draft(ctx) {
     if (!(strapi.service('api::analysis.ai') as any).enabled()) {
       ctx.status = 503

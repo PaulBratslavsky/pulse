@@ -15,6 +15,12 @@ export default factories.createCoreController('api::muted-author.muted-author', 
     return { data }
   },
 
+  /** Apply the spam heuristics to existing mentions (intake only sees new ones). */
+  async rescan(ctx) {
+    const data = await (strapi.service('api::muted-author.muted-author') as any).rescan()
+    return { data }
+  },
+
   async unmute(ctx) {
     const data = await (strapi.service('api::muted-author.muted-author') as any).unmute(ctx.params.documentId)
     if (!data.unmuted) return ctx.notFound('muted author not found')

@@ -49,6 +49,41 @@ export default factories.createCoreService('api::muted-author.muted-author', ({ 
     return { handle, muted: true, mentionsMarked: mentions.length, documentId: record.documentId }
   },
 
+  /**
+   * Retroactive heuristic pass: the intake only classifies NEW mentions, so
+   * history never gets scanned. Flags matches as `suspected-spam` (never
+   * `spam` — a human still confirms), and re-marks anything from an
+   * already-muted author. Idempotent.
+   */
+  async rescan() {
+    const intake = strapi.plugin('octolens').service('intake') as any
+    const mentions = await strapi.documents('api::mention.mention').findMany({
+      filters: { quality: { $ne: 'spam' } } as any,
+      fields: ['content', 'authorHandle', 'quality'],
+      limit: 5000,
+    })
+    let suspected = 0
+    let muted = 0
+    for (const m of mentions as any[]) {
+      if (await this.isMuted(m.authorHandle)) {
+        await strapi
+          .documents('api::mention.mention')
+          .update({ documentId: m.documentId, data: { quality: 'spam' } as any })
+        muted += 1
+        continue
+      }
+      const signals = intake.spamSignals(m.content)
+      if (signals.length && m.quality !== 'suspected-spam') {
+        await strapi
+          .documents('api::mention.mention')
+          .update({ documentId: m.documentId, data: { quality: 'suspected-spam' } as any })
+        suspected += 1
+      }
+    }
+    strapi.log.info(`[rescan] ${suspected} flagged suspected-spam, ${muted} marked spam (muted author)`)
+    return { scanned: mentions.length, flaggedSuspected: suspected, markedSpam: muted }
+  },
+
   /** Unmute + restore their mentions to `normal`. */
   async unmute(documentId: string) {
     const record: any = await strapi.documents('api::muted-author.muted-author').findOne({ documentId })

@@ -187,6 +187,31 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.locator('a', { hasText: externalId }).first()).toBeVisible()
   })
 
+  test('bulk triage: select mentions and acknowledge them in one pass', async ({ page, request }) => {
+    const tag = `bulk${Date.now().toString(36)}`
+    // queue is oldest-first: backdate so both land on page 1 regardless of volume
+    const old = { timestamp: '2019-01-01 00:00:00.000' }
+    const a = await injectMention(request, { text: `bulk triage test ${tag} one`, ...old })
+    await injectMention(request, { text: `bulk triage test ${tag} two`, ...old })
+
+    await page.goto('/')
+    // the action bar only appears once something is selected
+    await expect(page.getByText(/\d+ selected/)).not.toBeVisible()
+
+    const cards = page.locator('li').filter({ hasText: tag })
+    await expect(cards).toHaveCount(2)
+    await cards.nth(0).getByRole('checkbox', { name: 'Select mention' }).check()
+    await cards.nth(1).getByRole('checkbox', { name: 'Select mention' }).check()
+    await expect(page.getByText('2 selected')).toBeVisible()
+
+    // bulk acknowledge → both leave the queue, result reported
+    await page.getByRole('button', { name: 'Acknowledge', exact: true }).click()
+    await expect(page.getByText('2 done')).toBeVisible()
+
+    await page.goto(`/mentions/${a.documentId}`)
+    await expect(page.getByText('acknowledged', { exact: true }).first()).toBeVisible()
+  })
+
   test('search finds recorded responses', async ({ page }) => {
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')

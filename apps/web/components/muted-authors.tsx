@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
-import { Ban, RotateCcw } from 'lucide-react'
+import { Ban, RotateCcw, ScanSearch } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
 
@@ -27,6 +27,14 @@ export default function MutedAuthors({ muted }: { muted: any[] }) {
       setHandle('')
       router.refresh()
     },
+  })
+  const rescan = useMutation({
+    mutationFn: () =>
+      pulseFetch<{ data: { scanned: number; flaggedSuspected: number; markedSpam: number } }>(
+        'POST',
+        'muted-authors/rescan'
+      ),
+    onSuccess: () => router.refresh(),
   })
   const remove = useMutation({
     mutationFn: (documentId: string) => pulseFetch('DELETE', `muted-authors/${documentId}/unmute`),
@@ -76,7 +84,22 @@ export default function MutedAuthors({ muted }: { muted: any[] }) {
           {add.isPending ? 'Muting…' : 'Mute author'}
         </button>
         <MutationError m={add} className="text-xs" />
+        <button
+          onClick={() => rescan.mutate()}
+          disabled={rescan.isPending}
+          className="ml-auto inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+          title="Apply the spam heuristics to existing mentions (ingest only classifies new ones)"
+        >
+          <ScanSearch size={12} /> {rescan.isPending ? 'Scanning…' : 'Rescan history'}
+        </button>
       </div>
+      {rescan.data && (
+        <p className="-mt-2 mb-4 text-xs text-zinc-500">
+          Scanned {rescan.data.data.scanned} · {rescan.data.data.flaggedSuspected} flagged suspected-spam ·{' '}
+          {rescan.data.data.markedSpam} marked spam (muted author)
+        </p>
+      )}
+      <MutationError m={rescan} className="-mt-2 mb-4 text-xs" />
 
       {muted.length === 0 ? (
         <p className="text-sm text-zinc-500">No muted authors yet.</p>

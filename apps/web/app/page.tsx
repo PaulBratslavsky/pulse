@@ -7,6 +7,7 @@ import { UserChip, FilterPill, EmptyState } from '@/components/ui'
 import { commentCount } from '@/lib/types'
 import ClaimButton from '@/components/claim-button'
 import MuteAuthorButton from '@/components/mute-author-button'
+import { SelectionProvider, SelectCheckbox, SelectionHint } from '@/components/bulk-triage'
 import SyncButton from '@/components/sync-button'
 
 export default async function QueuePage({
@@ -19,6 +20,7 @@ export default async function QueuePage({
     page?: string
     draft?: string
     quality?: string
+    topics?: string
   }>
 }) {
   const params = await searchParams
@@ -32,6 +34,8 @@ export default async function QueuePage({
           ...(params.status ? {} : { 'filters[status][$in][1]': 'claimed' }),
           ...(params.sentiment ? { 'filters[sentimentLabel][$eq]': params.sentiment } : {}),
           ...(params.topic ? { 'filters[topics][slug][$eq]': params.topic } : {}),
+          // unlabeled backlog — the set a bulk topic pass exists for
+          ...(params.topics === 'none' ? { 'filters[topics][documentId][$null]': 'true' } : {}),
           ...(params.draft ? { 'filters[draftText][$notNull]': 'true' } : {}),
           // spam is stored but never queued; suspected-spam stays visible with a badge
           ...(params.quality
@@ -46,6 +50,9 @@ export default async function QueuePage({
     if (err.status === 401 || err.status === 403) redirect('/sign-in')
     throw err
   }
+  const topicsRes = await strapiFetch('/api/topics?pagination[pageSize]=100&sort=name:asc').catch(() => ({
+    data: [],
+  }))
   const mentions = data.data ?? []
   const pagination = data.meta?.pagination ?? { page: 1, pageCount: 1, total: mentions.length }
   const filterUrl = (over: {
@@ -55,6 +62,7 @@ export default async function QueuePage({
     page?: number
     draft?: string
     quality?: string
+    topics?: string
   }) => {
     const q = new URLSearchParams()
     // 'key' in over — NOT !== undefined — so passing an explicit undefined
@@ -65,10 +73,12 @@ export default async function QueuePage({
     const topic = 'topic' in over ? over.topic : params.topic
     const draft = 'draft' in over ? over.draft : params.draft
     const quality = 'quality' in over ? over.quality : params.quality
+    const noTopics = 'topics' in over ? over.topics : params.topics
     if (sentiment) q.set('sentiment', sentiment)
     if (topic) q.set('topic', topic)
     if (draft) q.set('draft', draft)
     if (quality) q.set('quality', quality)
+    if (noTopics) q.set('topics', noTopics)
     if (over.page && over.page > 1) q.set('page', String(over.page))
     const qs = q.toString()
     return qs ? `/?${qs}` : '/'
@@ -119,6 +129,13 @@ export default async function QueuePage({
           has draft
         </FilterPill>
         <FilterPill
+          href={filterUrl({ topics: params.topics === 'none' ? undefined : 'none', page: 0 })}
+          active={params.topics === 'none'}
+          title="Mentions with no topics yet — the set worth a bulk topic pass"
+        >
+          no topics
+        </FilterPill>
+        <FilterPill
           href={filterUrl({ quality: params.quality === 'suspected-spam' ? undefined : 'suspected-spam', page: 0 })}
           active={params.quality === 'suspected-spam'}
           activeClassName="border-amber-500 bg-amber-50 font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
@@ -145,6 +162,10 @@ export default async function QueuePage({
           </p>
         </EmptyState>
       ) : (
+        <SelectionProvider
+          allIds={mentions.map((m: any) => m.documentId)}
+          topics={(topicsRes.data ?? []).map((t: any) => ({ documentId: t.documentId, name: t.name }))}
+        >
         <ul className="space-y-3">
           {mentions.map((m: any) => (
             <li
@@ -152,6 +173,7 @@ export default async function QueuePage({
               className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4"
             >
               <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <SelectCheckbox documentId={m.documentId} />
                 <SentimentBadge label={m.sentimentLabel} />
                 <StatusBadge status={m.status} />
                 <StalenessFlag
@@ -222,6 +244,7 @@ export default async function QueuePage({
             </li>
           ))}
         </ul>
+        </SelectionProvider>
       )}
 
       {pagination.pageCount > 1 && (

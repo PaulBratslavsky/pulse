@@ -154,6 +154,57 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
     })
   },
 
+  /**
+   * Bulk triage: run a per-item workflow method across a selection. Each item
+   * keeps its OWN guard + transaction (so one illegal transition can't roll
+   * back the rest) and reports individually — the UI shows what actually
+   * happened rather than a single opaque success/failure.
+   */
+  async bulk(
+    action: 'acknowledge' | 'claim' | 'correct',
+    documentIds: string[],
+    user: { id: number },
+    payload: any = {}
+  ) {
+    if (!Array.isArray(documentIds) || !documentIds.length)
+      throw new WorkflowError(400, 'documentIds[] is required')
+    if (documentIds.length > 200) throw new WorkflowError(400, 'max 200 mentions per bulk call')
+
+    // topics are ensured ONCE for the whole batch (race-safe, outside the
+    // per-item transactions) instead of per mention
+    let sharedTopicIds: string[] | undefined
+    if (action === 'correct' && Array.isArray(payload.newTopics) && payload.newTopics.length) {
+      sharedTopicIds = await (strapi.service('api::topic.topic') as any).ensure(
+        payload.newTopics.slice(0, 10).map((n: unknown) => String(n).trim().slice(0, 80)),
+        'other'
+      )
+    }
+
+    const results: Array<{ documentId: string; ok: boolean; error?: string; status?: number }> = []
+    for (const documentId of documentIds) {
+      try {
+        if (action === 'claim') await this.claim(documentId, user)
+        else if (action === 'acknowledge') await this.acknowledge(documentId, user, payload)
+        else
+          await this.correct(documentId, user, {
+            ...payload,
+            newTopics: undefined,
+            topicIds: [...(payload.topicIds ?? []), ...(sharedTopicIds ?? [])],
+          })
+        results.push({ documentId, ok: true })
+      } catch (err: any) {
+        results.push({ documentId, ok: false, error: err.message, status: err.status ?? 500 })
+      }
+    }
+    return {
+      action,
+      requested: documentIds.length,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      results,
+    }
+  },
+
   async replay(documentId: string, user: { id: number }) {
     const mention = await this.requireMention(documentId)
     if (!mention.raw) throw new WorkflowError(400, 'mention has no raw payload to replay')

@@ -90,6 +90,12 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     return Number.isNaN(d.getTime()) ? null : d.toISOString();
   },
 
+  /** Spam-heuristic signals for a piece of content — exposed as a service
+   *  method so the app (retroactive rescan) can use the same rules as intake. */
+  spamSignals(content: string): string[] {
+    return spamSignals(String(content ?? ''));
+  },
+
   /** Octolens sentiment: pull API field is `sentiment`, webhook field is
    *  `data.sentimentLabel` — both "Positive"/"Neutral"/"Negative". */
   octolensSentiment(raw: any): { label: string; score: number } | null {

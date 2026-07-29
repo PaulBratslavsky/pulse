@@ -2,6 +2,12 @@ export default {
   routes: [
     {
       method: 'POST',
+      path: '/mentions/bulk',
+      handler: 'mention.bulk',
+      config: { policies: [] },
+    },
+    {
+      method: 'POST',
       path: '/mentions/:documentId/claim',
       handler: 'mention.claim',
       config: { policies: [] },
