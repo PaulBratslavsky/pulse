@@ -7,7 +7,7 @@ import { UserChip, FilterPill, EmptyState } from '@/components/ui'
 import { commentCount } from '@/lib/types'
 import ClaimButton from '@/components/claim-button'
 import MuteAuthorButton from '@/components/mute-author-button'
-import { SelectionProvider, SelectCheckbox, SelectionHint } from '@/components/bulk-triage'
+import { SelectionProvider, SelectCheckbox, SelectionHint, QueueCard } from '@/components/bulk-triage'
 import SyncButton from '@/components/sync-button'
 
 export default async function QueuePage({
@@ -181,12 +181,12 @@ export default async function QueuePage({
           allIds={mentions.map((m: any) => m.documentId)}
           topics={(topicsRes.data ?? []).map((t: any) => ({ documentId: t.documentId, name: t.name }))}
         >
+        <div className="mb-2">
+          <SelectionHint count={mentions.length} />
+        </div>
         <ul className="space-y-3">
           {mentions.map((m: any) => (
-            <li
-              key={m.documentId}
-              className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4"
-            >
+            <QueueCard key={m.documentId} documentId={m.documentId}>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <SelectCheckbox documentId={m.documentId} />
                 <SentimentBadge label={m.sentimentLabel} />
@@ -256,7 +256,7 @@ export default async function QueuePage({
                   <MuteAuthorButton handle={m.authorHandle} compact />
                 )}
               </div>
-            </li>
+            </QueueCard>
           ))}
         </ul>
         </SelectionProvider>

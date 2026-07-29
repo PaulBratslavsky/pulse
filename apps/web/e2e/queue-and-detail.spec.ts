@@ -133,6 +133,50 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('#Payload').first()).toBeVisible()
   })
 
+  test('keyboard triage: j/k focus, x select, a acknowledge — and never while typing', async ({
+    page,
+    request,
+  }) => {
+    const tag = `kbd${Date.now().toString(36)}`
+    const old = { timestamp: '2018-06-01 00:00:00.000' }
+    await injectMention(request, { text: `keyboard test ${tag} first`, ...old })
+    await injectMention(request, { text: `keyboard test ${tag} second`, ...old })
+
+    await page.goto('/')
+    await expect(page.getByRole('button', { name: /keyboard shortcuts/i })).toBeVisible()
+
+    // shortcuts must NOT hijack typing — the global search box lives in the nav
+    const search = page.getByPlaceholder('Search mentions & past responses…')
+    await search.fill('jjjxxx')
+    await expect(search).toHaveValue('jjjxxx')
+    await expect(page.getByText(/\d+ selected/)).not.toBeVisible()
+    await search.fill('')
+    await page.getByRole('heading', { name: 'Queue' }).click()
+
+    // j focuses the first card, x selects it; j+x adds the second
+    await page.keyboard.press('j')
+    await page.keyboard.press('x')
+    await expect(page.getByText('1 selected')).toBeVisible()
+    await page.keyboard.press('j')
+    await page.keyboard.press('x')
+    await expect(page.getByText('2 selected')).toBeVisible()
+
+    // whichever two cards the keyboard focused are the ones that must change —
+    // read them from the DOM rather than assuming queue position
+    const targets = await page.locator('[data-mention-id]').evaluateAll((els) =>
+      els.slice(0, 2).map((el) => el.getAttribute('data-mention-id')!)
+    )
+
+    // a acknowledges the selection
+    await page.keyboard.press('a')
+    await expect(page.getByText('2 done')).toBeVisible()
+
+    for (const id of targets) {
+      await page.goto(`/mentions/${id}`)
+      await expect(page.getByText('acknowledged', { exact: true }).first()).toBeVisible()
+    }
+  })
+
   test('sort toggle flips the queue between oldest- and newest-first', async ({ page, request }) => {
     const tag = `sort${Date.now().toString(36)}`
     // one very old, one brand new — each must lead its respective ordering
