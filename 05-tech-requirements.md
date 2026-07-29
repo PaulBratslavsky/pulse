@@ -191,7 +191,8 @@ Not installed.
 | `/settings` | admin-ish links | Deep-links into Strapi admin for accounts/topics/events (no duplicate CRUD UI in v1) |
 
 ## State management
-- Server state: RSC fetches with the forwarded JWT; TanStack Query for client refetches (queue polling, chat, claim/respond mutations)
+- Server state: RSC fetches with the forwarded JWT (`lib/strapi.ts`); **client mutations** go through `lib/pulse-client.ts` → the `/api/pulse` proxy, with TanStack Query supplying mutation state (`isPending`/`isError`) — 26 call sites. Freshness after a mutation comes from `router.refresh()`, not polling.
+  > **Queue polling was specced but never implemented** (logged 2026-07-28). TanStack Query's remaining jobs are mutation-state ergonomics and ONE cached query (the search box's per-keystroke lookups). Auth deliberately uses the other idiom — server actions + `useActionState` — because sign-in is a form submit with redirect semantics. Revisit only if the `/api/pulse` proxy hop is ever removed in favour of server actions + `revalidatePath`; swapping the library alone would rewrite 26 sites for no user-visible gain.
 - URL state: queue filters, trend ranges
 - Client state: minimal (forms, dialogs)
 

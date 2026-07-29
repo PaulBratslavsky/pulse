@@ -45,6 +45,7 @@ flowchart LR
 | `apps/cms/src/api/*/services` | Workflow logic: transition guards + transactions (controllers are thin ctx adapters) |
 | `apps/cms/src/utils/dedupe-mentions.ts` | Boot-time integrity: duplicate merge + unique/hot-filter DB indexes |
 | `apps/web/lib/{pulse-client,types}.ts` | The one client-side API helper + shared wire types |
+| `apps/web/app/providers.tsx` | TanStack Query provider — **mutation state only** (26 `useMutation` sites) plus one cached query (search). No polling; freshness is `router.refresh()`. Auth uses server actions + `useActionState` instead, since sign-in is a form submit with redirect semantics |
 | `apps/web/components/{ui,timeline/}` | Shared UI atoms; timeline split into entry/card/composer parts |
 | `apps/cms/src/mcp` | Registers registry tools on the built-in MCP server + their admin permission actions |
 | `apps/web` | Next.js 16 App Router frontend (Epic Next auth pattern, DevFlow-style UI) |
