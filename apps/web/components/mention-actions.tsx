@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 
+import { ChevronRight } from 'lucide-react'
 import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
 
@@ -19,9 +20,11 @@ export default function MentionActions({
   aiEnabled: boolean
 }) {
   const router = useRouter()
-  // a draft saved via MCP/chat (pulse-save-draft) pre-fills the reply form
+  // a draft saved via MCP/chat (pulse-save-draft) is a SUGGESTION shown in a
+  // collapsed accordion — the reply box starts empty so "what I actually sent"
+  // is never confused with "what was suggested"
   const [draft, setDraft] = useState<string>(mention.draftText ?? '')
-  const [finalText, setFinalText] = useState(mention.draftText ?? '')
+  const [finalText, setFinalText] = useState('')
   const [notes, setNotes] = useState('')
   const [showCorrect, setShowCorrect] = useState(false)
   const [corrLabel, setCorrLabel] = useState(mention.sentimentLabel ?? 'neutral')
@@ -38,10 +41,7 @@ export default function MentionActions({
   })
   const genDraft = useMutation({
     mutationFn: () => post(`mentions/${mention.documentId}/draft`),
-    onSuccess: (data) => {
-      setDraft(data.data.draft)
-      if (!finalText) setFinalText(data.data.draft)
-    },
+    onSuccess: (data) => setDraft(data.data.draft),
   })
   const respond = useMutation({
     mutationFn: () =>
@@ -271,13 +271,25 @@ export default function MentionActions({
           commentary, add a note in the timeline instead.
         </p>
         {draft && (
-          <div className="rounded bg-zinc-50 dark:bg-zinc-800 p-3 text-sm whitespace-pre-wrap border border-dashed border-zinc-300 dark:border-zinc-700">
-            <p className="text-xs font-medium text-zinc-400 mb-1">
-              Draft{mention.draftedVia ? ` via ${mention.draftedVia}` : ' (AI)'} — edit below, post on the
-              platform, then record
-            </p>
-            {draft}
-          </div>
+          <details className="group rounded border border-dashed border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-zinc-500 [&::-webkit-details-marker]:hidden">
+              <ChevronRight size={12} className="shrink-0 transition-transform group-open:rotate-90" />
+              <span className="font-medium">
+                Draft ready{mention.draftedVia ? ` · via ${mention.draftedVia}` : ''}
+              </span>
+              <span className="text-zinc-400">{draft.length} chars — click to read</span>
+              <button
+                onClick={(e) => {
+                  e.preventDefault() // don't toggle the accordion
+                  setFinalText(draft)
+                }}
+                className="ml-auto rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-white dark:border-zinc-600 dark:hover:bg-zinc-900"
+              >
+                Use this draft
+              </button>
+            </summary>
+            <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{draft}</p>
+          </details>
         )}
         <textarea
           value={finalText}

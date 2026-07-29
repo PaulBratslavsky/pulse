@@ -308,6 +308,33 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     expect(await stored()).toBe('system')
   })
 
+  test('reply box is never prefilled; a saved draft is a collapsed accordion', async ({
+    page,
+    request,
+  }) => {
+    // 1. fresh mention (no draft): empty box, no accordion at all
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+    await expect(page.getByPlaceholder('What you actually replied…')).toHaveValue('')
+    await expect(page.getByText(/Draft ready/)).not.toBeVisible()
+
+    // 2. a mention that DOES have a draft (drafts are written by agents via
+    //    pulse-save-draft, so use the queue's has-draft filter to find one)
+    await page.goto('/?draft=1')
+    const open = page.getByRole('link', { name: 'Open' }).first()
+    test.skip((await open.count()) === 0, 'no drafted mentions in this environment')
+    await open.click()
+
+    const reply = page.getByPlaceholder('What you actually replied…')
+    await expect(reply).toHaveValue('') // still empty — the draft is a suggestion
+    const accordion = page.getByText(/Draft ready/)
+    await expect(accordion).toBeVisible()
+
+    // clicking "Use this draft" copies it into the reply box
+    await page.getByRole('button', { name: 'Use this draft' }).click()
+    await expect(reply).not.toHaveValue('')
+  })
+
   test('search finds recorded responses', async ({ page }) => {
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')
