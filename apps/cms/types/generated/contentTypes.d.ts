@@ -689,6 +689,10 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     postedAt: Schema.Attribute.DateTime;
     promptVersion: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
+    quality: Schema.Attribute.Enumeration<
+      ['normal', 'suspected-spam', 'spam']
+    > &
+      Schema.Attribute.DefaultTo<'normal'>;
     raw: Schema.Attribute.JSON;
     receivedAt: Schema.Attribute.DateTime;
     responses: Schema.Attribute.Relation<'oneToMany', 'api::response.response'>;
@@ -708,6 +712,48 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     url: Schema.Attribute.Text;
+  };
+}
+
+export interface ApiMutedAuthorMutedAuthor extends Struct.CollectionTypeSchema {
+  collectionName: 'muted_authors';
+  info: {
+    description: 'Shadow-block list: their mentions are stored but never queued and never counted in analytics';
+    displayName: 'Muted Author';
+    pluralName: 'muted-authors';
+    singularName: 'muted-author';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    handle: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::muted-author.muted-author'
+    > &
+      Schema.Attribute.Private;
+    mentionCount: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    mutedBy: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    note: Schema.Attribute.Text;
+    publishedAt: Schema.Attribute.DateTime;
+    reason: Schema.Attribute.Enumeration<
+      ['ai-spam', 'promo-spam', 'irrelevant', 'other']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'ai-spam'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
   };
 }
 
@@ -1302,6 +1348,7 @@ declare module '@strapi/strapi' {
       'api::dead-letter.dead-letter': ApiDeadLetterDeadLetter;
       'api::event.event': ApiEventEvent;
       'api::mention.mention': ApiMentionMention;
+      'api::muted-author.muted-author': ApiMutedAuthorMutedAuthor;
       'api::response.response': ApiResponseResponse;
       'api::topic.topic': ApiTopicTopic;
       'plugin::content-releases.release': PluginContentReleasesRelease;

@@ -1,19 +1,34 @@
+import { strapiFetch } from '@/lib/strapi'
+import MutedAuthors from '@/components/muted-authors'
+
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1337'
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const muted = await strapiFetch('/api/muted-authors?sort=updatedAt:desc&pagination[pageSize]=100').catch(
+    () => ({ data: [] })
+  )
+
   const links = [
     { href: `${STRAPI_URL}/admin`, label: 'Strapi admin panel', note: 'accounts, roles, dead letters' },
     { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::topic.topic`, label: 'Curate topics', note: 'rename / merge machine-created topics' },
     { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::event.event`, label: 'Events', note: 'releases, launches, incidents for trend annotations' },
     { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::channel.channel`, label: 'Channels', note: 'platform keys the webhook maps to' },
-    { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::dead-letter.dead-letter`, label: 'Dead letters', note: 'webhook payloads that failed validation' },
+    { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::dead-letter.dead-letter`, label: 'Dead letters', note: 'ingest payloads that failed validation (replayable)' },
   ]
+
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       <h1 className="text-2xl font-semibold mb-1">Settings</h1>
       <p className="text-sm text-zinc-500 mb-6">
-        Configuration lives in the Strapi admin panel — Pulse doesn&apos;t duplicate CRUD UI.
+        Noise control lives here; the rest of the configuration lives in the Strapi admin panel —
+        Pulse doesn&apos;t duplicate CRUD UI.
       </p>
+
+      <div className="mb-8">
+        <MutedAuthors muted={muted.data ?? []} />
+      </div>
+
+      <h2 className="font-medium mb-3">Admin panel</h2>
       <ul className="space-y-3">
         {links.map((l) => (
           <li key={l.href} className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">

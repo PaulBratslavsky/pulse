@@ -20,6 +20,24 @@ const OCTOLENS_SCORE: Record<string, number> = { positive: 0.5, neutral: 0, nega
  *  hundreds of individual messages to the team channel. */
 const NOTIFY_FRESHNESS_MS = 6 * 3600_000;
 
+/**
+ * AI-slop / promo-spam heuristics. Deliberately conservative: a hit marks
+ * `suspected-spam` (badge + review bucket, still in the queue), NEVER `spam` —
+ * only a muted author or a human click confirms. Silently hiding real feedback
+ * is worse than the slop it prevents.
+ * The AI-disclosure markers are self-identifying: EU AI Act footers and
+ * agent-attribution lines that content farms add voluntarily.
+ */
+const SPAM_PATTERNS: Array<{ id: string; re: RegExp }> = [
+  { id: 'ai-agent-disclosure', re: /\b(produced|generated|written)\s+by\s+an?\s+(autonomous\s+)?AI\s+agent\b/i },
+  { id: 'eu-ai-act-footer', re: /\bEU AI Act compliance\b/i },
+  { id: 'lexref-marker', re: /\bLEXREF[-:]/i },
+  { id: 'promo-link-farm', re: /https?:\/\/[a-z0-9-]+\.(netlify|vercel)\.app\b/i },
+];
+
+export const spamSignals = (content: string): string[] =>
+  SPAM_PATTERNS.filter((p) => p.re.test(content)).map((p) => p.id);
+
 export type NormalizedMention = {
   externalId: string;
   content: string;
@@ -125,6 +143,14 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     const channel = await this.resolveChannel(normalized.platformKey);
     const competitorTopicIds = await this.resolveTopics(this.competitorTopicNames(raw), 'competitor');
 
+    // Shadow-block: a muted author's mentions are stored (full trail) but never
+    // queued and never counted. Heuristic hits only SUSPECT — a human confirms.
+    const muted = await (strapi.service('api::muted-author.muted-author') as any).isMuted(
+      normalized.authorHandle
+    );
+    const signals = spamSignals(normalized.content);
+    const quality = muted ? 'spam' : signals.length ? 'suspected-spam' : 'normal';
+
     // Keyless mode: adopt Octolens' sentiment as the initial, provenance-stamped label.
     // single source of truth for the AI flag — the analysis service, not a
     // second env read that could drift from it
@@ -133,7 +159,7 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     let mention: any;
     try {
-      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens);
+      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens, quality);
     } catch (err: any) {
       // unique-index violation → another writer created it between check and insert
       const winner = await strapi
@@ -165,7 +191,7 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
       // already labeled — the sweep will never see this mention, so notify here.
       // Freshness-gated: backfills of old mentions must not flood the channel.
       const postedMs = normalized.postedAt ? new Date(normalized.postedAt).getTime() : Date.now();
-      if (Date.now() - postedMs <= NOTIFY_FRESHNESS_MS) {
+      if (quality !== 'spam' && Date.now() - postedMs <= NOTIFY_FRESHNESS_MS) {
         await (strapi.service('api::notify.slack') as any)
           .newMention({ ...mention, sentimentLabel: octolens.label })
           .catch(() => {});
@@ -179,7 +205,8 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     raw: unknown,
     channel: any,
     competitorTopicIds: string[],
-    octolens: { label: string; score: number } | null
+    octolens: { label: string; score: number } | null,
+    quality: string = 'normal'
   ) {
     return strapi.documents('api::mention.mention').create({
       data: {
@@ -191,7 +218,9 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
         receivedAt: new Date().toISOString(),
         channel: channel?.documentId ?? null,
         ...(competitorTopicIds.length ? { topics: competitorTopicIds } : {}),
-        status: 'unanswered',
+        status: quality === 'spam' ? 'acknowledged' : 'unanswered',
+        ...(quality === 'spam' ? { acknowledgeReason: 'not-relevant' } : {}),
+        quality,
         ...(octolens
           ? {
               analysisStatus: 'analyzed',

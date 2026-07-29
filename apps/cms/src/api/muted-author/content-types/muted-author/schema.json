@@ -1,0 +1,27 @@
+{
+  "kind": "collectionType",
+  "collectionName": "muted_authors",
+  "info": {
+    "singularName": "muted-author",
+    "pluralName": "muted-authors",
+    "displayName": "Muted Author",
+    "description": "Shadow-block list: their mentions are stored but never queued and never counted in analytics"
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "handle": { "type": "string", "required": true, "unique": true },
+    "reason": {
+      "type": "enumeration",
+      "enum": ["ai-spam", "promo-spam", "irrelevant", "other"],
+      "default": "ai-spam",
+      "required": true
+    },
+    "note": { "type": "text" },
+    "mutedBy": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "mentionCount": { "type": "integer", "default": 0 }
+  }
+}

@@ -7,40 +7,92 @@
     "displayName": "Mention",
     "description": "A social mention ingested from the mention source"
   },
-  "options": { "draftAndPublish": false },
+  "options": {
+    "draftAndPublish": false
+  },
   "attributes": {
-    "externalId": { "type": "string", "required": true, "unique": true },
-    "content": { "type": "text", "required": true },
-    "authorHandle": { "type": "text" },
-    "url": { "type": "text" },
-    "postedAt": { "type": "datetime" },
-    "receivedAt": { "type": "datetime" },
+    "externalId": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "content": {
+      "type": "text",
+      "required": true
+    },
+    "authorHandle": {
+      "type": "text"
+    },
+    "url": {
+      "type": "text"
+    },
+    "postedAt": {
+      "type": "datetime"
+    },
+    "receivedAt": {
+      "type": "datetime"
+    },
     "channel": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::channel.channel",
       "inversedBy": "mentions"
     },
-    "sentimentScore": { "type": "decimal" },
+    "sentimentScore": {
+      "type": "decimal"
+    },
     "sentimentLabel": {
       "type": "enumeration",
-      "enum": ["positive", "neutral", "negative", "na"],
+      "enum": [
+        "positive",
+        "neutral",
+        "negative",
+        "na"
+      ],
       "description": "na = not about Strapi; excluded from the Pulse score (score cleared)"
     },
     "analysisStatus": {
       "type": "enumeration",
-      "enum": ["pending", "analyzed", "failed", "skipped"],
+      "enum": [
+        "pending",
+        "analyzed",
+        "failed",
+        "skipped"
+      ],
       "default": "pending"
     },
-    "analysisAttempts": { "type": "integer", "default": 0 },
+    "quality": {
+      "type": "enumeration",
+      "enum": [
+        "normal",
+        "suspected-spam",
+        "spam"
+      ],
+      "default": "normal",
+      "description": "spam = muted author or confirmed slop: hidden from queue AND excluded from all analytics"
+    },
+    "analysisAttempts": {
+      "type": "integer",
+      "default": 0
+    },
     "status": {
       "type": "enumeration",
-      "enum": ["unanswered", "claimed", "answered", "resolved", "acknowledged"],
+      "enum": [
+        "unanswered",
+        "claimed",
+        "answered",
+        "resolved",
+        "acknowledged"
+      ],
       "default": "unanswered"
     },
     "acknowledgeReason": {
       "type": "enumeration",
-      "enum": ["competitor", "not-relevant", "watching"]
+      "enum": [
+        "competitor",
+        "not-relevant",
+        "watching"
+      ]
     },
     "owner": {
       "type": "relation",
@@ -54,7 +106,11 @@
     },
     "suggestedTeam": {
       "type": "enumeration",
-      "enum": ["devrel", "marketing", "product"]
+      "enum": [
+        "devrel",
+        "marketing",
+        "product"
+      ]
     },
     "topics": {
       "type": "relation",
@@ -62,12 +118,25 @@
       "target": "api::topic.topic",
       "inversedBy": "mentions"
     },
-    "draftText": { "type": "text" },
-    "draftedAt": { "type": "datetime" },
-    "draftedVia": { "type": "string" },
-    "humanCorrected": { "type": "boolean", "default": false },
-    "modelVersion": { "type": "string" },
-    "promptVersion": { "type": "string" },
+    "draftText": {
+      "type": "text"
+    },
+    "draftedAt": {
+      "type": "datetime"
+    },
+    "draftedVia": {
+      "type": "string"
+    },
+    "humanCorrected": {
+      "type": "boolean",
+      "default": false
+    },
+    "modelVersion": {
+      "type": "string"
+    },
+    "promptVersion": {
+      "type": "string"
+    },
     "responses": {
       "type": "relation",
       "relation": "oneToMany",
@@ -86,6 +155,8 @@
       "target": "api::comment.comment",
       "mappedBy": "mention"
     },
-    "raw": { "type": "json" }
+    "raw": {
+      "type": "json"
+    }
   }
 }

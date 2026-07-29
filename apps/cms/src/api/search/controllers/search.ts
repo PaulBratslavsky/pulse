@@ -10,7 +10,10 @@ export default {
 
     const [mentions, responses, comments] = await Promise.all([
       strapi.documents('api::mention.mention').findMany({
-        filters: { content: { $containsi: q } },
+        filters: {
+          content: { $containsi: q },
+          $or: [{ quality: { $null: true } }, { quality: { $ne: 'spam' } }],
+        },
         fields: ['content', 'sentimentLabel', 'status', 'postedAt', 'url'],
         populate: { channel: { fields: ['name'] }, topics: { fields: ['name', 'slug'] } } as any,
         sort: 'postedAt:desc' as any,

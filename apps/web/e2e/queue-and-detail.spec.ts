@@ -152,6 +152,41 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page).not.toHaveURL(/status=/)
   })
 
+  test('muting an author shadow-blocks their mentions (queue + search + analytics)', async ({
+    page,
+    request,
+  }) => {
+    const handle = `slopbot_${Date.now().toString(36)}`
+    const { externalId } = await injectMention(request, { author: { handle } })
+    const search = () => page.getByPlaceholder('Search mentions & past responses…')
+
+    // visible before the mute
+    await page.goto('/')
+    await search().fill(externalId)
+    await expect(page.locator('a', { hasText: externalId }).first()).toBeVisible()
+
+    // mute the author from Settings (the shadow-block list)
+    await page.goto('/settings')
+    await page.getByPlaceholder('author handle (without @)').fill(handle)
+    await page.getByRole('button', { name: 'Mute author' }).click()
+    await expect(page.getByText(`@${handle}`)).toBeVisible()
+    // scope to this handle's row — earlier test runs leave other muted authors
+    await expect(page.locator('li').filter({ hasText: handle }).getByText('1 mention hidden')).toBeVisible()
+
+    // spam is excluded from search (and from the queue + every analytic)
+    await page.goto('/')
+    await search().fill(externalId)
+    await expect(page.getByText('No matches.')).toBeVisible()
+
+    // unmute restores it everywhere
+    await page.goto('/settings')
+    await page.getByRole('button', { name: 'Unmute' }).first().click()
+    await expect(page.getByText(`@${handle}`)).not.toBeVisible()
+    await page.goto('/')
+    await search().fill(externalId)
+    await expect(page.locator('a', { hasText: externalId }).first()).toBeVisible()
+  })
+
   test('search finds recorded responses', async ({ page }) => {
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')

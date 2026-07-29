@@ -75,6 +75,12 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
     }
   }
 
+  // Backfill enum defaults on pre-existing rows: a schema `default` applies to
+  // NEW inserts only, and SQL `col != 'x'` is NULL-safe-FALSE — so a filter like
+  // quality != 'spam' silently hides every legacy row. Backfill, don't rely on it.
+  const backfilled = await knex('mentions').whereNull('quality').update({ quality: 'normal' })
+  if (backfilled) strapi.log.info(`pulse: backfilled quality='normal' on ${backfilled} mention(s)`)
+
   // real DB-level guard (works on SQLite and Postgres; NULLs unaffected)
   await knex.raw('CREATE UNIQUE INDEX IF NOT EXISTS mentions_external_id_uq ON mentions (external_id)')
 
@@ -89,6 +95,7 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
     'CREATE INDEX IF NOT EXISTS mentions_status_posted_at_idx ON mentions (status, posted_at)',
     'CREATE INDEX IF NOT EXISTS mentions_analysis_status_received_at_idx ON mentions (analysis_status, received_at)',
     'CREATE INDEX IF NOT EXISTS comments_archived_idx ON comments (archived)',
+    'CREATE INDEX IF NOT EXISTS mentions_quality_idx ON mentions (quality)',
   ]
   for (const ddl of INDEXES) {
     try {

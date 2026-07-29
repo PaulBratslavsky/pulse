@@ -12,6 +12,11 @@ import type { Core } from '@strapi/strapi';
 const DAY = 24 * 60 * 60 * 1000;
 const utcDay = (d: string | Date) => new Date(d).toISOString().slice(0, 10);
 
+/** Spam (muted authors / confirmed slop) is stored for the audit trail but must
+ *  NEVER move a metric — one AI content farm would otherwise own the top topic
+ *  and set the Pulse score. Every analytic query carries this filter. */
+const NOT_SPAM = { $or: [{ quality: { $null: true } }, { quality: { $ne: 'spam' } }] } as any;
+
 export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
   async trends(opts: { from?: string; to?: string; topic?: string } = {}) {
     const toDate = opts.to ? new Date(opts.to) : new Date();
@@ -19,6 +24,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     const windowStart = new Date(fromDate.getTime() - 7 * DAY);
 
     const filters: any = {
+      ...NOT_SPAM,
       analysisStatus: 'analyzed',
       postedAt: { $gte: windowStart.toISOString(), $lte: toDate.toISOString() },
     };
@@ -72,7 +78,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     const since = new Date(Date.now() - days * DAY).toISOString();
 
     const mentions = await strapi.documents('api::mention.mention').findMany({
-      filters: { analysisStatus: 'analyzed', postedAt: { $gte: since } },
+      filters: { ...NOT_SPAM, analysisStatus: 'analyzed', postedAt: { $gte: since } },
       fields: ['sentimentScore', 'sentimentLabel', 'postedAt'],
       populate: { topics: { fields: ['name', 'slug', 'kind'] } } as any,
       limit: 5000,
@@ -109,7 +115,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     const days = opts.days ?? Number(process.env.STALE_AFTER_DAYS ?? 2);
     const cutoff = new Date(Date.now() - days * DAY).toISOString();
     const mentions = await strapi.documents('api::mention.mention').findMany({
-      filters: { status: { $in: ['unanswered', 'claimed'] }, postedAt: { $lte: cutoff } },
+      filters: { ...NOT_SPAM, status: { $in: ['unanswered', 'claimed'] }, postedAt: { $lte: cutoff } },
       fields: ['content', 'status', 'sentimentLabel', 'postedAt', 'receivedAt', 'url'],
       populate: { owner: { fields: ['username'] }, channel: { fields: ['name'] } } as any,
       sort: 'postedAt:asc' as any,
@@ -127,7 +133,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     const since = new Date(Date.now() - days * DAY).toISOString();
 
     const mentions = await strapi.documents('api::mention.mention').findMany({
-      filters: { postedAt: { $gte: since } },
+      filters: { ...NOT_SPAM, postedAt: { $gte: since } },
       fields: ['sentimentLabel', 'sentimentScore', 'status', 'acknowledgeReason', 'postedAt'],
       populate: { channel: { fields: ['name'] } } as any,
       limit: 10000,

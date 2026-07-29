@@ -6,12 +6,20 @@ import { SentimentBadge, StatusBadge, StalenessFlag, PostedDate } from '@/compon
 import { UserChip, FilterPill, EmptyState } from '@/components/ui'
 import { commentCount } from '@/lib/types'
 import ClaimButton from '@/components/claim-button'
+import MuteAuthorButton from '@/components/mute-author-button'
 import SyncButton from '@/components/sync-button'
 
 export default async function QueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; sentiment?: string; topic?: string; page?: string; draft?: string }>
+  searchParams: Promise<{
+    status?: string
+    sentiment?: string
+    topic?: string
+    page?: string
+    draft?: string
+    quality?: string
+  }>
 }) {
   const params = await searchParams
   const page = Math.max(1, Number(params.page) || 1)
@@ -25,6 +33,10 @@ export default async function QueuePage({
           ...(params.sentiment ? { 'filters[sentimentLabel][$eq]': params.sentiment } : {}),
           ...(params.topic ? { 'filters[topics][slug][$eq]': params.topic } : {}),
           ...(params.draft ? { 'filters[draftText][$notNull]': 'true' } : {}),
+          // spam is stored but never queued; suspected-spam stays visible with a badge
+          ...(params.quality
+            ? { 'filters[quality][$eq]': params.quality }
+            : { 'filters[quality][$ne]': 'spam' }),
           sort: 'postedAt:asc',
           'pagination[page]': page,
           'pagination[pageSize]': 25,
@@ -36,7 +48,14 @@ export default async function QueuePage({
   }
   const mentions = data.data ?? []
   const pagination = data.meta?.pagination ?? { page: 1, pageCount: 1, total: mentions.length }
-  const filterUrl = (over: { status?: string; sentiment?: string; topic?: string; page?: number; draft?: string }) => {
+  const filterUrl = (over: {
+    status?: string
+    sentiment?: string
+    topic?: string
+    page?: number
+    draft?: string
+    quality?: string
+  }) => {
     const q = new URLSearchParams()
     // 'key' in over — NOT !== undefined — so passing an explicit undefined
     // actually CLEARS the filter (the "all" chip and topic ✕ depend on it)
@@ -45,9 +64,11 @@ export default async function QueuePage({
     const sentiment = 'sentiment' in over ? over.sentiment : params.sentiment
     const topic = 'topic' in over ? over.topic : params.topic
     const draft = 'draft' in over ? over.draft : params.draft
+    const quality = 'quality' in over ? over.quality : params.quality
     if (sentiment) q.set('sentiment', sentiment)
     if (topic) q.set('topic', topic)
     if (draft) q.set('draft', draft)
+    if (quality) q.set('quality', quality)
     if (over.page && over.page > 1) q.set('page', String(over.page))
     const qs = q.toString()
     return qs ? `/?${qs}` : '/'
@@ -97,6 +118,22 @@ export default async function QueuePage({
         >
           has draft
         </FilterPill>
+        <FilterPill
+          href={filterUrl({ quality: params.quality === 'suspected-spam' ? undefined : 'suspected-spam', page: 0 })}
+          active={params.quality === 'suspected-spam'}
+          activeClassName="border-amber-500 bg-amber-50 font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+          title="Heuristic spam hits awaiting review"
+        >
+          suspected spam
+        </FilterPill>
+        <FilterPill
+          href={filterUrl({ quality: params.quality === 'spam' ? undefined : 'spam', page: 0 })}
+          active={params.quality === 'spam'}
+          activeClassName="border-red-500 bg-red-50 font-medium text-red-800 dark:bg-red-900/30 dark:text-red-300"
+          title="Muted authors / confirmed spam — hidden from the queue and all reports"
+        >
+          spam
+        </FilterPill>
       </div>
 
       {mentions.length === 0 ? (
@@ -121,6 +158,19 @@ export default async function QueuePage({
                   postedAt={m.postedAt ?? m.receivedAt}
                   awaitingReply={['unanswered', 'claimed'].includes(m.status)}
                 />
+                {m.quality === 'suspected-spam' && (
+                  <span
+                    className="inline-block rounded px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                    title="Matched a spam heuristic — review and mute the author, or clear it"
+                  >
+                    suspected spam
+                  </span>
+                )}
+                {m.quality === 'spam' && (
+                  <span className="inline-block rounded px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+                    spam
+                  </span>
+                )}
                 {m.draftText && (
                   <span className="inline-block rounded px-1.5 py-0.5 text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
                     draft ready
@@ -165,6 +215,9 @@ export default async function QueuePage({
                 >
                   Open
                 </Link>
+                {m.authorHandle && m.quality !== 'spam' && (
+                  <MuteAuthorButton handle={m.authorHandle} compact />
+                )}
               </div>
             </li>
           ))}
