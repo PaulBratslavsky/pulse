@@ -32,11 +32,20 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
     return mention as any
   },
 
+  /** Row-lock + status re-check INSIDE the transaction — the guard must be
+   *  race-proof, not advisory (two concurrent claims must not both succeed).
+   *  forUpdate() locks on Postgres; SQLite's single writer serializes anyway. */
+  async lockAndGuard(trx: any, documentId: string, sources: string[] | null, action: string) {
+    const row = await trx('mentions').where({ document_id: documentId }).forUpdate().first()
+    if (!row) throw new WorkflowError(404, 'mention not found')
+    if (sources && !sources.includes(row.status))
+      throw new WorkflowError(409, `cannot ${action} a '${row.status}' mention`)
+    return row
+  },
+
   async claim(documentId: string, user: { id: number }) {
-    const mention = await this.requireMention(documentId)
-    if (!CLAIM_SOURCES.includes(mention.status))
-      throw new WorkflowError(409, `cannot claim a '${mention.status}' mention`)
-    return strapi.db.transaction(async () => {
+    return strapi.db.transaction(async ({ trx }: any) => {
+      const row = await this.lockAndGuard(trx, documentId, CLAIM_SOURCES, 'claim')
       const updated = await strapi.documents('api::mention.mention').update({
         documentId,
         data: { owner: user.id, status: 'claimed' } as any,
@@ -45,7 +54,7 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
         mentionDocumentId: documentId,
         action: 'claimed',
         actorId: user.id,
-        detail: { from: mention.status, to: 'claimed' },
+        detail: { from: row.status, to: 'claimed' },
       })
       return updated
     })
@@ -53,10 +62,8 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
 
   async acknowledge(documentId: string, user: { id: number }, { reason, note }: any) {
     if (!ACK_REASONS.includes(reason)) throw new WorkflowError(400, 'invalid reason')
-    const mention = await this.requireMention(documentId)
-    if (!ACK_SOURCES.includes(mention.status))
-      throw new WorkflowError(409, `cannot acknowledge a '${mention.status}' mention`)
-    return strapi.db.transaction(async () => {
+    return strapi.db.transaction(async ({ trx }: any) => {
+      const row = await this.lockAndGuard(trx, documentId, ACK_SOURCES, 'acknowledge')
       const updated = await strapi.documents('api::mention.mention').update({
         documentId,
         data: { status: 'acknowledged', acknowledgeReason: reason } as any,
@@ -65,7 +72,7 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
         mentionDocumentId: documentId,
         action: 'acknowledged',
         actorId: user.id,
-        detail: { from: mention.status, reason, note: note || null },
+        detail: { from: row.status, reason, note: note || null },
       })
       return updated
     })

@@ -77,7 +77,7 @@ export default {
         (context.action === 'create' || context.action === 'update')
       ) {
         const data: any = (context.params as any)?.data
-        if (data && !data.slug && data.name) data.slug = slugify(data.name)
+        if (data && !data.slug && data.name) data.slug = slugify(data.name) || Buffer.from(String(data.name)).toString('hex').slice(0, 24)
       }
       return next()
     })

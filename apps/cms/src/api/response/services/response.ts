@@ -50,17 +50,24 @@ export default factories.createCoreService('api::response.response', ({ strapi }
     if (!OUTCOMES.includes(result)) throw new WorkflowError(400, 'invalid outcome result')
     const response: any = await strapi
       .documents('api::response.response')
-      .findOne({ documentId, populate: { mention: true } as any })
+      .findOne({ documentId, populate: { mention: true, outcome: true } as any })
     if (!response) throw new WorkflowError(404, 'response not found')
+
+    if (response.outcome?.result)
+      throw new WorkflowError(409, `outcome already recorded ('${response.outcome.result}')`)
 
     const mention = response.mention
     // outcomes on internal notes never resolve the mention — only a public
     // reply's outcome closes the workflow; and only from 'answered'
     const resolves = result === 'resolved' && mention && !response.internal
-    if (resolves && mention.status !== 'answered')
-      throw new WorkflowError(409, `cannot resolve a '${mention.status}' mention — record the reply first`)
 
-    return strapi.db.transaction(async () => {
+    return strapi.db.transaction(async ({ trx }: any) => {
+      if (resolves) {
+        // race-proof: re-check the mention's status under a row lock
+        const row = await trx('mentions').where({ document_id: mention.documentId }).forUpdate().first()
+        if (!row || row.status !== 'answered')
+          throw new WorkflowError(409, `cannot resolve a '${row?.status ?? 'missing'}' mention — record the reply first`)
+      }
       const updated = await strapi.documents('api::response.response').update({
         documentId,
         data: { outcome: { result, notes: notes ?? null, recordedAt: new Date().toISOString() } } as any,
