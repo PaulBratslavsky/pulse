@@ -76,3 +76,22 @@ licensing distinction).
 - Operating guidance: Pulse MCP tokens should carry **only** the "Pulse MCP tools" permission
   actions. Content-manager permissions additionally expose the generic CRUD tools above — that is
   how the body overwrite happened.
+
+## Pulse-side responses, round 2 (2026-07-28, shipped)
+Every critical/high item from the report now has a **Pulse-native tool** that avoids the
+content-manager surface entirely (keep prod tokens scoped to "Pulse MCP tools" only):
+
+| Report item | Pulse tool answer |
+|---|---|
+| Partial updates impossible → silent overwrite | `pulse-update-mention` — send ONLY changed fields; `content` is **not writable at all**, so the corruption path doesn't exist. |
+| Enum/`$null` filters rejected; can't find undrafted | `pulse-queue` takes **semantic** filters (`draft: no-draft \| has-draft`, `status`, `sentiment`, `topic`, `search`) — no raw operator schema to get wrong, no `$null` on enums. |
+| Context economy (raw duplicated, huge filter schema) | `pulse-queue` returns trimmed rows with `excerptChars` (default 400) + `page`/`limit`/`total`/`hasMore`; `raw` is never in tool output. |
+| Relations as opaque IDs | Channel and topics come back as **names**, not documentIds. |
+| Bulk update | `pulse-save-drafts-bulk` — up to 25 drafts per call, per-item results, same skip-unless-overwrite rule. |
+| Conditional writes | `pulse-save-draft` / bulk refuse to replace an existing draft unless `overwrite: true`. |
+| Duplicates deadlocking rows | Fixed at the root (unique index + boot merge). Verified on prod: `externalId p0axbn7` now resolves to **one** row. |
+| Result too large | Wire-size guard (pattern from music-kb's MCP adapter): measures the **doubled** payload (content + structuredContent) and returns a structured `RESULT_TOO_LARGE` with a shrink hint instead of an opaque client error. |
+| Discovery / weak descriptions | Every Pulse tool has a hand-written description saying what it's for and when to reach for it. |
+
+Also added: `pulse-acknowledge` (close a competitor/off-topic mention without a public reply,
+guarded by the same state machine as the app).

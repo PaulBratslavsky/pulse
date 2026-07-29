@@ -50,16 +50,66 @@ export const PULSE_TOOLS: PulseTool[] = [
           .enum(['unanswered', 'claimed', 'answered', 'acknowledged', 'resolved'])
           .optional()
           .describe('Workflow status filter (default: unanswered + claimed)'),
-        limit: z.number().int().min(1).max(50).optional().describe('Max results (default 20)'),
+        draft: z
+          .enum(['any', 'has-draft', 'no-draft'])
+          .optional()
+          .describe("Draft state — use 'no-draft' to find undrafted work (default any)"),
+        sentiment: z.enum(['positive', 'neutral', 'negative', 'na']).optional(),
+        topic: z.string().optional().describe('Topic slug'),
+        search: z.string().optional().describe('Case-insensitive substring of the mention content'),
+        excerptChars: z
+          .number()
+          .int()
+          .min(80)
+          .max(4000)
+          .optional()
+          .describe('Truncate content to N chars (default 400; use pulse-get-mention for the full body)'),
+        page: z.number().int().min(1).optional().describe('1-based page (default 1)'),
+        limit: z.number().int().min(1).max(100).optional().describe('Page size (default 20, max 100)'),
       }),
-    execute: (strapi, args) =>
-      strapi.documents('api::mention.mention').findMany({
-        filters: args.status ? { status: args.status } : { status: { $in: ['unanswered', 'claimed'] } },
-        fields: ['content', 'sentimentLabel', 'status', 'postedAt', 'url', 'draftText'],
-        populate: { topics: { fields: ['name', 'slug', 'kind'] }, channel: { fields: ['name'] } } as any,
-        sort: 'receivedAt:asc' as any,
-        limit: args.limit ?? 20,
-      }),
+    execute: async (strapi, args) => {
+      const limit = args.limit ?? 20;
+      const page = args.page ?? 1;
+      const excerpt = args.excerptChars ?? 400;
+      const filters: any = {
+        ...(args.status ? { status: args.status } : { status: { $in: ['unanswered', 'claimed'] } }),
+        ...(args.sentiment ? { sentimentLabel: args.sentiment } : {}),
+        ...(args.topic ? { topics: { slug: args.topic } } : {}),
+        ...(args.search ? { content: { $containsi: args.search } } : {}),
+        ...(args.draft === 'has-draft' ? { draftText: { $notNull: true } } : {}),
+        ...(args.draft === 'no-draft' ? { draftText: { $null: true } } : {}),
+      };
+      const [rows, total] = await Promise.all([
+        strapi.documents('api::mention.mention').findMany({
+          filters,
+          fields: ['content', 'sentimentLabel', 'status', 'postedAt', 'url', 'draftText', 'externalId'],
+          populate: { topics: { fields: ['name', 'slug', 'kind'] }, channel: { fields: ['name'] } } as any,
+          sort: 'postedAt:asc' as any,
+          limit,
+          start: (page - 1) * limit,
+        }),
+        strapi.documents('api::mention.mention').count({ filters }),
+      ]);
+      return {
+        page,
+        limit,
+        total,
+        hasMore: page * limit < total,
+        mentions: (rows as any[]).map((m) => ({
+          documentId: m.documentId,
+          externalId: m.externalId,
+          excerpt: String(m.content ?? '').slice(0, excerpt),
+          truncated: String(m.content ?? '').length > excerpt,
+          sentimentLabel: m.sentimentLabel,
+          status: m.status,
+          postedAt: m.postedAt,
+          url: m.url,
+          hasDraft: Boolean(m.draftText),
+          channel: m.channel?.name ?? null,
+          topics: (m.topics ?? []).map((t: any) => t.name),
+        })),
+      };
+    },
   },
 
   {
@@ -185,6 +235,157 @@ export const PULSE_TOOLS: PulseTool[] = [
         detail: { via: meta.via, chars: args.draft.length },
       });
       return { saved: true, documentId: args.documentId, via: meta.via };
+    },
+  },
+
+
+  {
+    name: 'pulse-update-mention',
+    title: 'Pulse: update mention fields (partial)',
+    description:
+      'PARTIAL update — send ONLY the fields you want to change. Never resend content: the ' +
+      'mention body is immutable through this tool by design (a truncated resend corrupted a ' +
+      'post on 2026-07-28). Editable: draftText, sentimentLabel (human correction — stamps ' +
+      'humanCorrected, n/a clears the score), suggestedTeam, topics (by slug, replaces the set). ' +
+      'Workflow status changes go through pulse-acknowledge / the app, not here.',
+    access: 'write',
+    subject: 'api::mention.mention',
+    input: () =>
+      z.object({
+        documentId: z.string().describe('Mention documentId'),
+        draftText: z.string().max(4000).optional().describe('Replace the pending draft'),
+        sentimentLabel: z
+          .enum(['positive', 'neutral', 'negative', 'na'])
+          .optional()
+          .describe("Human correction; 'na' = not about Strapi (clears the score)"),
+        suggestedTeam: z.enum(['devrel', 'marketing', 'product']).optional(),
+        topicSlugs: z.array(z.string()).max(20).optional().describe('Replace topics (by slug)'),
+      }),
+    execute: async (strapi, args, meta) => {
+      const mention: any = await strapi.documents('api::mention.mention').findOne({ documentId: args.documentId });
+      if (!mention) return { error: `mention ${args.documentId} not found` };
+
+      const data: Record<string, unknown> = {};
+      const changed: string[] = [];
+      if (args.draftText !== undefined) {
+        data.draftText = args.draftText;
+        data.draftedAt = new Date().toISOString();
+        data.draftedVia = meta.via;
+        changed.push('draftText');
+      }
+      if (args.sentimentLabel !== undefined) {
+        data.sentimentLabel = args.sentimentLabel;
+        data.humanCorrected = true;
+        if (args.sentimentLabel === 'na') data.sentimentScore = null;
+        changed.push('sentimentLabel');
+      }
+      if (args.suggestedTeam !== undefined) {
+        data.suggestedTeam = args.suggestedTeam;
+        changed.push('suggestedTeam');
+      }
+      if (args.topicSlugs !== undefined) {
+        const topics = await strapi
+          .documents('api::topic.topic')
+          .findMany({ filters: { slug: { $in: args.topicSlugs } } as any, fields: ['slug'] });
+        const found = (topics as any[]).map((t) => t.documentId);
+        const missing = args.topicSlugs.filter((sl: string) => !(topics as any[]).some((t) => t.slug === sl));
+        if (missing.length) return { error: `unknown topic slug(s): ${missing.join(', ')}` };
+        data.topics = found;
+        changed.push('topics');
+      }
+      if (!changed.length) return { error: 'nothing to update — pass at least one field' };
+
+      await strapi.documents('api::mention.mention').update({ documentId: args.documentId, data: data as any });
+      if (args.sentimentLabel !== undefined) {
+        await logActivity(strapi, {
+          mentionDocumentId: args.documentId,
+          action: 'corrected',
+          detail: { via: meta.via, sentimentLabel: args.sentimentLabel },
+        });
+      }
+      if (args.draftText !== undefined) {
+        await logActivity(strapi, {
+          mentionDocumentId: args.documentId,
+          action: 'drafted',
+          detail: { via: meta.via, chars: args.draftText.length },
+        });
+      }
+      return { updated: true, documentId: args.documentId, changed };
+    },
+  },
+
+  {
+    name: 'pulse-save-drafts-bulk',
+    title: 'Pulse: save several drafts in one call',
+    description:
+      'Save drafts for up to 25 mentions in ONE call (the queue grows faster than one-by-one ' +
+      'writes clear it). Same conditional-write rule as pulse-save-draft: a mention that already ' +
+      'has a draft is SKIPPED unless overwrite is true. Returns a per-item result.',
+    access: 'write',
+    subject: 'api::mention.mention',
+    input: () =>
+      z.object({
+        drafts: z
+          .array(z.object({ documentId: z.string(), draft: z.string().min(1).max(4000) }))
+          .min(1)
+          .max(25),
+        overwrite: z.boolean().optional().describe('Replace existing drafts (default false = skip them)'),
+      }),
+    execute: async (strapi, args, meta) => {
+      const results: any[] = [];
+      for (const item of args.drafts) {
+        const mention: any = await strapi
+          .documents('api::mention.mention')
+          .findOne({ documentId: item.documentId });
+        if (!mention) {
+          results.push({ documentId: item.documentId, saved: false, reason: 'not found' });
+          continue;
+        }
+        if (mention.draftText && !args.overwrite) {
+          results.push({ documentId: item.documentId, saved: false, reason: 'draft already exists' });
+          continue;
+        }
+        await strapi.documents('api::mention.mention').update({
+          documentId: item.documentId,
+          data: { draftText: item.draft, draftedAt: new Date().toISOString(), draftedVia: meta.via } as any,
+        });
+        await logActivity(strapi, {
+          mentionDocumentId: item.documentId,
+          action: 'drafted',
+          detail: { via: meta.via, chars: item.draft.length, bulk: true },
+        });
+        results.push({ documentId: item.documentId, saved: true });
+      }
+      return { saved: results.filter((r) => r.saved).length, total: args.drafts.length, results };
+    },
+  },
+
+  {
+    name: 'pulse-acknowledge',
+    title: 'Pulse: acknowledge (close without a public reply)',
+    description:
+      'Close a mention deliberately without replying (competitor threads, off-topic, watch-list). ' +
+      'Keeps full analytics value. Legal only from unanswered/claimed — otherwise returns the ' +
+      'current status so you can explain why.',
+    access: 'write',
+    subject: 'api::mention.mention',
+    input: () =>
+      z.object({
+        documentId: z.string(),
+        reason: z.enum(['competitor', 'not-relevant', 'watching']),
+        note: z.string().max(500).optional(),
+      }),
+    execute: async (strapi, args, meta) => {
+      try {
+        await (strapi.service('api::mention.mention') as any).acknowledge(
+          args.documentId,
+          { id: null },
+          { reason: args.reason, note: args.note ? `${args.note} (via ${meta.via})` : `via ${meta.via}` }
+        );
+        return { acknowledged: true, documentId: args.documentId, reason: args.reason };
+      } catch (err: any) {
+        return { acknowledged: false, error: err.message, status: err.status ?? 500 };
+      }
     },
   },
 
