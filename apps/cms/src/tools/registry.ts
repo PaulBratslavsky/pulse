@@ -260,13 +260,25 @@ export const PULSE_TOOLS: PulseTool[] = [
           .describe("Human correction; 'na' = not about Strapi (clears the score)"),
         suggestedTeam: z.enum(['devrel', 'marketing', 'product']).optional(),
         topicSlugs: z.array(z.string()).max(20).optional().describe('Replace topics (by slug)'),
+        // deliberately NOT 'spam': that state is terminal — it hides the mention
+        // from the queue AND from every analytic — so confirming it stays a
+        // human action. An agent misfiring across a batch would otherwise
+        // silently erase those mentions from the metrics.
         quality: z
-          .enum(['normal', 'suspected-spam', 'spam'])
+          .enum(['normal', 'suspected-spam'])
           .optional()
           .describe(
-            "Spam judgement. Use 'suspected-spam' to flag promotional/AI-generated content for a " +
-              "human to confirm; 'spam' hides it from the queue and all analytics; 'normal' clears " +
-              'a false positive.'
+            "Spam judgement. 'suspected-spam' flags promotional/AI-generated content for a human " +
+              "to confirm; 'normal' clears a false positive. Terminal 'spam' is human-only, in the app."
+          ),
+        qualityReason: z
+          .string()
+          .max(500)
+          .optional()
+          .describe(
+            'Why you judged it that way — send this WHENEVER you set quality. The human ' +
+              'confirming reads this instead of re-judging from scratch, e.g. "engagement-bait ' +
+              'template + unrelated promo link; same text posted across unrelated threads".'
           ),
       }),
     execute: async (strapi, args, meta) => {
@@ -293,6 +305,10 @@ export const PULSE_TOOLS: PulseTool[] = [
       }
       if (args.quality !== undefined) {
         data.quality = args.quality
+        // stamp who judged and why; clearing back to 'normal' clears both so a
+        // stale rationale never outlives the flag it explained
+        data.qualityReason = args.quality === 'normal' ? null : (args.qualityReason?.trim() || null)
+        data.qualityVia = args.quality === 'normal' ? null : meta.via
         changed.push('quality')
       }
       if (args.topicSlugs !== undefined) {

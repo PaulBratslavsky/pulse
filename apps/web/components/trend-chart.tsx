@@ -30,6 +30,28 @@ export default function TrendChart({
     })
     .filter(Boolean) as Array<{ i: number; title: string; kind: string; documentId: string }>
 
+  /* Lay the event labels out in stacked lanes so close-together events don't
+     print on top of each other (two releases a week apart used to collide).
+     Walk left to right; a label drops to the next lane whenever it would start
+     before the previous lane occupant ends. Labels near the right edge are
+     anchored on the other side of their line so they stay inside the plot. */
+  const CHAR_W = 5.4 // ≈ advance width of the 10px label face
+  const LANE_H = 12
+  const laneEnds: number[] = []
+  const placedEvents = [...eventMarkers]
+    .sort((a, b) => a.i - b.i)
+    .map((e) => {
+      const title = e.title.length > 24 ? `${e.title.slice(0, 23)}…` : e.title
+      const w = title.length * CHAR_W + 8
+      // flip to the left of the line when the label would overrun the plot
+      const flip = x(e.i) + 3 + w > W - PAD
+      const start = flip ? x(e.i) - 3 - w : x(e.i) + 3
+      let lane = laneEnds.findIndex((end) => end <= start)
+      if (lane === -1) lane = laneEnds.length
+      laneEnds[lane] = start + w
+      return { ...e, title, lane, flip }
+    })
+
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[600px]">
@@ -39,10 +61,18 @@ export default function TrendChart({
             <text x={4} y={y(g) + 4} className="fill-zinc-400 text-[10px]">{g}</text>
           </g>
         ))}
-        {eventMarkers.map((e) => (
+        {placedEvents.map((e) => (
           <g key={e.documentId}>
             <line x1={x(e.i)} x2={x(e.i)} y1={PAD} y2={H - PAD} className="stroke-amber-400" strokeDasharray="4 3" strokeWidth={1.5} />
-            <text x={x(e.i) + 3} y={PAD + 10} className="fill-amber-500 text-[10px]">{e.title.slice(0, 18)}</text>
+            <text
+              x={x(e.i) + (e.flip ? -3 : 3)}
+              y={PAD + 10 + e.lane * LANE_H}
+              textAnchor={e.flip ? 'end' : 'start'}
+              className="fill-amber-500 text-[10px]"
+            >
+              {e.title}
+              <title>{`${e.title} (${e.kind})`}</title>
+            </text>
           </g>
         ))}
         <polyline points={points} fill="none" strokeWidth={2.5} className="stroke-zinc-900 dark:stroke-white" />

@@ -14,10 +14,14 @@ import { MutationError } from '@/components/mutation-error'
 export default function SpamFlagButton({
   documentId,
   quality,
+  qualityReason,
+  qualityVia,
   compact = false,
 }: {
   documentId: string
   quality?: string
+  qualityReason?: string | null
+  qualityVia?: string | null
   compact?: boolean
 }) {
   const router = useRouter()
@@ -50,6 +54,15 @@ export default function SpamFlagButton({
         {flagged ? <FlagOff size={icon} /> : <Flag size={icon} />}
         {flagged ? 'Not spam' : 'Possible spam'}
       </button>
+      {/* why it was flagged, so confirming is a read rather than a re-judge */}
+      {flagged && qualityReason && !compact && (
+        <span className="text-xs text-zinc-500">
+          {qualityReason}
+          {qualityVia && qualityVia !== 'app' && (
+            <span className="text-zinc-400"> · via {qualityVia}</span>
+          )}
+        </span>
+      )}
       <MutationError m={set} className="text-xs" />
     </span>
   )

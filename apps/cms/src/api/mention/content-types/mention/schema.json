@@ -71,6 +71,14 @@
       "default": "normal",
       "description": "spam = muted author or confirmed slop: hidden from queue AND excluded from all analytics"
     },
+    "qualityReason": {
+      "type": "text",
+      "description": "why this was flagged — free text from whoever judged it (agent rubric hit, or a human note). Makes the confirm pass readable instead of a re-judge."
+    },
+    "qualityVia": {
+      "type": "string",
+      "description": "what set the quality: app | mcp:<client> | mute:<handle> | ingest"
+    },
     "analysisAttempts": {
       "type": "integer",
       "default": 0
@@ -94,7 +102,7 @@
         "watching",
         "own-post"
       ],
-      "description": "why a mention was closed without a public reply. own-post = our own social/marketing account \u2014 relevant but not repliable, and excluded from sentiment analytics so our own announcements can't inflate the Pulse score"
+      "description": "why a mention was closed without a public reply. own-post = our own social/marketing account — relevant but not repliable, and excluded from sentiment analytics so our own announcements can't inflate the Pulse score"
     },
     "owner": {
       "type": "relation",

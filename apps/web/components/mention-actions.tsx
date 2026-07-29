@@ -144,7 +144,12 @@ export default function MentionActions({
           </button>
         )}
         {mention.quality !== 'spam' && (
-          <SpamFlagButton documentId={mention.documentId} quality={mention.quality} />
+          <SpamFlagButton
+            documentId={mention.documentId}
+            quality={mention.quality}
+            qualityReason={mention.qualityReason}
+            qualityVia={mention.qualityVia}
+          />
         )}
         {mention.authorHandle && mention.quality !== 'spam' && (
           <MuteAuthorButton handle={mention.authorHandle} />

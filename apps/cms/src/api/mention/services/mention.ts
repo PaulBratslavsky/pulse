@@ -212,19 +212,40 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
    * author remains the stronger action — it applies retroactively and to
    * everything they post next.
    */
-  async setQuality(documentId: string, user: { id: number }, quality: string) {
+  async setQuality(
+    documentId: string,
+    user: { id: number },
+    quality: string,
+    reason?: string | null,
+    via = 'app'
+  ) {
     if (!['normal', 'suspected-spam', 'spam'].includes(quality))
       throw new WorkflowError(400, 'invalid quality')
     const mention = await this.requireMention(documentId)
+    // reason/via are the audit trail: a flag that can't say WHY forces whoever
+    // confirms it to re-judge from scratch, and leaves no way to tell whether
+    // the rubric behind a batch of agent flags is any good
+    const clean = typeof reason === 'string' ? reason.trim().slice(0, 500) || null : null
     return strapi.db.transaction(async () => {
-      const updated = await strapi
-        .documents('api::mention.mention')
-        .update({ documentId, data: { quality } as any })
+      const updated = await strapi.documents('api::mention.mention').update({
+        documentId,
+        data: {
+          quality,
+          // clearing the flag clears its rationale — a stale reason must never
+          // outlive the judgement it explained
+          qualityReason: quality === 'normal' ? null : clean,
+          qualityVia: quality === 'normal' ? null : via,
+        } as any,
+      })
       await logActivity(strapi, {
         mentionDocumentId: documentId,
         action: 'corrected',
         actorId: user?.id ?? null,
-        detail: { quality: { from: mention.quality ?? 'normal', to: quality } },
+        detail: {
+          quality: { from: mention.quality ?? 'normal', to: quality },
+          ...(clean ? { reason: clean } : {}),
+          via,
+        },
       })
       return updated
     })

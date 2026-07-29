@@ -694,6 +694,8 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
       ['normal', 'suspected-spam', 'spam']
     > &
       Schema.Attribute.DefaultTo<'normal'>;
+    qualityReason: Schema.Attribute.Text;
+    qualityVia: Schema.Attribute.String;
     raw: Schema.Attribute.JSON;
     receivedAt: Schema.Attribute.DateTime;
     responses: Schema.Attribute.Relation<'oneToMany', 'api::response.response'>;

@@ -115,13 +115,15 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
     }
   },
 
-  /** POST /mentions/:documentId/quality — { quality } */
+  /** POST /mentions/:documentId/quality — { quality, reason? } */
   async quality(ctx) {
     try {
       const data = await (strapi.service('api::mention.mention') as any).setQuality(
         ctx.params.documentId,
         ctx.state.user,
-        ctx.request.body?.quality
+        ctx.request.body?.quality,
+        ctx.request.body?.reason,
+        'app'
       )
       return { data }
     } catch (err) {
