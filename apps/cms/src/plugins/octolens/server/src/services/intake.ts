@@ -44,6 +44,26 @@ const PLATFORM_MAP: Record<string, string> = {
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
 
 export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
+  /** Normalize any Octolens payload shape (webhook envelope {action,data} or
+   *  flat pull-API item) into the intake shape. Throws on missing id/content.
+   *  Used by the webhook receiver AND the dead-letter replay route. */
+  normalizePayload(payload: any): NormalizedMention {
+    const m = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+    const externalId = m.sourceId ?? m.id ?? m.externalId ?? m.external_id ?? m.mention?.id ?? null;
+    const content = m.body ?? m.text ?? m.content ?? m.mention?.text ?? m.title ?? null;
+    if (!externalId || !content) {
+      throw new Error(`missing required fields (externalId: ${!!externalId}, content: ${!!content})`);
+    }
+    return {
+      externalId: String(externalId),
+      content: String(content),
+      authorHandle: m.author?.handle ?? m.author ?? m.authorHandle ?? m.author_name ?? null,
+      url: m.url ?? m.link ?? m.permalink ?? null,
+      postedAt: this.parseTimestamp(m.postedAt ?? m.timestamp ?? m.created_at ?? m.createdAt ?? null),
+      platformKey: String(m.platform ?? m.source ?? m.channel ?? 'unknown').toLowerCase(),
+    };
+  },
+
   /** Octolens "2026-07-27 17:31:05.000" (UTC, space-separated) → ISO. Passes ISO through. */
   parseTimestamp(value: string | null | undefined): string | null {
     if (!value) return null;

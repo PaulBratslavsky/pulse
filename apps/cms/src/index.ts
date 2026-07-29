@@ -16,6 +16,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::mention.mention.route',
   'api::mention.mention.correct',
   'api::mention.mention.replay',
+  'api::dead-letter.dead-letter.replay',
   'api::mention.mention.draft',
   'api::response.response.find',
   'api::response.response.findOne',

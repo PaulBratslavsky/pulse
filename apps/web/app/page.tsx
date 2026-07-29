@@ -144,14 +144,18 @@ export default async function QueuePage({
                     draft ready
                   </span>
                 )}
-                {(m.comments ?? []).length > 0 && (
-                  <span
-                    className="inline-flex items-center gap-1 text-xs text-zinc-500"
-                    title={`${m.comments.length} comment(s)/note(s)`}
-                  >
-                    <MessageSquare size={12} /> {m.comments.length}
-                  </span>
-                )}
+                {(() => {
+                  // list API returns a relation count, detail returns the array
+                  const n = Array.isArray(m.comments) ? m.comments.length : (m.comments?.count ?? 0)
+                  return n > 0 ? (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs text-zinc-500"
+                      title={`${n} comment(s)/note(s)`}
+                    >
+                      <MessageSquare size={12} /> {n}
+                    </span>
+                  ) : null
+                })()}
                 <span className="text-xs text-zinc-500">
                   @{m.authorHandle ?? 'unknown'} · {m.channel?.name ?? '—'} ·
                 </span>
