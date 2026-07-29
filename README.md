@@ -24,7 +24,7 @@ Other root scripts:
 |---|---|
 | `npm run dev:demo` | same as `dev`, but seeds demo data on first boot (10 mentions, 3 users — `dana`/`mark`/`priya`, password `PulseDemo1!`) |
 | `npm run backend` / `npm run frontend` | run one side only |
-| `npm run test:e2e` | Playwright suite (17 tests) against the running dev servers |
+| `npm run test:e2e` | Playwright suite (18 tests) against the running dev servers |
 | `npm run db:export` / `npm run db:import` | snapshot / restore local Strapi data via `seed-data.tar.gz` (local file, not tracked in git) |
 
 ### Demo data (dev only)
@@ -55,10 +55,14 @@ curl -X POST http://localhost:1337/api/octolens/ingest \
 
 ## Connecting AI clients (MCP)
 
-The backend exposes Strapi's built-in MCP server at `POST /mcp` with six Pulse tools (queue, mention detail, **save-draft**, search, trends, themes) — the same registry the in-app assistant uses. Drafts saved by an agent pre-fill the reply form for a human to review and post; nothing auto-posts.
+The backend exposes Strapi's built-in MCP server at `POST /mcp` with nine Pulse tools — queue (semantic
+filters + paging), mention detail, **save-draft**, **update-mention** (partial), **save-drafts-bulk**,
+**acknowledge**, search, trends, themes — the same registry the in-app assistant uses. Drafts saved by an
+agent pre-fill the reply form for a human to review and post; **nothing auto-posts**, and write tools
+never expose the mention body, so an agent can't overwrite a post's content.
 
 1. In the Strapi admin, create an **Admin Token** (Settings → Admin Tokens — a classic content-API token is rejected by `/mcp`).
-2. On the token's permission screen, open the **Settings tab → "Pulse MCP tools"** and check the tools this token may call (per-tool, granular — `save-draft` is the only write). The **Plugins tab → octolens** similarly gates the plugin's admin sync UI per role/token.
+2. On the token's permission screen, open the **Settings tab → "Pulse MCP tools"** and check the tools this token may call (per-tool, granular; four of the nine are writes, marked `(write)`). The **Plugins tab → octolens** separately gates the plugin's admin sync UI. ⚠️ Grant **only** these actions — adding content-manager permissions re-exposes Strapi's generic CRUD tools, whose update flow requires resending the whole record (a truncated resend silently overwrote a long post in a real session).
 3. Point your client at the endpoint, e.g. Claude Desktop `claude_desktop_config.json`:
    ```json
    "pulse": {
