@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { LogOut } from 'lucide-react'
 import SearchBox from '@/components/search-box'
+import { Avatar } from '@/components/ui'
 import { logoutUserAction } from '@/data/actions/auth'
 
 export function TopNav({ me }: { me: { username: string } | null }) {
@@ -21,9 +22,7 @@ export function TopNav({ me }: { me: { username: string } | null }) {
       <div className="flex items-center gap-2 shrink-0">
         {me && (
           <>
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-[#4945FF] to-[#7B79FF] text-white text-xs font-semibold">
-              {me.username.charAt(0).toUpperCase()}
-            </span>
+            <Avatar name={me.username} size="lg" />
             <span className="text-sm text-zinc-600 dark:text-zinc-300 max-sm:hidden">{me.username}</span>
             <form action={logoutUserAction} className="flex">
               <button

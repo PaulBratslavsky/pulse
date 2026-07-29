@@ -4,15 +4,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 
-async function post(path: string, body?: unknown) {
-  const res = await fetch(`/api/pulse/${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error?.message ?? 'request failed')
-  return res.json()
-}
+import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
+import { MutationError } from '@/components/mutation-error'
+
+const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 
 export default function MentionActions({
   mention,
@@ -87,15 +82,13 @@ export default function MentionActions({
     },
   })
   const outcome = useMutation({
-    mutationFn: async ({ responseId, result }: { responseId: string; result: string }) => {
-      const res = await fetch(`/api/pulse/responses/${responseId}/outcome`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ result }),
-      })
-      if (!res.ok) throw new Error('outcome failed')
-    },
+    mutationFn: ({ responseId, result }: { responseId: string; result: string }) =>
+      pulseFetch('PUT', `responses/${responseId}/outcome`, { result }),
     onSuccess: () => router.refresh(),
+    // 409 = stale page (already resolved / already recorded) — refresh to reality
+    onError: (err) => {
+      if (err instanceof PulseApiError && err.status === 409) router.refresh()
+    },
   })
 
   // outcome tracking applies to public replies only — internal notes never "land"
@@ -150,6 +143,9 @@ export default function MentionActions({
             ))}
           </div>
         )}
+        <MutationError m={claim} className="text-xs" />
+        <MutationError m={genDraft} className="text-xs" />
+        <MutationError m={outcome} className="text-xs" />
       </div>
 
       {showAck && (
@@ -265,6 +261,7 @@ export default function MentionActions({
           >
             Save correction
           </button>
+          <MutationError m={correct} />
         </div>
       )}
 

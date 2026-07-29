@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { pulseFetch } from '@/lib/pulse-client'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 
@@ -10,15 +11,8 @@ export default function ChatUI() {
   const [input, setInput] = useState('')
 
   const ask = useMutation({
-    mutationFn: async (all: Msg[]) => {
-      const res = await fetch('/api/pulse/assistant/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: all }),
-      })
-      if (!res.ok) throw new Error('chat failed')
-      return (await res.json()).data
-    },
+    mutationFn: async (all: Msg[]) =>
+      (await pulseFetch('POST', 'assistant/chat', { messages: all })).data,
     onSuccess: (data) => setMessages((prev) => [...prev, { role: 'assistant', content: data.answer }]),
   })
 

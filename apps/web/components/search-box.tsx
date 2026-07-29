@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
+import { pulseFetch } from '@/lib/pulse-client'
 import { SentimentBadge } from './badges'
 
 export default function SearchBox() {
@@ -10,11 +11,7 @@ export default function SearchBox() {
   const enabled = q.trim().length >= 2
   const { data, isFetching } = useQuery({
     queryKey: ['search', q],
-    queryFn: async () => {
-      const res = await fetch(`/api/pulse/search?q=${encodeURIComponent(q)}`)
-      if (!res.ok) throw new Error('search failed')
-      return (await res.json()).data
-    },
+    queryFn: async () => (await pulseFetch('GET', `search?q=${encodeURIComponent(q)}`)).data,
     enabled,
   })
 

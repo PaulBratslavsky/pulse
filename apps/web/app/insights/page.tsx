@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FileBarChart, TrendingUp, Tags, MessagesSquare, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { strapiFetch } from '@/lib/strapi'
+import { FilterPill } from '@/components/ui'
 
 /**
  * Insights — snapshot report (7/30/90d) over the mention data, with the
@@ -89,17 +90,9 @@ export default async function InsightsPage({
         </div>
         <div className="flex gap-2 text-sm" role="group" aria-label="Time window">
           {WINDOWS.map((w) => (
-            <Link
-              key={w}
-              href={w === 30 ? '/insights' : `/insights?window=${w}`}
-              className={`rounded-full px-3 py-1 border ${
-                days === w
-                  ? 'border-zinc-900 dark:border-white font-medium'
-                  : 'border-zinc-300 dark:border-zinc-700 text-zinc-500'
-              }`}
-            >
+            <FilterPill key={w} href={w === 30 ? '/insights' : `/insights?window=${w}`} active={days === w}>
               {w}d
-            </Link>
+            </FilterPill>
           ))}
         </div>
       </div>

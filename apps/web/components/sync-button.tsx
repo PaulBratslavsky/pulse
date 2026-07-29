@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
+import { pulseFetch } from '@/lib/pulse-client'
 
 /** Triggers the Octolens pull-sync (24h lookback) and refreshes the queue. */
 export default function SyncButton() {
@@ -10,15 +11,8 @@ export default function SyncButton() {
   const [summary, setSummary] = useState<string | null>(null)
 
   const sync = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/pulse/octolens/sync', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lookbackHours: 24 }),
-      })
-      if (!res.ok) throw new Error('sync failed')
-      return (await res.json()).data as { created: number; seen: number }
-    },
+    mutationFn: async () =>
+      (await pulseFetch<{ data: { created: number; seen: number } }>('POST', 'octolens/sync', { lookbackHours: 24 })).data,
     onSuccess: (data) => {
       setSummary(data.created > 0 ? `${data.created} new` : 'up to date')
       router.refresh()

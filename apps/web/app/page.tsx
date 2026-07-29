@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { strapiFetch, qs } from '@/lib/strapi'
 import { MessageSquare } from 'lucide-react'
 import { SentimentBadge, StatusBadge, StalenessFlag, PostedDate } from '@/components/badges'
+import { UserChip, FilterPill, EmptyState } from '@/components/ui'
+import { commentCount } from '@/lib/types'
 import ClaimButton from '@/components/claim-button'
 import SyncButton from '@/components/sync-button'
 
@@ -66,17 +68,9 @@ export default async function QueuePage({
 
       <div className="flex gap-2 mb-2 text-sm items-center flex-wrap">
         {['', 'unanswered', 'claimed', 'answered', 'acknowledged', 'resolved'].map((s) => (
-          <Link
-            key={s || 'queue'}
-            href={filterUrl({ status: s || undefined, page: 0 })}
-            className={`rounded-full px-3 py-1 border ${
-              (params.status ?? '') === s
-                ? 'border-zinc-900 dark:border-white font-medium'
-                : 'border-zinc-300 dark:border-zinc-700 text-zinc-500'
-            }`}
-          >
+          <FilterPill key={s || 'queue'} href={filterUrl({ status: s || undefined, page: 0 })} active={(params.status ?? '') === s}>
             {s || 'queue'}
-          </Link>
+          </FilterPill>
         ))}
       </div>
 
@@ -91,40 +85,28 @@ export default async function QueuePage({
           </Link>
         )}
         {['', 'negative', 'neutral', 'positive', 'na'].map((s) => (
-          <Link
-            key={s || 'all'}
-            href={filterUrl({ sentiment: s || undefined, page: 0 })}
-            className={`rounded-full px-3 py-1 border ${
-              (params.sentiment ?? '') === s
-                ? 'border-zinc-900 dark:border-white font-medium'
-                : 'border-zinc-300 dark:border-zinc-700 text-zinc-500'
-            }`}
-          >
+          <FilterPill key={s || 'all'} href={filterUrl({ sentiment: s || undefined, page: 0 })} active={(params.sentiment ?? '') === s}>
             {s === 'na' ? 'n/a' : s || 'all'}
-          </Link>
+          </FilterPill>
         ))}
-        <Link
+        <FilterPill
           href={filterUrl({ draft: params.draft ? undefined : '1', page: 0 })}
-          className={`rounded-full px-3 py-1 border ${
-            params.draft
-              ? 'border-sky-500 bg-sky-50 font-medium text-sky-800 dark:bg-sky-900/30 dark:text-sky-300'
-              : 'border-zinc-300 dark:border-zinc-700 text-zinc-500'
-          }`}
+          active={Boolean(params.draft)}
+          activeClassName="border-sky-500 bg-sky-50 font-medium text-sky-800 dark:bg-sky-900/30 dark:text-sky-300"
           title="Only mentions with a saved draft reply"
         >
           has draft
-        </Link>
+        </FilterPill>
       </div>
 
       {mentions.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-12 text-center">
-          <p className="text-lg font-medium mb-1">Queue is clear 🎉</p>
+        <EmptyState title="Queue is clear 🎉">
           <p className="text-sm text-zinc-500 max-w-md mx-auto">
             Pulse collects data from launch onward — new mentions land here automatically as the
             webhook delivers them. If you just set up, point Octolens at{' '}
             <code className="text-xs">/api/octolens/ingest</code> and give it a minute.
           </p>
-        </div>
+        </EmptyState>
       ) : (
         <ul className="space-y-3">
           {mentions.map((m: any) => (
@@ -144,18 +126,14 @@ export default async function QueuePage({
                     draft ready
                   </span>
                 )}
-                {(() => {
-                  // list API returns a relation count, detail returns the array
-                  const n = Array.isArray(m.comments) ? m.comments.length : (m.comments?.count ?? 0)
-                  return n > 0 ? (
-                    <span
-                      className="inline-flex items-center gap-1 text-xs text-zinc-500"
-                      title={`${n} comment(s)/note(s)`}
-                    >
-                      <MessageSquare size={12} /> {n}
-                    </span>
-                  ) : null
-                })()}
+                {commentCount(m) > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs text-zinc-500"
+                    title={`${commentCount(m)} comment(s)/note(s)`}
+                  >
+                    <MessageSquare size={12} /> {commentCount(m)}
+                  </span>
+                )}
                 <span className="text-xs text-zinc-500">
                   @{m.authorHandle ?? 'unknown'} · {m.channel?.name ?? '—'} ·
                 </span>
@@ -180,14 +158,7 @@ export default async function QueuePage({
               </Link>
               <div className="mt-3 flex items-center gap-2">
                 {m.status === 'unanswered' && <ClaimButton documentId={m.documentId} />}
-                {m.owner && (
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 text-sm text-zinc-700 dark:text-zinc-300">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-[#4945FF] to-[#7B79FF] text-white text-[10px] font-semibold">
-                      {m.owner.username.charAt(0).toUpperCase()}
-                    </span>
-                    Claimed by <strong>{m.owner.username}</strong>
-                  </span>
-                )}
+                <UserChip user={m.owner} label="Claimed by" />
                 <Link
                   href={`/mentions/${m.documentId}`}
                   className="text-sm rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1"
