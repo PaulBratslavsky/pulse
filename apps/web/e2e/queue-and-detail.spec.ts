@@ -339,6 +339,28 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(reply).not.toHaveValue('')
   })
 
+  test('leaderboard ranks by replies posted and credits the reply you record', async ({
+    page,
+    request,
+  }) => {
+    const { documentId } = await injectMention(request)
+
+    await page.goto('/')
+    const board = page.locator('aside').filter({ hasText: 'This week' })
+    test.skip((await board.count()) === 0, 'right rail is hidden below xl')
+    await expect(board.getByText('Replies posted in the last 7 days')).toBeVisible()
+
+    // record a public reply, which must credit the signed-in user
+    await page.goto(`/mentions/${documentId}`)
+    await page.getByRole('button', { name: 'Claim' }).click()
+    await page.getByPlaceholder('What you actually replied…').fill('E2E leaderboard reply')
+    await page.getByRole('button', { name: 'Record response' }).click()
+    await expect(page.getByText('E2E leaderboard reply')).toBeVisible()
+
+    await page.goto('/')
+    await expect(board.getByText('dana')).toBeVisible()
+  })
+
   test('search finds recorded responses', async ({ page }) => {
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill('uninstall')

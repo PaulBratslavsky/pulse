@@ -137,6 +137,44 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 
   /**
+   * Team leaderboard over a trailing window. Ranked by **replies posted** —
+   * deliberately NOT by triage volume: a board that counts acknowledges
+   * rewards mass-dismissing the queue, which is the opposite of the behaviour
+   * this tool exists to encourage. Triage is shown as context, not rank.
+   * Sourced from the activity trail (one row per transition, with the actor),
+   * so it stays honest even when work happens via MCP or bulk actions.
+   */
+  async leaderboard(opts: { days?: number } = {}) {
+    const days = opts.days ?? 7;
+    const since = new Date(Date.now() - days * DAY).toISOString();
+
+    const activities = await strapi.documents('api::activity.activity').findMany({
+      filters: { at: { $gte: since } } as any,
+      fields: ['action', 'at'],
+      populate: { actor: { fields: ['username'] } } as any,
+      limit: 10000,
+    });
+
+    const TRIAGE = new Set(['claimed', 'acknowledged', 'corrected', 'routed', 'noted', 'drafted']);
+    const byUser = new Map<string, { username: string; replies: number; resolved: number; triaged: number }>();
+    for (const a of activities as any[]) {
+      const username = a.actor?.username;
+      if (!username) continue; // system events have no actor
+      const e = byUser.get(username) ?? { username, replies: 0, resolved: 0, triaged: 0 };
+      if (a.action === 'answered') e.replies += 1;
+      else if (a.action === 'resolved') e.resolved += 1;
+      else if (TRIAGE.has(a.action)) e.triaged += 1;
+      byUser.set(username, e);
+    }
+
+    const leaders = [...byUser.values()]
+      .filter((u) => u.replies + u.resolved + u.triaged > 0)
+      .sort((a, b) => b.replies - a.replies || b.resolved - a.resolved || b.triaged - a.triaged);
+
+    return { windowDays: days, leaders };
+  },
+
+  /**
    * Insights snapshot: team-facing stats over a trailing window (7/30/90d).
    * Windowed on postedAt (consistent with staleness/queue semantics).
    */

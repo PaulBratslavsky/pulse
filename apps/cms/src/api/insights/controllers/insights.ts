@@ -19,6 +19,11 @@ export default {
     return { data: await (strapi.service('api::analysis.insights') as any).stale({ days }) }
   },
 
+  async leaderboard(ctx: any) {
+    const days = ctx.query.days ? Number(ctx.query.days) : undefined
+    return { data: await (strapi.service('api::analysis.insights') as any).leaderboard({ days }) }
+  },
+
   async snapshot(ctx: any) {
     const days = ctx.query.days ? Number(ctx.query.days) : undefined
     return { data: await (strapi.service('api::analysis.insights') as any).snapshot({ days }) }

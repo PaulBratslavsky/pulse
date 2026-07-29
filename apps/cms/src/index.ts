@@ -40,6 +40,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::insights.insights.themes',
   'api::insights.insights.stale',
   'api::insights.insights.snapshot',
+  'api::insights.insights.leaderboard',
   'api::insights.insights.config',
   'api::assistant.chat.chat',
   'plugin::octolens.sync.trigger',
