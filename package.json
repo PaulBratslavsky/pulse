@@ -1,7 +1,7 @@
 {
   "name": "pulse",
   "version": "1.0.0",
-  "description": "Pulse — the Strapi team's mention-sentiment tracker (Strapi 5 + Next.js 16)",
+  "description": "Pulse \u2014 the Strapi team's mention-sentiment tracker (Strapi 5 + Next.js 16)",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -15,7 +15,8 @@
     "dev:demo": "concurrently -n cms,web -c blue,magenta \"PULSE_SEED_DEMO=true npm run backend\" \"npx wait-on http://localhost:1337/_health && npm run frontend\"",
     "test:e2e": "npm run test:e2e --workspace apps/web",
     "db:export": "cd apps/cms && npx strapi export --no-encrypt -f ../../seed-data",
-    "db:import": "cd apps/cms && npx strapi import -f ../../seed-data.tar.gz --force --exclude config"
+    "db:import": "cd apps/cms && npx strapi import -f ../../seed-data.tar.gz --force --exclude config",
+    "db:clean-e2e": "node apps/cms/scripts/clean-e2e-data.mjs"
   },
   "dependencies": {
     "concurrently": "^9.1.2",

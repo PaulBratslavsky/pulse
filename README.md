@@ -25,6 +25,7 @@ Other root scripts:
 | `npm run dev:demo` | same as `dev`, but seeds demo data on first boot (10 mentions, 3 users — `dana`/`mark`/`priya`, password `PulseDemo1!`) |
 | `npm run backend` / `npm run frontend` | run one side only |
 | `npm run test:e2e` | Playwright suite (18 tests) against the running dev servers |
+| `npm run db:clean-e2e` | delete Playwright fixtures from the local DB (they ingest through the real webhook, so they accumulate in dev) |
 | `npm run db:export` / `npm run db:import` | snapshot / restore local Strapi data via `seed-data.tar.gz` (local file, not tracked in git) |
 
 ### Demo data (dev only)
