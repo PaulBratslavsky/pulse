@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test'
 
 /**
  * E2E tests against the real local stack:
@@ -33,6 +33,59 @@ export default defineConfig({
       dependencies: ['setup'],
       use: { storageState: 'playwright/.auth/dana.json' },
     },
+    // Real device profiles rather than a narrow desktop window: actual
+    // viewport, DPR, touch support and mobile UA, so touch-only paths and
+    // `max-sm:` breakpoints are exercised the way a phone would.
+    {
+      name: 'mobile-android',
+      testMatch: /responsive\.spec\.ts/,
+      dependencies: ['setup'],
+      use: { ...devices['Pixel 7'], storageState: 'playwright/.auth/dana.json' },
+    },
+    // iPhone/iPad *metrics* on Chromium. Not a substitute for WebKit, but it
+    // runs everywhere and catches the whole overflow/breakpoint/tap-target
+    // class at Apple viewport sizes.
+    {
+      name: 'mobile-ios-metrics',
+      testMatch: /responsive\.spec\.ts/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Pixel 7'],
+        viewport: devices['iPhone 14'].viewport,
+        deviceScaleFactor: devices['iPhone 14'].deviceScaleFactor,
+        storageState: 'playwright/.auth/dana.json',
+      },
+    },
+    {
+      name: 'tablet-metrics',
+      testMatch: /responsive\.spec\.ts/,
+      dependencies: ['setup'],
+      use: {
+        ...devices['Pixel 7'],
+        viewport: devices['iPad Mini'].viewport,
+        storageState: 'playwright/.auth/dana.json',
+      },
+    },
+    // Genuine WebKit — the only engine that reproduces Safari's dvh and
+    // env(safe-area-inset-*) behaviour, so it IS worth running. Opt-in via
+    // PW_WEBKIT=1 because the webkit-2336 build segfaults on launch under
+    // macOS 26 (Darwin 25); enable it in CI and on machines where it works.
+    ...(process.env.PW_WEBKIT
+      ? [
+          {
+            name: 'mobile-ios-webkit',
+            testMatch: /responsive\.spec\.ts/,
+            dependencies: ['setup'],
+            use: { ...devices['iPhone 14'], storageState: 'playwright/.auth/dana.json' },
+          },
+          {
+            name: 'tablet-webkit',
+            testMatch: /responsive\.spec\.ts/,
+            dependencies: ['setup'],
+            use: { ...devices['iPad Mini'], storageState: 'playwright/.auth/dana.json' },
+          },
+        ]
+      : []),
   ],
   webServer: {
     command: 'npm run dev',

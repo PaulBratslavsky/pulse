@@ -106,19 +106,21 @@ export default function MutedAuthors({ muted }: { muted: any[] }) {
       ) : (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {muted.map((m: any) => (
-            <li key={m.documentId} className="flex items-center gap-3 py-2 text-sm">
-              <span className="font-medium">@{m.handle}</span>
+            // wraps rather than overflows: a long handle + badge + count +
+            // button is ~455px, wider than a phone, and none of it could shrink
+            <li key={m.documentId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+              <span className="max-w-full truncate font-medium">@{m.handle}</span>
               <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
                 {REASON_LABEL[m.reason] ?? m.reason}
               </span>
               <span className="text-xs text-zinc-500">
                 {m.mentionCount ?? 0} mention{(m.mentionCount ?? 0) === 1 ? '' : 's'} hidden
               </span>
-              {m.note && <span className="text-xs text-zinc-400 truncate">{m.note}</span>}
+              {m.note && <span className="max-w-full truncate text-xs text-zinc-400">{m.note}</span>}
               <button
                 onClick={() => remove.mutate(m.documentId)}
                 disabled={remove.isPending}
-                className="ml-auto inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
+                className="ml-auto inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-400 max-sm:min-h-[38px] max-sm:px-3 dark:border-zinc-700 dark:text-zinc-400"
                 title="Unmute — restores their mentions to the queue and reports"
               >
                 <RotateCcw size={11} /> Unmute

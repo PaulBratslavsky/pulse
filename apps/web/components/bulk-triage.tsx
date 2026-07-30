@@ -236,8 +236,9 @@ export function SelectionProvider({
           </div>
         </div>
       )}
+      {/* bottom uses a safe-area max() so the bar clears the iOS home indicator */}
       {(n > 0 || result) && (
-        <div className="sticky bottom-4 z-30 mt-4">
+        <div className="sticky z-30 mt-4" style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="mx-auto flex w-fit max-w-full flex-wrap items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
             {n > 0 ? (
               <>

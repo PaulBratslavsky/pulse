@@ -65,7 +65,7 @@ export async function RightSidebar() {
   }
 
   return (
-    <aside className="sticky right-0 top-16 flex h-[calc(100vh-4rem)] w-[330px] flex-col gap-8 overflow-y-auto bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 p-6 pt-10 max-xl:hidden">
+    <aside className="sticky right-0 top-16 flex h-[calc(100dvh-4rem)] w-[330px] flex-col gap-8 overflow-y-auto bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 p-6 pt-10 max-xl:hidden">
       <div>
         <h3 className="text-lg font-bold mb-4">Needs attention</h3>
         <div className="flex flex-col gap-4">

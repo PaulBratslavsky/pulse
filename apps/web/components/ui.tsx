@@ -72,7 +72,9 @@ export function FilterPill({
     <Link
       href={href}
       title={title}
-      className={`rounded-full px-3 py-1 border ${
+      // taller tap area under sm: the desktop pill is ~26px, well under the
+      // 44px iOS / 48dp Android minimum, and the queue stacks ~17 of them
+      className={`inline-flex items-center rounded-full border px-3 py-1 max-sm:min-h-[38px] max-sm:px-3.5 ${
         active
           ? (activeClassName ?? 'border-zinc-900 dark:border-white font-medium')
           : 'border-zinc-300 dark:border-zinc-700 text-zinc-500'

@@ -23,7 +23,10 @@ export default function SignInPage() {
   const [state, formAction] = useActionState(loginUserAction, INITIAL_STATE)
 
   return (
-    <div className="max-w-sm mx-auto mt-20">
+    // px-4: signed-out pages render outside the app shell, so nothing else
+    // provides gutters — at max-w-sm the card otherwise touches both edges of
+    // a 390px phone
+    <div className="mx-auto mt-20 max-w-sm px-4">
       <h1 className="text-2xl font-semibold mb-1">Sign in to Strapi Pulse</h1>
       <p className="text-sm text-zinc-500 mb-6">
         Accounts are created by the admin — ask if you don&apos;t have one.

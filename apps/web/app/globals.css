@@ -27,3 +27,18 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* iOS Safari zooms the whole page in when you focus a field whose font-size is
+   under 16px, and never zooms back out — the app is full of `text-sm` (14px)
+   and `text-xs` (12px) inputs, so every search/compose/reply tap would jolt the
+   layout. One rule here beats ~20 call-site overrides; the compound :not()
+   selector is deliberate, to outrank Tailwind's single-class utilities without
+   !important. Checkboxes and radios are exempt (sizing them breaks the glyph).
+   Applies below the `sm` breakpoint only, so desktop density is untouched. */
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

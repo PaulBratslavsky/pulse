@@ -292,3 +292,45 @@ apps/web/app/
 - **2026-07-29 — Agents can read the spam state they write.** `pulse-get-mention` now returns `quality` / `qualityReason` / `qualityVia`, and `pulse-queue` / `pulse-search-mentions` surface `quality` when it's set (omitted when `normal`, to keep payloads small). Without this an agent could write a flag but never see one: it couldn't verify its own write, couldn't tell an already-judged mention from a fresh one, and would re-judge the whole corpus on every sweep. **Trap:** Document Service `findMany` with an explicit `fields` array silently returns `undefined` for anything not listed — adding the key to the response object isn't enough, it has to be in `fields` too. That bit twice in one sitting.
 - **2026-07-29 — Queue-filter test no longer depends on page 1.** Every run backdates its fixtures to the same instant (`2017-03-01`), so once 25+ mentions tied on `postedAt` — page size is 25 — which ones landed on the first page became arbitrary and the test failed on accumulated data rather than on a defect. It now scopes by the run's own tag. Note `?q=` is a single `$containsi` substring, not an AND of terms, so the Strapi discriminator is embedded in the tag token (`<tag>strapi` vs `<tag>other`) to make narrowing testable with one substring.
 - **2026-07-29 — `suspected-spam` is excluded from the metrics immediately, not on confirmation.** The analytics filter now excludes both `spam` and `suspected-spam` (`$notIn`), because waiting for a human left flagged content doing the exact damage the flag exists to stop — five near-identical farm posts were still setting the Pulse score. A flag now takes effect at once; clearing to `normal` restores the mention to every metric. Verified reversible: `603 → 602 → 603`. Flagged mentions stay in the **queue** (that's how they get reviewed) — this is a metrics exclusion, not a hide. **Deliberate exception:** the feedback digest still excludes confirmed `spam` only, because feedback is insight a teammate chose to write down and an unconfirmed machine flag shouldn't delete human work from the prioritisation view. **NULL-safety:** SQL `col NOT IN (…)` is FALSE for NULL, so the `$null` arm is required or legacy rows predating `quality` vanish from every metric.
+
+## Responsive / mobile (2026-07-30)
+
+Pulse is used from phones during triage, so the app is verified at real device
+metrics, not just a narrow desktop window.
+
+- **Phone navigation.** The left sidebar is `max-sm:hidden`, which meant a phone
+  could reach *nothing but the queue* — Trends, Themes, Feedback, Insights, Chat
+  and Settings were all unreachable. Added a drawer behind a hamburger in the top
+  bar: closes on navigation, on Escape, and on backdrop tap; locks body scroll
+  while open (iOS otherwise scrolls the page underneath) and returns focus to the
+  trigger on close. A drawer rather than a bottom tab bar because there are seven
+  destinations — five would fit a tab bar, seven would not.
+- **Viewport + safe areas.** Explicit `viewport` export with `viewportFit: 'cover'`
+  plus `env(safe-area-inset-*)` padding on the fixed top bar and the sticky bulk
+  bar, so nothing sits under the notch or the home indicator. `themeColor` tints
+  browser chrome per scheme.
+- **`dvh`, not `vh`.** Mobile Safari's `100vh` includes the retracting URL bar, so
+  full-height panes jumped as it hid. All shell heights use `dvh`.
+- **iOS zoom-on-focus.** Safari zooms in whenever a focused field is under 16px
+  and never zooms back out; the app is full of `text-sm`/`text-xs` inputs, so
+  every search or reply tap jolted the layout. One `@media (max-width: 639px)`
+  rule in `globals.css` sets fields to 16px — the compound `:not()` selector is
+  deliberate, to outrank Tailwind's single-class utilities without `!important`.
+  Checkboxes/radios exempt. Guarded by a test that fails on any sub-16px field.
+- **Touch targets.** Icon buttons are 44px on phones (iOS HIG / Android 48dp).
+  Filter pills use a 38px floor rather than 44 — the queue stacks ~17 of them and
+  44 would eat the screen; still comfortably tappable.
+- **Overflow.** `min-w-0` on the content flex child (a long unbroken URL in a
+  scraped mention would otherwise set the flex base size and push the whole page
+  sideways), and the muted-authors row wraps instead of overflowing by 42px.
+
+**Testing.** `e2e/responsive.spec.ts` runs under device projects. The
+load-bearing assertion is "no horizontal scroll" on every page — the failure
+users actually feel, and it catches a whole class of regressions no component
+test would. **Known environment limitation:** the real WebKit projects
+(`mobile-ios-webkit`, `tablet-webkit`) are gated behind `PW_WEBKIT=1` because
+the `webkit-2336` build segfaults on launch under macOS 26 (Darwin 25). What
+runs by default is iPhone/iPad *metrics on Chromium*, which covers overflow,
+breakpoints and tap targets but **not** Safari's actual `dvh` /
+`env(safe-area-inset-*)` behaviour. Enable `PW_WEBKIT=1` in CI or on a machine
+with a working WebKit to close that gap.
