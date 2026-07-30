@@ -15,16 +15,26 @@ const utcDay = (d: string | Date) => new Date(d).toISOString().slice(0, 10);
 /**
  * What counts as community signal. Two exclusions, for the same reason —
  * neither is someone talking about Strapi in the wild:
- *  - spam (muted authors / confirmed slop): one AI content farm would
- *    otherwise own the top topic and set the Pulse score;
+ *  - spam: both `spam` (muted authors / confirmed slop) AND `suspected-spam`
+ *    (flagged, awaiting a human). One AI content farm would otherwise own the
+ *    top topic and set the Pulse score, and waiting for confirmation left it
+ *    doing exactly that in the meantime — so a flag takes effect immediately
+ *    (team decision 2026-07-29). A cleared false positive returns to `normal`
+ *    and rejoins the numbers; nothing is destroyed either way, and flagged
+ *    mentions stay in the QUEUE so they can still be reviewed.
  *  - our OWN social posts (acknowledged as `own-post`): announcements are
  *    positive by construction, so counting them inflates our own score.
- * Own posts stay visible in the acknowledged pile — they're excluded from the
- * numbers, not hidden from the team.
+ * Excluded from the numbers, never hidden from the team.
+ *
+ * NULL-safety matters here: SQL `col NOT IN (…)` is FALSE for NULL, so legacy
+ * rows written before `quality` existed need the explicit `$null` arm or they
+ * silently vanish from every metric.
  */
+const SPAM_QUALITIES = ['spam', 'suspected-spam'];
+
 const NOT_SPAM = {
   $and: [
-    { $or: [{ quality: { $null: true } }, { quality: { $ne: 'spam' } }] },
+    { $or: [{ quality: { $null: true } }, { quality: { $notIn: SPAM_QUALITIES } }] },
     { $or: [{ acknowledgeReason: { $null: true } }, { acknowledgeReason: { $ne: 'own-post' } }] },
   ],
 } as any;
@@ -164,6 +174,11 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     });
 
     const items = (comments as any[])
+      // Confirmed 'spam' only — deliberately NOT the wider SPAM_QUALITIES used
+      // for the metrics. Feedback is product insight a teammate chose to write
+      // down; an unconfirmed machine flag on the source post shouldn't silently
+      // delete human work from the prioritisation view. Aggregate sentiment is
+      // different: there a flagged post is just noise.
       .filter((c) => c.mention && c.mention.quality !== 'spam')
       .filter(
         (c) =>
