@@ -69,7 +69,16 @@ export const PULSE_TOOLS: PulseTool[] = [
           .optional()
           .describe('Truncate content to N chars (default 400; use pulse-get-mention for the full body)'),
         page: z.number().int().min(1).optional().describe('1-based page (default 1)'),
-        limit: z.number().int().min(1).max(100).optional().describe('Page size (default 20, max 100)'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe(
+            'Page size (default 20, max 50). Large pages are hard to reason over — prefer several ' +
+              'narrow calls (status/topic/search filters) to one wide one.'
+          ),
       }),
     execute: async (strapi, args) => {
       const limit = args.limit ?? 20;
@@ -112,10 +121,11 @@ export const PULSE_TOOLS: PulseTool[] = [
           postedAt: m.postedAt,
           url: m.url,
           hasDraft: Boolean(m.draftText),
-          // so a spam sweep skips what's already flagged instead of re-judging
-          // the same items each run; emitted only when set, to keep the payload
-          // small ('normal' is the overwhelming default)
-          ...(m.quality && m.quality !== 'normal' ? { quality: m.quality } : {}),
+          // ALWAYS emitted, never omitted-when-normal. Omitting it to save
+          // bytes made "not flagged" indistinguishable from "field missing":
+          // an agent reported seeing no quality on any of 265 rows and
+          // concluded the field didn't work (field report, 2026-07-31).
+          quality: m.quality ?? 'normal',
           channel: m.channel?.name ?? null,
           topics: (m.topics ?? []).map((t: any) => t.name),
         })),

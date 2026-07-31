@@ -472,3 +472,17 @@ at once:
 **Test hygiene:** the suite invented ~2 topics per run (`Area <tag>`, `E2E Topic <tag>`)
 and 109 had accumulated — that pollution *was* the checkbox wall. `db:clean-e2e` now
 removes them, matched on the exact prefixes the specs use so real topics can't be hit.
+- **2026-07-31 — Field report from an agent using the tools (acted on).**
+  `pulse-queue` emitted `quality` only when it wasn't `normal`, to keep payloads small.
+  That was wrong: omitting the key makes "not flagged" indistinguishable from "field
+  missing", and an agent reading 265 rows concluded the field didn't work and fell back
+  to `pulse-get-mention` per item. It is now **always** emitted — the bytes are worth
+  far less than the ambiguity. Page size also dropped from 100 to 50: 100 rows fit the
+  wire cap but not an agent's working context, and the reporter had to dump the queue
+  to a file to analyse it.
+  **Not acted on — `suspected-spam` does NOT imply `sentimentLabel: 'na'`.** The concern
+  (ads scored positive inflating the score) is already solved: `suspected-spam` is
+  excluded from every metric as of 2026-07-29, so a flagged ad contributes nothing. `na`
+  means "not about Strapi" — a topicality judgement — and deriving it from a spam flag
+  would conflate two independent axes and destroy `sentimentScore` on rows a human might
+  later unflag.
