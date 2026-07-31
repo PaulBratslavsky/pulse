@@ -82,7 +82,11 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await page.getByRole('button', { name: '+ Add link' }).click()
     await page.getByRole('button', { name: 'Add note' }).click()
     await expect(page.getByText('E2E note — competitor context')).toBeVisible()
-    await expect(page.getByRole('link', { name: /example\.com/ })).toBeVisible()
+    // scoped to the note: the mention's own url is also an example.com link,
+    // so an unscoped locator matches the "View original" chrome too
+    await expect(
+      page.locator('li').filter({ hasText: 'E2E note — competitor context' }).getByRole('link', { name: /example\.com/ })
+    ).toBeVisible()
     await expect(page.getByText('note', { exact: true })).toBeVisible() // amber badge
 
     // add a flat follow-up comment (chat-style, no nesting)
@@ -322,6 +326,17 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     // the sentiment "all" pill is a DIFFERENT axis — it must not reset the lane
     await page.getByRole('link', { name: 'all', exact: true }).click()
     await expect(page).toHaveURL(/lane=all/)
+  })
+
+  test('buttons show a pointer cursor, disabled ones do not', async ({ page }) => {
+    // Tailwind v4 dropped preflight's cursor:pointer on buttons; without this
+    // every control in the app silently loses its affordance on an upgrade
+    await page.goto('/settings')
+    const cursor = (sel: string) =>
+      page.locator(sel).first().evaluate((el) => getComputedStyle(el).cursor)
+
+    await expect(page.getByRole('button', { name: 'Mute author' })).toBeVisible()
+    expect(await cursor('button:not(:disabled)')).toBe('pointer')
   })
 
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {

@@ -1,13 +1,17 @@
 import { strapiFetch } from '@/lib/strapi'
 import MutedAuthors from '@/components/muted-authors'
+import ClassificationPanel from '@/components/classification-panel'
 import LeaderboardOptOut from '@/components/leaderboard-optout'
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 
 export default async function SettingsPage() {
-  const [muted, prefs] = await Promise.all([
+  const [muted, prefs, classification] = await Promise.all([
     strapiFetch('/api/muted-authors?sort=updatedAt:desc&pagination[pageSize]=100').catch(() => ({ data: [] })),
     strapiFetch('/api/preferences/me').catch(() => ({ data: { hideFromLeaderboard: false } })),
+    strapiFetch('/api/analysis/status').catch(() => ({
+      data: { enabled: false, provider: '', model: '', unclassified: 0, budget: { spent: 0, budget: 0, exceeded: false } },
+    })),
   ])
 
   const links = [
@@ -25,6 +29,13 @@ export default async function SettingsPage() {
         Noise control lives here; the rest of the configuration lives in the Strapi admin panel —
         Pulse doesn&apos;t duplicate CRUD UI.
       </p>
+
+      {/* classification first: it describes what happens to every mention.
+          Muting is a narrower, author-specific action. Keeping them in separate
+          cards stops "Rescan history" reading as "re-run analysis". */}
+      <div className="mb-4">
+        <ClassificationPanel status={classification.data} />
+      </div>
 
       <div className="mb-4">
         <MutedAuthors muted={muted.data ?? []} />

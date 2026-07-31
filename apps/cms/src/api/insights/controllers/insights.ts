@@ -51,6 +51,8 @@ export default {
 
   /** Feature flags the frontend renders against (AI is optional by design). */
   async config(_ctx: any) {
-    return { data: { aiEnabled: (strapi.service('api::analysis.ai') as any).enabled() } }
+    const ai = strapi.service('api::analysis.ai') as any
+    // two flags, not one: classification can run while the assistant stays off
+    return { data: { aiEnabled: ai.enabled(), chatEnabled: ai.chatEnabled() } }
   },
 }

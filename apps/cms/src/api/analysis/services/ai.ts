@@ -24,6 +24,15 @@ const PROMPT_VERSION = 'v2';
 export const aiEnabled = () => Boolean(process.env.AI_API_KEY || process.env.AI_BASE_URL);
 
 /**
+ * Chat is a SEPARATE switch from classification.
+ *
+ * They used to share one flag, so setting a key to enable auto-labelling also
+ * turned the assistant on — a tool-calling agent going live as a side effect of
+ * a labelling change. Off unless AI_CHAT_ENABLED is explicitly 'true'.
+ */
+export const chatEnabled = () => aiEnabled() && process.env.AI_CHAT_ENABLED === 'true';
+
+/**
  * `spam` is deliberately absent: it hides a mention from the queue AND from
  * every metric, so confirming it stays a human action. The model may only
  * raise a flag for review — the same rule the MCP write tools follow.
@@ -162,6 +171,9 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
   return {
     /** AI features on/off — single source of truth for backend + frontend config. */
     enabled: () => aiEnabled(),
+
+    /** Chat/assistant on/off — independent of classification. */
+    chatEnabled: () => chatEnabled(),
 
     /** → Analysis | null when AI disabled. Throws on provider/schema errors (sweep marks 'failed'). */
     async analyze(mention: any, vocabulary: string[] = []): Promise<Analysis | null> {

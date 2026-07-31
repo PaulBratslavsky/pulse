@@ -42,3 +42,17 @@ body {
     font-size: 16px;
   }
 }
+
+/* Tailwind v4's preflight removed `cursor: pointer` on buttons (v3 set it), so
+   every button in the app lost the affordance at once. Restoring it globally
+   rather than adding `cursor-pointer` to dozens of call sites — and only when
+   the control is actually actionable, so a disabled button doesn't lie. */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+summary {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}

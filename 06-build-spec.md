@@ -599,3 +599,60 @@ and resolved at runtime. The plugin also needs its own `npm run build`; editing 
   the first pill; it collapses to full width under `sm` so a phone doesn't lose a third
   of the row to a label. Broadest option first in every row (`queue`, `all lanes`,
   `all`) so the pattern is learnable.
+
+### AI classification, provider-agnostic (2026-07-31)
+
+Every ingested mention is now labelled by a model for **sentiment, topics, routing lane
+and spam** in one call, ~60s after arrival via the existing sweep (never in the webhook —
+a model call there risks Octolens timeouts and retry storms).
+
+**Provider** is chosen in `services/provider.ts` via `AI_PROVIDER`:
+`anthropic` | `openai` | `openai-compatible`. The last covers bring-your-own-model —
+Ollama, vLLM, LM Studio, Together, DeepSeek — needing only `AI_BASE_URL`.
+Built on AI SDK **7** (`ai@7.0.44`; v5 is two majors behind), `generateObject` + a zod
+schema for provider-agnostic structured output.
+
+**Cost is not the constraint.** ~53 mentions/day ≈ $1.77/mo on Haiku 4.5; the whole
+spread to the cheapest credible model is ~$15/year. Chosen on instruction-following and
+one-vendor operations, not price.
+
+**The deterministic layer became an input, not a fallback** (pattern borrowed from the
+`music-kb` value-score plan: compute objective signals first, let the model judge fit).
+The prompt receives the Octolens matched keyword and its tag, channel, author, the
+rule-based lane as a stated prior, and the **existing topic vocabulary** — the last is
+what stops the model coining "Documentation" beside "Docs".
+
+Measured against real mentions, the model overturned both known regex failures:
+"Migration from v4 went fine" (`lead` → `monitor`, a completed upgrade, not shopping)
+and the DXP marketing article (`lead` → `monitor` + `na`). It also promoted
+"looking for a headless CMS for Next.js" from `respond` to `lead`, which the regex
+missed. On the first real batch: 33 of 47 labelled `na` — a judgement the old code
+literally could not express, since the AI type omitted `'na'` while the schema had it.
+
+**Guardrails.** The model may raise `suspected-spam` but never confirm terminal `spam`
+(that hides a mention from the queue *and* every metric, so it stays human).
+`humanCorrected` rows are never re-queued or overwritten. The budget is now checked
+*before* each call — it was previously consulted only by recluster, so classification
+had no ceiling at all. Confirmed spam is excluded from selection rather than paid for.
+
+**Traps hit:**
+- `AI_MODEL` defaulted to `'claude-sonnet-5'`, **not a real model id** — the first call
+  after setting a key 404s. Real defaults per provider now.
+- The SDK's exported `anthropic`/`openai` singletons read `ANTHROPIC_API_KEY` /
+  `OPENAI_API_KEY`, silently ignoring Pulse's vendor-neutral `AI_API_KEY`. Providers are
+  constructed with the key explicitly.
+- A `max(200)` on the reason fields failed **2 of 5** real calls with
+  `NoObjectGeneratedError`. A schema constraint tighter than the model's natural output
+  is an error rate, not a guardrail — 400 chars is 15/15.
+- Zod-3 + AI SDK 7 generics trip TS2589; the cast is confined to the one call site and
+  runtime validation is unaffected.
+
+**Chat is a separate switch.** `AI_CHAT_ENABLED` (default false) gates the assistant,
+because it is a tool-calling agent that can *write* the queue — enabling classification
+must not turn it on as a side effect. `insights/config` returns both flags.
+
+**Reclassify** lives in its own Settings card, not beside "Rescan history" in Muted
+authors (which re-applies mutes and read as though it re-ran analysis). Needed because a
+mention labelled by the Octolens fallback is already `analysisStatus: 'analyzed'`, so
+turning AI on changes nothing for the backlog without an explicit re-queue.
+`GET /analysis/status` reports model, tokens spent and how many rows are unclassified.

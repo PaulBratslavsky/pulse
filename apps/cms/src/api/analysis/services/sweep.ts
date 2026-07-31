@@ -91,8 +91,22 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
       return pending.length;
     }
 
+    // Stop before spending, not after. The budget was only ever consulted by
+    // recluster, so classification had no ceiling at all — one bad loop could
+    // burn a month's tokens before anyone noticed.
+    const budget = await (strapi.service('api::analysis.budget') as any).status();
+    if (budget.exceeded) {
+      strapi.log.warn(
+        `[analysis] sweep skipped — daily token budget spent (${budget.spent}/${budget.budget}). Mentions stay 'pending' and resume tomorrow.`
+      );
+      return 0;
+    }
+
     const pending = await strapi.documents('api::mention.mention').findMany({
       filters: {
+        // confirmed spam is never worth a model call — it is already hidden
+        // from the queue and every metric
+        quality: { $ne: 'spam' },
         $or: [
           { analysisStatus: { $in: ['pending', 'skipped'] } },
           // failed: retry only until the attempt cap; parked rows leave the window
@@ -102,18 +116,32 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
           },
         ],
       } as any,
-      populate: { topics: true } as any,
+      populate: { topics: true, channel: true } as any,
       limit: 20,
       sort: 'receivedAt:asc' as any,
     });
+
+    // The vocabulary is passed into every classification so the model reuses
+    // "Docs" instead of coining "Documentation" — topic drift silently degrades
+    // every theme report and the whole conversation map.
+    const vocabulary: string[] = (
+      await strapi.documents('api::topic.topic').findMany({ fields: ['name'], limit: 60, sort: 'name:asc' as any })
+    ).map((t: any) => t.name);
+
     for (const mention of pending) {
       try {
-        const result = await (strapi.service('api::analysis.ai') as any).analyze(mention);
+        const result = await (strapi.service('api::analysis.ai') as any).analyze(mention, vocabulary);
         if (!result) continue; // key removed mid-sweep
 
         // single race-safe creator, case-insensitive (review: this exact-match
         // path was how 'docs' vs 'Docs' duplicated topics)
         const topicIds: string[] = await (strapi.service('api::topic.topic') as any).ensure(result.topics);
+
+        // The model may raise 'suspected-spam' but NEVER confirm terminal
+        // 'spam': that hides a mention from the queue and every metric, so it
+        // stays a human decision. A false positive here costs one review; the
+        // other way costs silently deleted signal.
+        const flagsSpam = result.quality === 'suspected-spam' && mention.quality === 'normal';
 
         // humanCorrected fields are never overwritten (spec rule)
         const data: any = mention.humanCorrected
@@ -124,6 +152,15 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
               sentimentScore: result.score,
               sentimentLabel: result.label,
               topics: topicIds,
+              lane: result.lane,
+              laneReason: `${result.laneReason} (${result.modelVersion})`,
+              ...(flagsSpam
+                ? {
+                    quality: 'suspected-spam',
+                    qualityReason: result.qualityReason ?? 'flagged by automatic classification',
+                    qualityVia: result.modelVersion,
+                  }
+                : {}),
               modelVersion: result.modelVersion,
               promptVersion: result.promptVersion,
             };
@@ -131,11 +168,28 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
           .documents('api::mention.mention')
           .update({ documentId: mention.documentId, data });
 
+        // Record where the model overturned the regex. This is the calibration
+        // signal: it is the only way to tell whether the classifier is actually
+        // better than the rules, rather than merely different.
+        if (!mention.humanCorrected && result.lane !== mention.lane) {
+          strapi.log.info(
+            `[analysis] lane ${mention.lane} -> ${result.lane} for ${mention.documentId}: ${result.laneReason}`
+          );
+        }
+
         await strapi.documents('api::activity.activity').create({
           data: {
             mention: mention.documentId,
             action: 'analyzed',
-            detail: { modelVersion: result.modelVersion, label: result.label },
+            detail: {
+              modelVersion: result.modelVersion,
+              label: result.label,
+              lane: result.lane,
+              // both lanes when they differ, so the trail shows what the model
+              // overturned rather than just its verdict
+              ...(result.lane !== mention.lane ? { laneWas: mention.lane, laneReason: result.laneReason } : {}),
+              ...(flagsSpam ? { flaggedSpam: result.qualityReason ?? true } : {}),
+            },
             at: new Date().toISOString(),
           } as any,
         });
@@ -169,6 +223,63 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 
   /** Nightly: re-queue analyzed-but-topicless mentions (never touches humanCorrected). No-op when AI disabled or budget exhausted. */
+  /**
+   * Re-queue mentions that never got a real classification, so the sweep picks
+   * them up on its next tick.
+   *
+   * Needed because a mention labelled by the Octolens fallback is already
+   * `analysisStatus: 'analyzed'` — the sweep considers it done and will never
+   * revisit it. Turning AI on therefore changes nothing for the existing
+   * backlog without this. Selects rows with no sentiment score, or whose label
+   * came from something other than the current model.
+   */
+  async requeueUnclassified({ all = false }: { all?: boolean } = {}) {
+    const filters: any = all
+      ? { quality: { $ne: 'spam' } }
+      : {
+          quality: { $ne: 'spam' },
+          $or: [
+            { sentimentScore: { $null: true } },
+            { modelVersion: { $null: true } },
+            { modelVersion: { $in: ['octolens', 'heuristic-v1', 'seed-demo'] } },
+          ],
+        };
+
+    // humanCorrected is never re-queued: a person's judgement outranks the
+    // model's, and re-running would spend tokens to produce a result we then
+    // refuse to write.
+    filters.humanCorrected = { $ne: true };
+
+    const rows = await strapi.documents('api::mention.mention').findMany({
+      filters,
+      fields: ['documentId'],
+      limit: 5000,
+    });
+    for (const row of rows as any[]) {
+      await strapi.documents('api::mention.mention').update({
+        documentId: row.documentId,
+        data: { analysisStatus: 'pending', analysisAttempts: 0 } as any,
+      });
+    }
+    strapi.log.info(`[analysis] re-queued ${rows.length} mention(s) for classification`);
+    return { requeued: rows.length };
+  },
+
+  /** How many rows the button would act on — shown before you press it. */
+  async unclassifiedCount() {
+    return strapi.documents('api::mention.mention').count({
+      filters: {
+        quality: { $ne: 'spam' },
+        humanCorrected: { $ne: true },
+        $or: [
+          { sentimentScore: { $null: true } },
+          { modelVersion: { $null: true } },
+          { modelVersion: { $in: ['octolens', 'heuristic-v1', 'seed-demo'] } },
+        ],
+      } as any,
+    });
+  },
+
   async recluster() {
     if (!aiEnabled()) return 0;
     const { exceeded } = await (strapi.service('api::analysis.budget') as any).status();

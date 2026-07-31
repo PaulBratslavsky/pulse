@@ -2,7 +2,7 @@ import type { Core } from '@strapi/strapi';
 
 export const chat = ({ strapi }: { strapi: Core.Strapi }) => ({
   async chat(ctx: any) {
-    if (!(strapi.service('api::analysis.ai') as any).enabled()) {
+    if (!(strapi.service('api::analysis.ai') as any).chatEnabled()) {
       ctx.status = 503;
       ctx.body = {
         data: null,

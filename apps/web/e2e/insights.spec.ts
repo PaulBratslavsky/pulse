@@ -24,12 +24,15 @@ test.describe('insights surfaces', () => {
     ).json()
 
     await page.goto('/chat')
-    if (config.data.aiEnabled) {
+    // chatEnabled, NOT aiEnabled: the assistant is a tool-calling agent that can
+    // write the queue, so it has its own switch — a key alone runs
+    // classification and leaves chat off
+    if (config.data.chatEnabled) {
       await page.getByPlaceholder('Ask Pulse…').fill('what are the top negative themes?')
       await page.getByRole('button', { name: 'Send' }).click()
       await expect(page.locator('.whitespace-pre-wrap').nth(1)).toBeVisible({ timeout: 20_000 })
     } else {
-      await expect(page.getByText('AI features are disabled')).toBeVisible()
+      await expect(page.getByText('Chat is disabled')).toBeVisible()
       await expect(page.getByPlaceholder('Ask Pulse…')).toHaveCount(0)
     }
   })
