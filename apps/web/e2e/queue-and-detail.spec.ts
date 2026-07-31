@@ -369,6 +369,23 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(row).toContainText('replies')
   })
 
+  test('the queue header counts the whole filtered set, not just this page', async ({ page }) => {
+    await page.goto('/')
+    const badge = page.getByTestId('queue-count')
+    await expect(badge).toBeVisible()
+    const open = Number((await badge.textContent())?.trim())
+    expect(open).toBeGreaterThan(0)
+
+    // page size is 25, so on a fuller queue the count must exceed what's rendered
+    const rows = await page.locator('li[data-mention-id]').count()
+    expect(open).toBeGreaterThanOrEqual(rows)
+
+    // and it tracks the active filter rather than being a fixed total
+    await page.goto('/?status=acknowledged')
+    const acked = Number((await page.getByTestId('queue-count').textContent())?.trim())
+    expect(acked).not.toBe(open)
+  })
+
   test('feedback captured in the timeline lands on the Feedback page', async ({ page, request }) => {
     const { documentId } = await injectMention(request)
     const tag = `fb${Date.now().toString(36)}`

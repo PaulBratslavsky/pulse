@@ -426,3 +426,22 @@ unaffected.
   reads as the write having failed. `pulse-assign-topics` and quality/topic edits via
   `pulse-update-mention` now call `graph.invalidate()`. Verified by tagging one mention
   and reading the map in the next call: the affected cluster grew in the same sequence.
+- **2026-07-31 — Muting closes the author's open mentions.** Two defects, one visible:
+  the "Needs attention" rail queried `status=unanswered` with **no quality filter**,
+  while the queue has always excluded confirmed spam — so muted authors kept surfacing
+  in the one panel that asserts a human is needed. And muting only ever set
+  `quality: 'spam'`, leaving posts `unanswered` forever: still counted as outstanding
+  work. Mute now also closes **open** states (`unanswered`/`claimed`) as
+  `acknowledged` + new `acknowledgeReason: 'spam'`; ingest uses the same reason for
+  new arrivals (it previously mislabelled them `not-relevant`). Boot backfill repaired
+  31 already-muted mentions.
+  Two deliberate constraints: the auto-close logs activity with **actor null**, because
+  acknowledging is a human judgement that shows in the trail and the celebration stats
+  and crediting one person for 27 auto-closes would be a lie (the leaderboard skips
+  actor-less events); and **only open states are touched**, so a reply someone already
+  sent survives a mute. Unmute reverses only what the mute closed — a mention a human
+  acknowledged as `competitor` stays closed. Verified by round-trip: an `answered`
+  mention was untouched through both mute and unmute. Known limit: a `claimed` mention
+  reopens as `unanswered` (prior status isn't stored).
+- **2026-07-31 — Queue header shows the open count.** The filtered total (not the page)
+  as a badge beside the heading, straight from the pagination meta — no extra query.

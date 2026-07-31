@@ -225,7 +225,9 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
         channel: channel?.documentId ?? null,
         ...(competitorTopicIds.length ? { topics: competitorTopicIds } : {}),
         status: quality === 'spam' ? 'acknowledged' : 'unanswered',
-        ...(quality === 'spam' ? { acknowledgeReason: 'not-relevant' } : {}),
+        // 'spam', not 'not-relevant' — these ARE relevant, they're just from a
+        // muted author, and the acknowledged pile has to stay readable later
+        ...(quality === 'spam' ? { acknowledgeReason: 'spam' } : {}),
         quality,
         ...(octolens
           ? {

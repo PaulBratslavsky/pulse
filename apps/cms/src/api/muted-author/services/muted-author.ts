@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi'
+import { logActivity } from '../../../utils/activity'
 
 /**
  * Shadow-block: a muted author's mentions are stored (full audit trail) but
@@ -22,14 +23,34 @@ export default factories.createCoreService('api::muted-author.muted-author', ({ 
 
     const mentions = await strapi.documents('api::mention.mention').findMany({
       filters: { authorHandle: { $eqi: handle } } as any,
-      fields: ['authorHandle'],
+      fields: ['authorHandle', 'status'],
       limit: 1000,
     })
     for (const m of mentions as any[]) {
+      // Muting is a decision that this author needs no reply — so close their
+      // open items too. Marking quality alone left them 'unanswered' forever,
+      // still counted as outstanding work and still surfacing in the rail.
+      // Only OPEN states are touched: a reply someone already sent, or an
+      // outcome they recorded, is their work and must survive a mute.
+      const open = m.status === 'unanswered' || m.status === 'claimed'
       await strapi.documents('api::mention.mention').update({
         documentId: m.documentId,
-        data: { quality: 'spam' } as any,
+        data: {
+          quality: 'spam',
+          ...(open ? { status: 'acknowledged', acknowledgeReason: 'spam' } : {}),
+        } as any,
       })
+      // actor is null on purpose: acknowledging is a human judgement that shows
+      // up in the activity trail and the celebration stats, and crediting one
+      // person for 27 auto-closes would be a lie. The leaderboard skips
+      // actor-less events.
+      if (open)
+        await logActivity(strapi, {
+          mentionDocumentId: m.documentId,
+          action: 'acknowledged',
+          actorId: null,
+          detail: { reason: 'spam', via: 'mute', handle },
+        })
     }
 
     const data = {
@@ -91,13 +112,19 @@ export default factories.createCoreService('api::muted-author.muted-author', ({ 
 
     const mentions = await strapi.documents('api::mention.mention').findMany({
       filters: { authorHandle: { $eqi: record.handle }, quality: 'spam' } as any,
-      fields: ['authorHandle'],
+      fields: ['authorHandle', 'status', 'acknowledgeReason'],
       limit: 1000,
     })
     for (const m of mentions as any[]) {
+      // Reopen ONLY what the mute itself closed. A mention a human acknowledged
+      // as 'competitor' or 'not-relevant' was their call and stays closed.
+      const closedByMute = m.status === 'acknowledged' && m.acknowledgeReason === 'spam'
       await strapi.documents('api::mention.mention').update({
         documentId: m.documentId,
-        data: { quality: 'normal' } as any,
+        data: {
+          quality: 'normal',
+          ...(closedByMute ? { status: 'unanswered', acknowledgeReason: null } : {}),
+        } as any,
       })
     }
     await strapi.documents('api::muted-author.muted-author').delete({ documentId })

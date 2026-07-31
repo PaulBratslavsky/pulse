@@ -49,6 +49,10 @@ export async function RightSidebar() {
         '/api/mentions' +
           qs({
             'filters[status][$eq]': 'unanswered',
+            // the queue excludes confirmed spam; this rail forgot to, so muted
+            // authors kept surfacing under "Needs attention" — the one place
+            // that asserts something needs a human
+            'filters[quality][$ne]': 'spam',
             sort: 'postedAt:asc',
             'pagination[pageSize]': 5,
           })

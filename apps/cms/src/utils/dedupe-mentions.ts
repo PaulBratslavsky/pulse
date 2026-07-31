@@ -81,6 +81,16 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
   const backfilled = await knex('mentions').whereNull('quality').update({ quality: 'normal' })
   if (backfilled) strapi.log.info(`pulse: backfilled quality='normal' on ${backfilled} mention(s)`)
 
+  // Close spam that is still sitting in an open state. Muting used to set
+  // quality only, so a retroactive mute left the author's posts 'unanswered'
+  // forever: counted as outstanding work and surfacing under "Needs attention".
+  // Mute and ingest both close them now; this repairs the ones muted earlier.
+  const closed = await knex('mentions')
+    .where({ quality: 'spam' })
+    .whereIn('status', ['unanswered', 'claimed'])
+    .update({ status: 'acknowledged', acknowledge_reason: 'spam' })
+  if (closed) strapi.log.info(`pulse: closed ${closed} muted-author mention(s) left open by an earlier mute`)
+
   // real DB-level guard (works on SQLite and Postgres; NULLs unaffected)
   await knex.raw('CREATE UNIQUE INDEX IF NOT EXISTS mentions_external_id_uq ON mentions (external_id)')
 

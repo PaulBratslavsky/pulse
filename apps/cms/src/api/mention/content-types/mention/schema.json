@@ -73,7 +73,7 @@
     },
     "qualityReason": {
       "type": "text",
-      "description": "why this was flagged — free text from whoever judged it (agent rubric hit, or a human note). Makes the confirm pass readable instead of a re-judge."
+      "description": "why this was flagged \u2014 free text from whoever judged it (agent rubric hit, or a human note). Makes the confirm pass readable instead of a re-judge."
     },
     "qualityVia": {
       "type": "string",
@@ -100,9 +100,10 @@
         "competitor",
         "not-relevant",
         "watching",
-        "own-post"
+        "own-post",
+        "spam"
       ],
-      "description": "why a mention was closed without a public reply. own-post = our own social/marketing account — relevant but not repliable, and excluded from sentiment analytics so our own announcements can't inflate the Pulse score"
+      "description": "why it was closed without a reply. 'spam' is written by the mute flow only (system, no actor) \u2014 humans use the spam flag button instead"
     },
     "owner": {
       "type": "relation",

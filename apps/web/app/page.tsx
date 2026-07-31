@@ -101,7 +101,23 @@ export default async function QueuePage({
     <div>
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold">Queue</h1>
+          {/* count is the whole filtered set, not this page — "how much is
+              left" is the number you want at a glance, and it rides along in
+              the pagination meta for free */}
+          <h1 className="flex items-baseline gap-2.5 text-2xl font-semibold">
+            Queue
+            <span
+              data-testid="queue-count"
+              className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-sm font-medium tabular-nums text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+              title={
+                params.status
+                  ? `${pagination.total} ${params.status} mentions`
+                  : `${pagination.total} mentions still open (unanswered or claimed)`
+              }
+            >
+              {pagination.total}
+            </span>
+          </h1>
           <p className="text-sm text-zinc-500">
             {params.status ? `${params.status} mentions` : 'Unanswered and claimed mentions'}
             {params.sort === 'newest' ? ', newest first.' : ', oldest first.'}
