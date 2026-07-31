@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 /**
  * E2E tests against the real local stack:
- * - Next.js on :3000, Strapi on :1337 (start both with `npm run dev` at the repo root)
+ * - Next.js on :3000, Strapi on :1338 (start both with `npm run dev` at the repo root)
  * - Tests create their own mentions via the ingest webhook (OCTOLENS_WEBHOOK_SECRET),
  *   so they don't depend on seed state.
  * - Auth: the "setup" project signs in ONCE and saves storage state; the "app"

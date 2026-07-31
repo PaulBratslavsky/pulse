@@ -33,7 +33,7 @@ export const graph = ({ strapi }: { strapi: Core.Strapi }) => ({
     const projection = getProjection(opts.projection);
     const args: GraphArgs = {
       days: clamp(Number(opts.days) || 90, 1, 365),
-      minWeight: clamp(Number(opts.minWeight) || 3, 1, 50),
+      minWeight: clamp(Number(opts.minWeight) || projection.defaultMinWeight, 1, 50),
       maxNodes: clamp(Number(opts.maxNodes) || 220, 10, 2000),
       maxEdges: clamp(Number(opts.maxEdges) || 1200, 50, 20000),
     };

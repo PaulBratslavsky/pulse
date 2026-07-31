@@ -57,6 +57,10 @@ export const PULSE_TOOLS: PulseTool[] = [
         sentiment: z.enum(['positive', 'neutral', 'negative', 'na']).optional(),
         topic: z.string().optional().describe('Topic slug'),
         search: z.string().optional().describe('Case-insensitive substring of the mention content'),
+        topics: z
+          .enum(['any', 'none'])
+          .optional()
+          .describe("'none' = mentions with no topics yet — the set worth a tagging pass"),
         excerptChars: z
           .number()
           .int()
@@ -76,6 +80,7 @@ export const PULSE_TOOLS: PulseTool[] = [
         ...(args.sentiment ? { sentimentLabel: args.sentiment } : {}),
         ...(args.topic ? { topics: { slug: args.topic } } : {}),
         ...(args.search ? { content: { $containsi: args.search } } : {}),
+        ...(args.topics === 'none' ? { topics: { documentId: { $null: true } } } : {}),
         ...(args.draft === 'has-draft' ? { draftText: { $notNull: true } } : {}),
         ...(args.draft === 'no-draft' ? { draftText: { $null: true } } : {}),
       };
@@ -397,6 +402,91 @@ export const PULSE_TOOLS: PulseTool[] = [
         results.push({ documentId: item.documentId, saved: true });
       }
       return { saved: results.filter((r) => r.saved).length, total: args.drafts.length, results };
+    },
+  },
+
+  {
+    name: 'pulse-assign-topics',
+    title: 'Pulse: assign topics (write)',
+    description:
+      'Tag mentions with topics, creating any that do not exist yet (pulse-update-mention can only ' +
+      'attach topics that already exist, so it cannot extend the vocabulary). This is the job the AI ' +
+      'sweep does when AI is enabled — with it off, YOU are the analysis step: call pulse-queue with ' +
+      'topics="none" to find untagged mentions, read them, and assign 1-3 short reusable topic names ' +
+      'each. Prefer existing names over near-synonyms ("Docs" not "Documentation issues") — matching ' +
+      'is case-insensitive. Topics MERGE by default and are never destroyed. Assigned mentions are ' +
+      'marked analysed so a later AI run will not overwrite your work.',
+    access: 'write',
+    subject: 'api::topic.topic',
+    input: () =>
+      z.object({
+        assignments: z
+          .array(
+            z.object({
+              documentId: z.string().describe('Mention documentId'),
+              topics: z
+                .array(z.string().min(2).max(40))
+                .min(1)
+                .max(5)
+                .describe('Short reusable topic names, e.g. ["Docs", "Deployment"]'),
+            })
+          )
+          .min(1)
+          .max(40)
+          .describe('Up to 40 mentions per call'),
+        kind: z
+          .enum(['feature', 'bug', 'docs', 'competitor', 'other'])
+          .optional()
+          .describe("Kind for topics this call CREATES (default 'other'); existing topics keep theirs"),
+        replace: z
+          .boolean()
+          .optional()
+          .describe('Replace the existing topic set instead of merging (default false)'),
+      }),
+    execute: async (strapi, args, meta) => {
+      const results: any[] = [];
+      for (const item of args.assignments) {
+        const mention: any = await strapi
+          .documents('api::mention.mention')
+          .findOne({ documentId: item.documentId, populate: { topics: { fields: ['slug'] } } as any });
+        if (!mention) {
+          results.push({ documentId: item.documentId, assigned: false, reason: 'not found' });
+          continue;
+        }
+        // ensure() is the ONLY safe way to create topics: case-insensitive
+        // lookup plus race-safe create, so parallel calls can't duplicate a name
+        const ids: string[] = await (strapi.service('api::topic.topic') as any).ensure(
+          item.topics,
+          args.kind ?? 'other'
+        );
+        const existing = (mention.topics ?? []).map((t: any) => t.documentId);
+        const next = args.replace ? ids : [...new Set([...existing, ...ids])];
+
+        await strapi.documents('api::mention.mention').update({
+          documentId: item.documentId,
+          data: {
+            topics: next,
+            // promote so a later AI sweep treats this as done rather than
+            // re-analysing and discarding the agent's topics; never downgrade
+            ...(mention.analysisStatus === 'pending' || mention.analysisStatus === 'skipped'
+              ? { analysisStatus: 'analyzed' }
+              : {}),
+          } as any,
+        });
+        await logActivity(strapi, {
+          mentionDocumentId: item.documentId,
+          action: 'analyzed',
+          actorId: null,
+          detail: { topics: item.topics, via: meta.via, merged: !args.replace },
+        });
+        results.push({ documentId: item.documentId, assigned: true, topics: item.topics });
+      }
+      return {
+        requested: args.assignments.length,
+        assigned: results.filter((r) => r.assigned).length,
+        failed: results.filter((r) => !r.assigned).length,
+        results,
+      };
     },
   },
 

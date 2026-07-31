@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
  * Thin authenticated proxy for client components (mutations, chat, search).
  * Keeps the JWT in the httpOnly cookie — the browser never sees it.
  */
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1337'
+const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 
 async function proxy(request: Request, path: string[], method: string) {
   const jar = await cookies()

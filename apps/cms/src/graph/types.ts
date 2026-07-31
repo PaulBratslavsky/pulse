@@ -81,6 +81,11 @@ export type GraphProjection = {
   label: string;
   /** agent-facing: this is what pulse-graph shows an LLM choosing a projection */
   description: string;
+  /** Edge threshold that suits THIS projection. Mined text needs a high floor
+   *  (noise pairs are everywhere); a curated topic vocabulary needs 1, because
+   *  a deliberate human tagging is signal even seen once. A single global
+   *  default hid every real topic edge behind a floor meant for text. */
+  defaultMinWeight: number;
   build: (strapi: Core.Strapi, args: GraphArgs) => Promise<GraphTopology>;
 };
 

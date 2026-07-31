@@ -13,7 +13,7 @@ Mentions flow in from [Octolens](https://octolens.com) (webhook + pull-sync, all
 
 ```bash
 npm run setup     # installs all workspaces + copies .env.example → .env / .env.local (skips existing)
-npm run dev       # starts Strapi (:1337), waits for its health check, then starts Next.js (:3000)
+npm run dev       # starts Strapi (:1338), waits for its health check, then starts Next.js (:3000)
 ```
 
 That's it — SQLite locally (Postgres on Strapi Cloud), and the copied env defaults work out of the box (webhook secret matches the e2e suite; AI stays disabled until you set `AI_API_KEY`).
@@ -39,7 +39,7 @@ Without `AI_API_KEY`, Pulse **runs fully** — mentions ingest (with Octolens' o
 ### Webhook smoke test
 
 ```bash
-curl -X POST http://localhost:1337/api/octolens/ingest \
+curl -X POST http://localhost:1338/api/octolens/ingest \
   -H 'content-type: application/json' -H "x-pulse-secret: $OCTOLENS_WEBHOOK_SECRET" \
   -d '{"id":"t-1","text":"Strapi v5 docs are great","platform":"x","author":{"handle":"tester"}}'
 # analyzed by the cron sweep within ~1 minute; malformed payloads → dead letter + ops alert

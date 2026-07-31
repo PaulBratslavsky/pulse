@@ -129,6 +129,7 @@ function coOccurrence(
 const termsProjection: GraphProjection = {
   id: 'terms',
   label: 'Concepts',
+  defaultMinWeight: 3,
   description:
     'Concepts mined from mention text, linked when they appear in the same mention. Works without ' +
     'AI topic assignment, so this is the dense view of what the community actually discusses.',
@@ -160,6 +161,7 @@ const termsProjection: GraphProjection = {
 const topicsProjection: GraphProjection = {
   id: 'topics',
   label: 'Topics',
+  defaultMinWeight: 1,
   description:
     'Curated Topic entities linked when they are attached to the same mention. Sparse until AI topic ' +
     'assignment is enabled — prefer the "terms" projection for a dense picture.',
@@ -185,6 +187,7 @@ const topicsProjection: GraphProjection = {
 const authorsProjection: GraphProjection = {
   id: 'authors',
   label: 'Voices',
+  defaultMinWeight: 1,
   description:
     'Authors linked to the concepts they raise. Shows who forms the conversation and which voices ' +
     'span otherwise separate clusters — useful for outreach targeting.',

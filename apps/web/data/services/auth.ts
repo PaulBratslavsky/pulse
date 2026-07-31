@@ -1,4 +1,4 @@
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1337'
+const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 
 type AuthSuccess = { jwt: string; user: { id: number; username: string; email: string } }
 type AuthError = { error: { status: number; name: string; message: string } }

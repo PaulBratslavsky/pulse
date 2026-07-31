@@ -3,7 +3,7 @@ import { Page, APIRequestContext, expect } from '@playwright/test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-export const STRAPI_URL = process.env.STRAPI_URL ?? 'http://localhost:1337'
+export const STRAPI_URL = process.env.STRAPI_URL ?? 'http://localhost:1338'
 
 /** Use the SAME secret the local Strapi runs with: env override → apps/cms/.env → dev default. */
 function resolveWebhookSecret(): string {

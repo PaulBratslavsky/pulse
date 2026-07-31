@@ -2,7 +2,7 @@ import { strapiFetch } from '@/lib/strapi'
 import MutedAuthors from '@/components/muted-authors'
 import LeaderboardOptOut from '@/components/leaderboard-optout'
 
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1337'
+const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 
 export default async function SettingsPage() {
   const [muted, prefs] = await Promise.all([

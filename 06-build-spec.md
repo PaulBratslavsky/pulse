@@ -385,3 +385,39 @@ a token can call it.
 >50 links) rather than merely that the page renders — a blank canvas would pass a
 "loads" test and be worthless. `/graph` is in the `responsive.spec.ts` PAGES list, so
 the no-horizontal-scroll invariant covers it on phone and tablet.
+
+### MCP as the analysis step (2026-07-30)
+
+With `AI_API_KEY` unset, topic assignment never runs — which is exactly why the
+Topics map was empty. But an MCP client *is* the AI: Claude Desktop or Claude Code
+can read mentions and assign topics through a tool call, no key required. Because the
+registry feeds both surfaces, the same tool serves the in-app assistant the moment AI
+is enabled — nothing to rewrite.
+
+Two gaps blocked that and are now closed:
+- **`pulse-queue` gained `topics: 'none'`** so an agent can *find* untagged work
+  (mirrors the app's own `?topics=none` filter). 535 untagged locally.
+- **`pulse-assign-topics`** (bulk, ≤40 mentions) — `pulse-update-mention` rejects
+  unknown slugs, so an agent could reuse the topic vocabulary but never extend it.
+  The new tool goes through `topic.ensure()` (case-insensitive, race-safe create),
+  MERGES rather than replaces, and promotes `pending`/`skipped` → `analyzed` so a
+  later AI run treats the work as done instead of overwriting it.
+
+Verified end to end: four tool calls took the Topics map from **0 nodes to 12 nodes /
+9 edges / 3 clusters** (Webflow, Bugs, Vendor lock-in).
+
+That test also exposed a bug of mine: the global `minWeight` default of 3 was hiding
+topic edges that already existed. Thresholds are now per projection
+(`defaultMinWeight`) — mined text needs a high floor because noise pairs are
+everywhere; a curated vocabulary needs 1, since a deliberate human tag is signal even
+seen once.
+
+### Local backend port 1338 (2026-07-31)
+
+Port 1337 is the Strapi default, so every other Strapi project on the machine fights
+for it — one such collision silently pointed Pulse's frontend at a different project's
+database mid-session, and the e2e suite failed with "invalid credentials" until it was
+traced. Pulse's backend now runs on **1338** (`apps/cms/.env`, all `NEXT_PUBLIC_STRAPI_URL`
+fallbacks, the `wait-on` in the root `dev` script, e2e helpers, `.env.example`s and the
+README). Local MCP connectors need the same change; the deployed Strapi Cloud URL is
+unaffected.

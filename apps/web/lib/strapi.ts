@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1337'
+const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 
 /** Server-side fetch to Strapi forwarding the session JWT (httpOnly cookie). */
 export async function strapiFetch<T = any>(
