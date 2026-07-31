@@ -24,16 +24,31 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
    *  no workflow side effects — comments/notes never change mention status. */
   async create(ctx) {
     const user = ctx.state.user
-    const { mentionDocumentId, kind, body, links, tags } = ctx.request.body?.data ?? ctx.request.body ?? {}
-    if (!mentionDocumentId || !String(body ?? '').trim()) {
-      return ctx.badRequest('mentionDocumentId and body are required')
+    const { mentionDocumentId, personDocumentId, kind, body, links, tags } =
+      ctx.request.body?.data ?? ctx.request.body ?? {}
+    // A comment hangs off a mention OR a person, never both. Person notes reuse
+    // this controller rather than a parallel endpoint so they inherit editing,
+    // ownership and link validation — and because insights.feedback() filters
+    // on `c.mention &&`, they stay out of the product-feedback digest for free.
+    if (!mentionDocumentId && !personDocumentId) {
+      return ctx.badRequest('mentionDocumentId or personDocumentId is required')
     }
+    if (!String(body ?? '').trim()) return ctx.badRequest('body is required')
     if (kind && !['note', 'comment', 'feedback'].includes(kind)) return ctx.badRequest('invalid kind')
     const cleanLinks = validateLinks(links)
     if (cleanLinks === null) return ctx.badRequest(`links must be up to ${MAX_LINKS} http(s) URLs`)
 
-    const mention = await strapi.documents('api::mention.mention').findOne({ documentId: mentionDocumentId })
-    if (!mention) return ctx.badRequest('mention not found')
+    if (mentionDocumentId) {
+      const mention = await strapi
+        .documents('api::mention.mention')
+        .findOne({ documentId: mentionDocumentId })
+      if (!mention) return ctx.badRequest('mention not found')
+    } else {
+      const person = await strapi
+        .documents('api::person.person')
+        .findOne({ documentId: personDocumentId })
+      if (!person) return ctx.badRequest('person not found')
+    }
 
     // tags reuse the shared topic vocabulary (race-safe ensure), so product
     // areas stay curated in one place instead of a parallel free-text list
@@ -43,7 +58,8 @@ export default factories.createCoreController('api::comment.comment', ({ strapi 
 
     const comment = await strapi.documents('api::comment.comment').create({
       data: {
-        mention: mentionDocumentId,
+        mention: mentionDocumentId ?? null,
+        person: personDocumentId ?? null,
         kind: kind ?? 'comment',
         body: String(body).trim(),
         links: cleanLinks,

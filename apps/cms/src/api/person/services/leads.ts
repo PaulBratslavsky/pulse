@@ -193,6 +193,11 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
       err.status = 404
       throw err
     }
+    // Selecting the value that is already set is not a transition. Logging it
+    // anyway filled the timeline with "contacted → contacted" lines and buried
+    // the notes, which are the only entries anyone actually reads.
+    if (before.status === status) return before
+
     const updated = await strapi.documents('api::person.person').update({
       documentId,
       data: {

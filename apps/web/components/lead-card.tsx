@@ -1,12 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useMutation } from '@tanstack/react-query'
+import Link from 'next/link'
 import { ExternalLink, Quote, Users, MapPin, Building2 } from 'lucide-react'
-import { pulseFetch } from '@/lib/pulse-client'
-import { MutationError } from '@/components/mutation-error'
-import { Spinner, Avatar } from '@/components/ui'
+import { Avatar } from '@/components/ui'
+import LeadStatus from '@/components/lead-status'
 
 const BAND_STYLE: Record<string, string> = {
   hot: 'border-red-400 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300',
@@ -33,27 +31,37 @@ const DIRECTION_LABEL: Record<string, { text: string; className: string; title: 
   },
 }
 
-const STATUSES = ['new', 'watching', 'contacted', 'qualified', 'not-a-fit'] as const
-
 export default function LeadCard({ lead }: { lead: any }) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const ctx = lead.leadContext ?? {}
   const signals: { id: string; points: number; label: string }[] = ctx.signals ?? []
   const direction = DIRECTION_LABEL[lead.direction]
 
-  const setStatus = useMutation({
-    mutationFn: (status: string) => pulseFetch('POST', `people/${lead.documentId}/status`, { status }),
-    onSuccess: () => router.refresh(),
-  })
-
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex flex-wrap items-start gap-3">
+    // The card is a link to the person, but the controls inside it are not:
+    // a nested <a> or <button> inside <Link> still fires its own handler, and
+    // the status select stops propagation so changing it never navigates.
+    <div className="relative rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700">
+      {/* Mouse affordance only. The real, announced link is the person's name
+          below — a full-card overlay carrying the accessible name would be
+          announced as a second identical link, and it cannot be reached by
+          keyboard in any useful order. */}
+      <Link
+        href={`/leads/${lead.documentId}`}
+        aria-hidden
+        tabIndex={-1}
+        className="absolute inset-0 z-0 rounded-lg"
+      />
+      <div className="relative z-10 flex flex-wrap items-start gap-3 pointer-events-none [&_a]:pointer-events-auto [&_select]:pointer-events-auto [&_button]:pointer-events-auto">
         <Avatar name={lead.displayName ?? lead.handle ?? '?'} src={lead.avatarUrl ?? undefined} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{lead.displayName ?? `@${lead.handle}`}</span>
+            <Link
+              href={`/leads/${lead.documentId}`}
+              className="font-medium hover:underline underline-offset-2"
+            >
+              {lead.displayName ?? `@${lead.handle}`}
+            </Link>
             {lead.profileUrl && (
               <a
                 href={lead.profileUrl}
@@ -99,26 +107,18 @@ export default function LeadCard({ lead }: { lead: any }) {
           </div>
         </div>
 
-        <select
-          value={lead.status}
-          onChange={(e) => setStatus.mutate(e.target.value)}
-          disabled={setStatus.isPending}
-          className="rounded-md border border-zinc-300 px-2 py-1 text-sm disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900"
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        {setStatus.isPending && <Spinner size={14} />}
+        <LeadStatus documentId={lead.documentId} status={lead.status} />
       </div>
 
       {/* The quote is the point of the card: it is what a human reads before
           reaching out, and the only proof the lead was grounded in the author's
           own words rather than inferred. */}
       {ctx.evidence ? (
-        <blockquote className="mt-3 flex gap-2 rounded-md bg-zinc-50 p-3 text-sm dark:bg-zinc-800/60">
+        // raised above the card-wide link overlay so the quote stays
+        // selectable: it is the sentence you paste into an outreach message,
+        // and an overlay that eats text selection would make you open the
+        // person page just to copy one line
+        <blockquote className="relative z-10 mt-3 flex select-text gap-2 rounded-md bg-zinc-50 p-3 text-sm dark:bg-zinc-800/60">
           <Quote size={14} className="mt-0.5 shrink-0 text-zinc-400" />
           <span className="min-w-0 break-words italic">{ctx.evidence}</span>
         </blockquote>
@@ -128,7 +128,7 @@ export default function LeadCard({ lead }: { lead: any }) {
         </p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+      <div className="relative z-10 mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500 pointer-events-none [&_button]:pointer-events-auto">
         {ctx.competitor && (
           <span className="inline-flex items-center gap-1">
             <Building2 size={11} /> {ctx.competitor}
@@ -151,7 +151,7 @@ export default function LeadCard({ lead }: { lead: any }) {
 
       {/* A score nobody can explain is a score nobody trusts. */}
       {open && (
-        <ul className="mt-2 space-y-1 border-t border-zinc-200 pt-2 text-xs text-zinc-500 dark:border-zinc-800">
+        <ul className="relative z-10 mt-2 space-y-1 border-t border-zinc-200 pt-2 text-xs text-zinc-500 dark:border-zinc-800">
           {signals.map((s) => (
             <li key={s.id}>
               <span className="font-medium text-zinc-700 dark:text-zinc-300">+{s.points}</span> {s.label}
@@ -168,8 +168,6 @@ export default function LeadCard({ lead }: { lead: any }) {
           </li>
         </ul>
       )}
-
-      <MutationError m={setStatus} className="mt-2 text-xs" />
     </div>
   )
 }

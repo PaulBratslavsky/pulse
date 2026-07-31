@@ -87,6 +87,79 @@ test.describe('leads', () => {
     expect(same.reachTier).toBe('large')
   })
 
+  test('a card opens the person, showing their history and taking notes', async ({ page, request }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const leads = await (await request.get(`${PULSE}/people/leads`, { headers: { cookie } })).json()
+    test.skip(!(leads.data ?? []).length, 'no leads in this corpus')
+
+    await page.goto('/leads')
+    // the person's name is the real, announced link (the card overlay is
+    // aria-hidden and mouse-only)
+    const name = (leads.data[0].displayName ?? `@${leads.data[0].handle}`) as string
+    await page.getByRole('link', { name, exact: true }).first().click()
+    await expect(page).toHaveURL(/\/leads\/[a-z0-9]+/)
+
+    await expect(page.getByRole('heading', { name: 'Conversation history' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Notes & activity' })).toBeVisible()
+    // the score is explained on the page, not just asserted
+    // collapsed by default: the score is visible, the breakdown is not
+    await expect(page.getByText('Why this score')).toBeVisible()
+    await expect(page.getByText('none of it is part of the score')).toBeHidden()
+    await page.getByText('Context', { exact: true }).click()
+    await expect(page.getByText('none of it is part of the score')).toBeVisible()
+
+    const note = `e2e note ${Date.now()}`
+    // 'Note (with resources)' is the KIND CHIP; 'Add note' is the submit.
+    // A loose /^comment/i regex matched the Comment chip instead and silently
+    // switched the kind back rather than posting anything.
+    await page.getByRole('button', { name: 'Note (with resources)' }).click()
+    await page.locator('textarea').fill(note)
+    await page.getByRole('button', { name: 'Add note', exact: true }).click()
+    await expect(page.getByText(note)).toBeVisible({ timeout: 15_000 })
+
+    // survives a reload — it is stored against the person, not the page
+    await page.reload()
+    await expect(page.getByText(note)).toBeVisible()
+  })
+
+  test('changing status on a card does not navigate away', async ({ page, request }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const leads = await (await request.get(`${PULSE}/people/leads`, { headers: { cookie } })).json()
+    test.skip(!(leads.data ?? []).length, 'no leads in this corpus')
+
+    await page.goto('/leads')
+    // the quote must stay selectable despite the card-wide link overlay
+    await expect(page.locator('ul > li blockquote').first()).toHaveClass(/select-text/)
+    await page.locator('ul > li').first().locator('select').selectOption('watching')
+    await page.waitForTimeout(1500)
+    // the whole card is a link overlay; a select that navigates on change would
+    // make the status control unusable
+    await expect(page).toHaveURL(/\/leads$/)
+  })
+
+  test('re-selecting the same status is not logged as a transition', async ({ page, request }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const leads = await (await request.get(`${PULSE}/people/leads`, { headers: { cookie } })).json()
+    const target = (leads.data ?? [])[0]
+    test.skip(!target, 'no leads in this corpus')
+
+    const trail = async () => {
+      const d = await (await request.get(`${PULSE}/people/${target.documentId}`, { headers: { cookie } })).json()
+      return (d.data.activities ?? []).length
+    }
+    await request.post(`${PULSE}/people/${target.documentId}/status`, {
+      headers: { cookie },
+      data: { status: 'watching' },
+    })
+    const before = await trail()
+    // same value again — a no-op, and the timeline must not grow
+    await request.post(`${PULSE}/people/${target.documentId}/status`, {
+      headers: { cookie },
+      data: { status: 'watching' },
+    })
+    expect(await trail()).toBe(before)
+  })
+
   test('status transitions persist and claim the lead', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const leads = await (

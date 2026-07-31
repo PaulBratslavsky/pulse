@@ -12,7 +12,18 @@ import { DiscussionCard } from './discussion-card'
 import { Composer } from './composer'
 import type { Entry } from './types'
 
-export default function Timeline({ mention, meDocumentId }: { mention: any; meDocumentId?: string | null }) {
+export default function Timeline({
+  mention,
+  meDocumentId,
+  subject = 'mention',
+  title = 'Timeline',
+}: {
+  /** a mention, or a person — both expose `activities` and `comments` */
+  mention: any
+  meDocumentId?: string | null
+  subject?: 'mention' | 'person'
+  title?: string
+}) {
   const entries: Entry[] = [
     ...(mention.activities ?? []).map((a: any) => ({
       type: 'system' as const,
@@ -36,7 +47,7 @@ export default function Timeline({ mention, meDocumentId }: { mention: any; meDo
 
   return (
     <div>
-      <h2 className="font-medium mb-3">Timeline</h2>
+      <h2 className="font-medium mb-3">{title}</h2>
       <ol className="space-y-3">
         {entries.length === 0 && <li className="text-sm text-zinc-500">No activity yet.</li>}
         {entries.map((e, i) =>
@@ -47,7 +58,11 @@ export default function Timeline({ mention, meDocumentId }: { mention: any; meDo
           )
         )}
       </ol>
-      <Composer mentionDocumentId={mention.documentId} />
+      <Composer
+        {...(subject === 'person'
+          ? { personDocumentId: mention.documentId }
+          : { mentionDocumentId: mention.documentId })}
+      />
     </div>
   )
 }

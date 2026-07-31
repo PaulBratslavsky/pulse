@@ -1,5 +1,7 @@
+import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import type { UserRef } from '@/lib/types'
+import { AvatarImage } from '@/components/avatar-image'
 
 /** Shared UI atoms (review 2026-07-28: gradient avatar ×4, claimed-chip ×3,
  *  empty-state card ×6, filter pill ×4 were inlined copies). */
@@ -9,7 +11,12 @@ const AVATAR_SIZES = {
   sm: 'h-5 w-5 text-[10px]',
   md: 'h-6 w-6 text-[10px]',
   lg: 'h-7 w-7 text-xs',
+  // page header, not an inline chip: 'lg' is 28px and looked lost beside a
+  // text-2xl name
+  xl: 'h-14 w-14 text-xl',
 } as const
+
+const AVATAR_PX = { xs: 16, sm: 20, md: 24, lg: 28, xl: 56 } as const
 
 export function Avatar({
   name,
@@ -27,11 +34,11 @@ export function Avatar({
 }) {
   if (src) {
     return (
-      <img
+      <AvatarImage
         src={src}
-        alt={name ?? ''}
-        loading="lazy"
-        className={`inline-block shrink-0 rounded-full object-cover ${AVATAR_SIZES[size]} ${muted ? 'opacity-60' : ''}`}
+        name={name}
+        px={AVATAR_PX[size]}
+        className={`shrink-0 ${AVATAR_SIZES[size]} ${muted ? 'opacity-60' : ''}`}
       />
     )
   }
@@ -171,5 +178,41 @@ export function FilterRow({ label, children }: { label: string; children: React.
       </span>
       {children}
     </div>
+  )
+}
+
+/**
+ * Collapsible panel. Native <details> rather than useState: zero JS, keyboard
+ * accessible, and it survives being rendered on the server.
+ *
+ * `summaryRight` is for the one fact worth seeing while collapsed — a score, a
+ * count — so closing a panel hides the detail without hiding the answer.
+ */
+export function Disclosure({
+  title,
+  summaryRight,
+  defaultOpen = false,
+  children,
+}: {
+  title: string
+  summaryRight?: React.ReactNode
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <details
+      open={defaultOpen}
+      className="group rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
+    >
+      <summary className="flex list-none items-center gap-2 p-4 [&::-webkit-details-marker]:hidden">
+        <ChevronRight
+          size={14}
+          className="shrink-0 text-zinc-400 transition-transform group-open:rotate-90"
+        />
+        <span className="font-medium">{title}</span>
+        <span className="ml-auto flex items-center gap-1.5">{summaryRight}</span>
+      </summary>
+      <div className="px-4 pb-4">{children}</div>
+    </details>
   )
 }

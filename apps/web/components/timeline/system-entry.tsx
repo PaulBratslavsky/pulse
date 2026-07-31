@@ -1,15 +1,29 @@
 import { ChevronRight } from 'lucide-react'
 import type { SystemEntryData } from './types'
 
+/** Raw action slugs read as machine output ("person-status by dana"), so the
+ *  person-scoped ones get a human phrasing. Unlisted actions fall through to
+ *  the slug, which keeps this additive. */
+const ACTION_LABEL: Record<string, string> = {
+  'person-status': 'status changed',
+  'person-scored': 'rescored',
+  'person-merged': 'merged',
+}
+
 /** Compact muted system line; "answered" expands to the recorded reply
  *  (native <details> accordion — zero JS, keyboard accessible). */
 export function SystemEntry({ entry, responses }: { entry: SystemEntryData; responses: any[] }) {
   const line = (
     <>
-      <span className="font-medium text-zinc-600 dark:text-zinc-400">{entry.action}</span>
+      <span className="font-medium text-zinc-600 dark:text-zinc-400">
+        {ACTION_LABEL[entry.action] ?? entry.action}
+      </span>
       {entry.actor ? ` by ${entry.actor}` : ' (system)'}
       {entry.action === 'acknowledged' && entry.detail?.reason && (
         <> — {entry.detail.reason}{entry.detail.note ? `: ${entry.detail.note}` : ''}</>
+      )}
+      {entry.action === 'person-status' && entry.detail?.to && (
+        <> — {entry.detail.from ?? 'new'} → {entry.detail.to}</>
       )}
       {' · '}
       {entry.at ? new Date(entry.at).toLocaleString() : ''}

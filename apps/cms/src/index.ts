@@ -28,7 +28,6 @@ const AUTHENTICATED_ACTIONS = [
   'api::person.person.leads',
   'api::person.person.detail',
   'api::person.person.status',
-  'api::person.person.note',
   'api::person.person.rescore',
   'api::muted-author.muted-author.find',
   'api::muted-author.muted-author.mute',

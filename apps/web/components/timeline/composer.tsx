@@ -8,8 +8,16 @@ import { MutationError } from '@/components/mutation-error'
 import { KIND_META, type Kind } from './kind-meta'
 import { LinkListEditor } from './link-list-editor'
 
-/** Bottom composer (chat model): kind toggle → textarea → links → submit. */
-export function Composer({ mentionDocumentId }: { mentionDocumentId: string }) {
+/** Bottom composer (chat model): kind toggle → textarea → links → submit.
+ *  Hangs off a mention OR a person — the backend accepts either, so the leads
+ *  page gets notes without a second composer to keep in sync. */
+export function Composer({
+  mentionDocumentId,
+  personDocumentId,
+}: {
+  mentionDocumentId?: string
+  personDocumentId?: string
+}) {
   const router = useRouter()
   const [kind, setKind] = useState<Kind>('comment')
   const [body, setBody] = useState('')
@@ -19,7 +27,9 @@ export function Composer({ mentionDocumentId }: { mentionDocumentId: string }) {
 
   const submit = useMutation({
     mutationFn: () =>
-      pulseFetch('POST', 'comments', { data: { mentionDocumentId, kind, body, links, tags } }),
+      pulseFetch('POST', 'comments', {
+        data: { mentionDocumentId, personDocumentId, kind, body, links, tags },
+      }),
     onSuccess: () => {
       setBody('')
       setLinks([])
