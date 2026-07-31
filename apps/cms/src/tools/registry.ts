@@ -355,6 +355,10 @@ export const PULSE_TOOLS: PulseTool[] = [
           detail: { via: meta.via, chars: args.draftText.length },
         });
       }
+      // quality and topics both feed the conversation map — drop its cache or
+      // the next read serves a graph that predates this write
+      if (args.quality !== undefined || args.topicSlugs !== undefined)
+        (strapi.service('api::analysis.graph') as any).invalidate();
       return { updated: true, documentId: args.documentId, changed };
     },
   },
@@ -481,6 +485,8 @@ export const PULSE_TOOLS: PulseTool[] = [
         });
         results.push({ documentId: item.documentId, assigned: true, topics: item.topics });
       }
+      // topics changed, so any memoised graph is now wrong
+      (strapi.service('api::analysis.graph') as any).invalidate();
       return {
         requested: args.assignments.length,
         assigned: results.filter((r) => r.assigned).length,

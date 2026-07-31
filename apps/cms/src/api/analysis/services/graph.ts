@@ -24,6 +24,16 @@ const cache = new Map<string, { at: number; payload: GraphPayload }>();
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 export const graph = ({ strapi }: { strapi: Core.Strapi }) => ({
+  /**
+   * Drop the memoised graphs. Anything that changes topics, quality or the
+   * mention set must call this: without it an agent tags a batch, asks for the
+   * map, and sees its own work missing for up to the TTL — which reads as the
+   * write having failed.
+   */
+  invalidate() {
+    cache.clear();
+  },
+
   /** Projection catalogue — powers the UI switcher and the MCP tool's enum. */
   projections() {
     return GRAPH_PROJECTIONS.map((p) => ({ id: p.id, label: p.label, description: p.description }));

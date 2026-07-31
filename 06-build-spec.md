@@ -421,3 +421,8 @@ traced. Pulse's backend now runs on **1338** (`apps/cms/.env`, all `NEXT_PUBLIC_
 fallbacks, the `wait-on` in the root `dev` script, e2e helpers, `.env.example`s and the
 README). Local MCP connectors need the same change; the deployed Strapi Cloud URL is
 unaffected.
+- **2026-07-31 — Writes invalidate the graph cache.** The 10-minute TTL meant an agent
+  could tag a batch, immediately ask for the map, and see its own work missing — which
+  reads as the write having failed. `pulse-assign-topics` and quality/topic edits via
+  `pulse-update-mention` now call `graph.invalidate()`. Verified by tagging one mention
+  and reading the map in the next call: the affected cluster grew in the same sequence.
