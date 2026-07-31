@@ -51,6 +51,11 @@
       "relation": "manyToMany",
       "target": "api::topic.topic",
       "description": "product-area tags on the feedback itself (visual editor, admin panel\u2026) \u2014 the mention's own topics come from keyword matching and are a different axis"
+    },
+    "person": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::person.person"
     }
   }
 }

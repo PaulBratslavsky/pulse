@@ -2,10 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Inbox, TrendingUp, Tags, MessagesSquare, Settings, FileBarChart, MessageSquareHeart, Share2 } from 'lucide-react'
+import { Inbox, TrendingUp, Tags, MessagesSquare, Settings, FileBarChart, MessageSquareHeart, Share2, Target } from 'lucide-react'
 
 const links = [
   { href: '/', label: 'Queue', Icon: Inbox },
+  // directly under Queue: leads are work, not analysis — they belong beside
+  // the other thing a person acts on, not down with the reporting surfaces
+  { href: '/leads', label: 'Leads', Icon: Target },
   { href: '/trends', label: 'Trends', Icon: TrendingUp },
   { href: '/themes', label: 'Themes', Icon: Tags },
   { href: '/feedback', label: 'Feedback', Icon: MessageSquareHeart },

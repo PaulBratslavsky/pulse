@@ -42,6 +42,12 @@ export type NormalizedMention = {
   externalId: string;
   content: string;
   authorHandle: string | null;
+  authorName: string | null;
+  authorProfileUrl: string | null;
+  authorAvatarUrl: string | null;
+  authorFollowers: number | null;
+  relevanceScore: number | null;
+  relevanceComment: string | null;
   url: string | null;
   postedAt: string | null;
   platformKey: string;
@@ -76,6 +82,18 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
       externalId: String(externalId),
       content: String(content),
       authorHandle: m.author?.handle ?? m.author ?? m.authorHandle ?? m.author_name ?? null,
+      // Octolens sends all of this on every mention and Pulse used to drop it
+      // into `raw` unread. It costs nothing to keep and it is the only person
+      // data that exists anywhere — there is no company, role or headcount in
+      // the payload, so this is the whole enrichment budget.
+      authorName: m.authorName ?? m.author?.name ?? null,
+      authorProfileUrl: m.authorUrl ?? m.author?.url ?? null,
+      authorAvatarUrl: m.authorAvatar ?? m.author?.avatar ?? null,
+      authorFollowers: typeof m.authorFollowers === 'number' ? m.authorFollowers : null,
+      // Octolens's own read on relevance — an independent second opinion we
+      // already pay for, useful for cross-checking our own classifier
+      relevanceScore: typeof m.relevanceScore === 'number' ? m.relevanceScore : null,
+      relevanceComment: m.relevanceComment ?? null,
       url: m.url ?? m.link ?? m.permalink ?? null,
       postedAt: this.parseTimestamp(m.postedAt ?? m.timestamp ?? m.created_at ?? m.createdAt ?? null),
       platformKey: String(m.platform ?? m.source ?? m.channel ?? 'unknown').toLowerCase(),
@@ -167,6 +185,29 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
       raw
     );
 
+    // Resolve the author to a Person. Runtime lookup, not an import: this
+    // plugin builds from its own tsconfig and cannot see app code at build
+    // time — the same reason classifyLane is resolved above rather than
+    // imported. ensure() must run BEFORE the mention transaction opens; a
+    // unique violation inside an ambient transaction aborts the whole thing and
+    // the recovery refetch would fail with it (same caveat as topic.ensure).
+    let personId: string | null = null;
+    try {
+      personId = await (strapi.service('api::person.person') as any).ensure({
+        authorHandle: normalized.authorHandle,
+        authorName: normalized.authorName,
+        authorProfileUrl: normalized.authorProfileUrl,
+        authorAvatarUrl: normalized.authorAvatarUrl,
+        authorFollowers: normalized.authorFollowers,
+        channelKey: normalized.platformKey,
+        channelId: channel?.documentId ?? null,
+        postedAt: normalized.postedAt,
+      });
+    } catch (err: any) {
+      // identity resolution must never cost us the mention itself
+      strapi.log.warn(`[octolens] person.ensure failed for ${normalized.externalId}: ${err.message}`);
+    }
+
     // Keyless mode: adopt Octolens' sentiment as the initial, provenance-stamped label.
     // single source of truth for the AI flag — the analysis service, not a
     // second env read that could drift from it
@@ -175,7 +216,7 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     let mention: any;
     try {
-      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens, quality, routing);
+      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens, quality, routing, personId);
     } catch (err: any) {
       // unique-index violation → another writer created it between check and insert
       const winner = await strapi
@@ -223,7 +264,8 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     competitorTopicIds: string[],
     octolens: { label: string; score: number } | null,
     quality: string = 'normal',
-    routing?: { lane: string; laneReason: string; matchedKeywords: any[]; keywordTag: string | null }
+    routing?: { lane: string; laneReason: string; matchedKeywords: any[]; keywordTag: string | null },
+    personId?: string | null
   ) {
     return strapi.documents('api::mention.mention').create({
       data: {
@@ -240,6 +282,18 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
         // muted author, and the acknowledged pile has to stay readable later
         ...(quality === 'spam' ? { acknowledgeReason: 'spam' } : {}),
         quality,
+        authorName: normalized.authorName,
+        authorProfileUrl: normalized.authorProfileUrl,
+        authorAvatarUrl: normalized.authorAvatarUrl,
+        authorFollowers: normalized.authorFollowers,
+        relevanceScore: normalized.relevanceScore,
+        relevanceComment: normalized.relevanceComment,
+        person: personId ?? null,
+        // derived from the permalink because the payload never says — and the
+        // answer matters: a reply buried in a thread is a weaker signal than a
+        // post someone chose to write
+        postKind: (strapi.service('api::person.person') as any).postKindOf(normalized.url),
+        venue: (strapi.service('api::person.person') as any).venueOf(normalized.url),
         ...(routing
           ? {
               lane: routing.lane,

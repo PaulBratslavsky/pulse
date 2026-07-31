@@ -2,6 +2,7 @@ import type { Core } from '@strapi/strapi'
 import { seedDemo } from './seed-demo'
 import { registerAllMcpTools, registerMcpToolPermissions } from './mcp'
 import { dedupeMentionsAndEnforceUnique } from './utils/dedupe-mentions'
+import { backfillPeople } from './utils/backfill-people'
 
 /** Actions the Authenticated (team member) role gets. Each is its own permission record —
  *  a fresh Strapi denies everything for BOTH roles, and admin-UI clicks don't survive a fresh DB. */
@@ -24,6 +25,11 @@ const AUTHENTICATED_ACTIONS = [
   'api::response.response.findOne',
   'api::response.response.create',
   'api::response.response.outcome',
+  'api::person.person.leads',
+  'api::person.person.detail',
+  'api::person.person.status',
+  'api::person.person.note',
+  'api::person.person.rescore',
   'api::muted-author.muted-author.find',
   'api::muted-author.muted-author.mute',
   'api::muted-author.muted-author.rescan',
@@ -106,6 +112,12 @@ export default {
       await (strapi.service('api::notify.slack') as any)
         .ops(`mention dedupe/unique-index failed at boot: ${err.message} — duplicates may accumulate until fixed`)
         .catch(() => {})
+    })
+
+    // ---- Resolve authors to People (idempotent; only touches unlinked rows) ----
+    // Non-fatal: an unresolved author costs a leads-list row, not a mention.
+    await backfillPeople(strapi).catch((err: Error) => {
+      strapi.log.error(`pulse: person backfill failed: ${err.message}`)
     })
 
     // ---- Seed Authenticated role permissions (idempotent) ----

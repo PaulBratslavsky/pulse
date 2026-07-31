@@ -20,7 +20,7 @@ import { laneRubric, QUALITY_RUBRIC, laneById } from '../../../classification/cr
 
 // v2: structured output, 'na' label restored, lane + spam judgements, and the
 // deterministic signals fed in as priors rather than discarded.
-const PROMPT_VERSION = 'v3';
+const PROMPT_VERSION = 'v4';
 
 export const aiEnabled = () => Boolean(process.env.AI_API_KEY || process.env.AI_BASE_URL);
 
@@ -45,6 +45,7 @@ export type Classification = {
   lane: 'respond' | 'lead' | 'monitor';
   laneReason: string;
   laneEvidence?: string | null;
+  leadDirection?: 'none' | 'open' | 'toward-us' | 'away-from-us' | null;
   quality: 'normal' | 'suspected-spam';
   qualityReason?: string | null;
 };
@@ -86,6 +87,19 @@ const ClassificationSchema: z.ZodType<Classification> = z.object({
     .nullable()
     .optional()
     .describe("For 'lead' only: the exact words from the mention showing intent to change. Null otherwise."),
+  // Which way the intent points. A field, not a penalty: a real row reads
+  // "I'm leaving and going to Webflow" — maximum intent, aimed away from us.
+  // Subtracting points would bury it; knowing we are losing someone is worth
+  // as much as knowing we might win someone.
+  leadDirection: z
+    .enum(['none', 'open', 'toward-us', 'away-from-us'])
+    .nullable()
+    .optional()
+    .describe(
+      "Which way the author is moving. 'toward-us' = considering or adopting Strapi; " +
+        "'away-from-us' = leaving Strapi for something else; 'open' = an active decision with " +
+        "no direction stated yet; 'none' = no decision in play. Judge only from what they say."
+    ),
   quality: z
     .enum(['normal', 'suspected-spam'])
     .describe('suspected-spam = promotional, AI-generated, or engagement-bait content'),

@@ -1,0 +1,56 @@
+{
+  "kind": "collectionType",
+  "collectionName": "people",
+  "info": {
+    "singularName": "person",
+    "pluralName": "people",
+    "displayName": "Person",
+    "description": "An author, resolved across mentions. The spine for lead tracking: identity, reach, lifecycle and owner."
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "identityKey": { "type": "string", "required": true, "unique": true },
+    "identityProvisional": { "type": "boolean", "default": false },
+    "handle": { "type": "string" },
+    "displayName": { "type": "string" },
+    "profileUrl": { "type": "string" },
+    "avatarUrl": { "type": "string" },
+    "channel": { "type": "relation", "relation": "manyToOne", "target": "api::channel.channel" },
+    "followers": { "type": "integer" },
+    "followersObservedAt": { "type": "datetime" },
+    "kind": {
+      "type": "enumeration",
+      "enum": ["unknown", "community", "own-team", "competitor-brand", "vendor-bot", "publication"],
+      "default": "unknown",
+      "required": true
+    },
+    "firstSeenAt": { "type": "datetime" },
+    "lastSeenAt": { "type": "datetime" },
+    "mentionCount": { "type": "integer", "default": 0 },
+    "leadScore": { "type": "integer", "default": 0 },
+    "leadBand": {
+      "type": "enumeration",
+      "enum": ["none", "watch", "warm", "hot"],
+      "default": "none",
+      "required": true
+    },
+    "leadContext": { "type": "json" },
+    "reachTier": {
+      "type": "enumeration",
+      "enum": ["unknown", "small", "mid", "large"],
+      "default": "unknown",
+      "required": true
+    },
+    "leadScoredAt": { "type": "datetime" },
+    "status": {
+      "type": "enumeration",
+      "enum": ["new", "watching", "contacted", "qualified", "not-a-fit"],
+      "default": "new",
+      "required": true
+    },
+    "statusChangedAt": { "type": "datetime" },
+    "owner": { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" },
+    "mergedInto": { "type": "relation", "relation": "manyToOne", "target": "api::person.person" },
+    "mentions": { "type": "relation", "relation": "oneToMany", "target": "api::mention.mention", "mappedBy": "person" }
+  }
+}

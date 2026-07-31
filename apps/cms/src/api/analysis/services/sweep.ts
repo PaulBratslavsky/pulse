@@ -171,6 +171,13 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
               topics: topicIds,
               lane: result.lane,
               laneReason: `${result.laneReason} (${result.modelVersion})`,
+              // The quote was computed to gate the lane and then discarded.
+              // It is the single most useful artifact for a leads workflow:
+              // what a human reads before reaching out, and the only way to
+              // audit whether a lead was grounded in the author's own words
+              // rather than inferred. Null on a demotion, by design.
+              laneEvidence: result.lane === 'lead' ? (result.laneEvidence ?? null) : null,
+              leadDirection: result.leadDirection ?? 'none',
               ...(flagsSpam
                 ? {
                     quality: 'suspected-spam',

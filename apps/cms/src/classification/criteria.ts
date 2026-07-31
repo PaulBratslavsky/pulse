@@ -110,3 +110,86 @@ export const QUALITY_RUBRIC = [
   '"normal" — everything else, including blunt criticism and low-effort posts.',
   'Never confirm outright spam; a human does that.',
 ].join('\n');
+
+/* ------------------------------------------------------------------ *
+ * Lead intent scoring
+ * ------------------------------------------------------------------ */
+
+/**
+ * `leadScore` measures INTENT ONLY, and that is a deliberate refusal rather
+ * than an omission.
+ *
+ * The research is emphatic that fit and intent must be separate numbers. On
+ * this data only one of them IS a number: there is no company, role, headcount
+ * or tech stack anywhere in the Octolens payload. The single fit-adjacent
+ * field, `authorFollowers`, is present on 12 of 36 lead rows and 11 of those
+ * are Twitter — a fit score built on it would rank X users above everyone else
+ * for a *data-availability* reason, and the team would learn to distrust the
+ * number inside a week.
+ *
+ * So reach is a badge beside the score (`reachTier`) and the rest is a facts
+ * panel (`leadContext`) for a human to weigh. Neither is ever summed in.
+ */
+export type IntentSignal = {
+  id: string
+  points: number
+  /** shown in the UI so a score is always explainable, never a bare number */
+  label: string
+}
+
+export const INTENT_SIGNALS: IntentSignal[] = [
+  {
+    id: 'verified-evidence',
+    points: 50,
+    label: 'The author states intent in their own words, verified verbatim against the post',
+  },
+  {
+    id: 'lead-lane',
+    points: 15,
+    label: 'Classified into the lead lane',
+  },
+  {
+    id: 'octolens-relevance',
+    points: 15,
+    label: "Octolens independently scored this highly relevant — a second opinion we already pay for",
+  },
+  {
+    id: 'competitor-named',
+    points: 10,
+    label: 'Names a competitor they are moving off or costing out',
+  },
+  {
+    id: 'repeat-signal',
+    points: 10,
+    label: 'More than one intent-bearing post from the same person',
+  },
+]
+
+/**
+ * Intent decays. A three-month-old "we are evaluating a CMS" is not a lead —
+ * that decision has been made without us. Full weight for two weeks, then a
+ * linear fade to zero at 90 days.
+ */
+export const INTENT_HALFLIFE_DAYS = 90
+export const INTENT_FULL_DAYS = 14
+
+export function intentDecay(daysOld: number): number {
+  if (daysOld <= INTENT_FULL_DAYS) return 1
+  if (daysOld >= INTENT_HALFLIFE_DAYS) return 0
+  return 1 - (daysOld - INTENT_FULL_DAYS) / (INTENT_HALFLIFE_DAYS - INTENT_FULL_DAYS)
+}
+
+export type LeadBand = 'none' | 'watch' | 'warm' | 'hot'
+
+export const bandOf = (score: number): LeadBand =>
+  score >= 70 ? 'hot' : score >= 40 ? 'warm' : score >= 15 ? 'watch' : 'none'
+
+/**
+ * Which way the intent points.
+ *
+ * A real row in the corpus reads "I'm leaving and going to Webflow" — high
+ * intent aimed AWAY from us. Structurally separating that is more honest than
+ * subtracting points from a score, and it keeps the row visible: knowing we are
+ * losing someone is worth as much as knowing we might win someone.
+ */
+export type LeadDirection = 'none' | 'open' | 'toward-us' | 'away-from-us'

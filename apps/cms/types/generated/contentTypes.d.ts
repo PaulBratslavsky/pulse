@@ -468,6 +468,9 @@ export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
         'acknowledged',
         'noted',
         'drafted',
+        'person-status',
+        'person-scored',
+        'person-merged',
       ]
     > &
       Schema.Attribute.Required;
@@ -487,6 +490,7 @@ export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     mention: Schema.Attribute.Relation<'manyToOne', 'api::mention.mention'>;
+    person: Schema.Attribute.Relation<'manyToOne', 'api::person.person'>;
     publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -563,6 +567,7 @@ export interface ApiCommentComment extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     mention: Schema.Attribute.Relation<'manyToOne', 'api::mention.mention'>;
+    person: Schema.Attribute.Relation<'manyToOne', 'api::person.person'>;
     publishedAt: Schema.Attribute.DateTime;
     topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;
@@ -661,7 +666,11 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
       'manyToOne',
       'plugin::users-permissions.user'
     >;
+    authorAvatarUrl: Schema.Attribute.String;
+    authorFollowers: Schema.Attribute.Integer;
     authorHandle: Schema.Attribute.Text;
+    authorName: Schema.Attribute.String;
+    authorProfileUrl: Schema.Attribute.String;
     channel: Schema.Attribute.Relation<'manyToOne', 'api::channel.channel'>;
     comments: Schema.Attribute.Relation<'oneToMany', 'api::comment.comment'>;
     content: Schema.Attribute.Text & Schema.Attribute.Required;
@@ -679,7 +688,12 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     keywordTag: Schema.Attribute.String;
     lane: Schema.Attribute.Enumeration<['respond', 'lead', 'monitor']> &
       Schema.Attribute.DefaultTo<'respond'>;
+    laneEvidence: Schema.Attribute.Text;
     laneReason: Schema.Attribute.Text;
+    leadDirection: Schema.Attribute.Enumeration<
+      ['none', 'open', 'toward-us', 'away-from-us']
+    > &
+      Schema.Attribute.DefaultTo<'none'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -692,7 +706,10 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
       'manyToOne',
       'plugin::users-permissions.user'
     >;
+    person: Schema.Attribute.Relation<'manyToOne', 'api::person.person'>;
     postedAt: Schema.Attribute.DateTime;
+    postKind: Schema.Attribute.Enumeration<['unknown', 'original', 'reply']> &
+      Schema.Attribute.DefaultTo<'unknown'>;
     promptVersion: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     quality: Schema.Attribute.Enumeration<
@@ -703,6 +720,8 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     qualityVia: Schema.Attribute.String;
     raw: Schema.Attribute.JSON;
     receivedAt: Schema.Attribute.DateTime;
+    relevanceComment: Schema.Attribute.Text;
+    relevanceScore: Schema.Attribute.Decimal;
     responses: Schema.Attribute.Relation<'oneToMany', 'api::response.response'>;
     sentimentLabel: Schema.Attribute.Enumeration<
       ['positive', 'neutral', 'negative', 'na']
@@ -720,6 +739,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     url: Schema.Attribute.Text;
+    venue: Schema.Attribute.String;
   };
 }
 
@@ -759,6 +779,84 @@ export interface ApiMutedAuthorMutedAuthor extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'ai-spam'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiPersonPerson extends Struct.CollectionTypeSchema {
+  collectionName: 'people';
+  info: {
+    description: 'An author, resolved across mentions. The spine for lead tracking: identity, reach, lifecycle and owner.';
+    displayName: 'Person';
+    pluralName: 'people';
+    singularName: 'person';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    avatarUrl: Schema.Attribute.String;
+    channel: Schema.Attribute.Relation<'manyToOne', 'api::channel.channel'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    displayName: Schema.Attribute.String;
+    firstSeenAt: Schema.Attribute.DateTime;
+    followers: Schema.Attribute.Integer;
+    followersObservedAt: Schema.Attribute.DateTime;
+    handle: Schema.Attribute.String;
+    identityKey: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    identityProvisional: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    kind: Schema.Attribute.Enumeration<
+      [
+        'unknown',
+        'community',
+        'own-team',
+        'competitor-brand',
+        'vendor-bot',
+        'publication',
+      ]
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'unknown'>;
+    lastSeenAt: Schema.Attribute.DateTime;
+    leadBand: Schema.Attribute.Enumeration<['none', 'watch', 'warm', 'hot']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'none'>;
+    leadContext: Schema.Attribute.JSON;
+    leadScore: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    leadScoredAt: Schema.Attribute.DateTime;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::person.person'
+    > &
+      Schema.Attribute.Private;
+    mentionCount: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    mentions: Schema.Attribute.Relation<'oneToMany', 'api::mention.mention'>;
+    mergedInto: Schema.Attribute.Relation<'manyToOne', 'api::person.person'>;
+    owner: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    profileUrl: Schema.Attribute.String;
+    publishedAt: Schema.Attribute.DateTime;
+    reachTier: Schema.Attribute.Enumeration<
+      ['unknown', 'small', 'mid', 'large']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'unknown'>;
+    status: Schema.Attribute.Enumeration<
+      ['new', 'watching', 'contacted', 'qualified', 'not-a-fit']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'new'>;
+    statusChangedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1391,6 +1489,7 @@ declare module '@strapi/strapi' {
       'api::event.event': ApiEventEvent;
       'api::mention.mention': ApiMentionMention;
       'api::muted-author.muted-author': ApiMutedAuthorMutedAuthor;
+      'api::person.person': ApiPersonPerson;
       'api::preference.preference': ApiPreferencePreference;
       'api::response.response': ApiResponseResponse;
       'api::topic.topic': ApiTopicTopic;

@@ -15,11 +15,26 @@ export function Avatar({
   name,
   size = 'md',
   muted = false,
+  src,
 }: {
   name?: string | null
   size?: keyof typeof AVATAR_SIZES
   muted?: boolean
+  /** real profile picture when we have one — plain <img>, not next/image, so
+   *  an arbitrary social CDN doesn't need adding to the remote-patterns config
+   *  (and a broken URL degrades to the initial rather than throwing) */
+  src?: string | null
 }) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name ?? ''}
+        loading="lazy"
+        className={`inline-block shrink-0 rounded-full object-cover ${AVATAR_SIZES[size]} ${muted ? 'opacity-60' : ''}`}
+      />
+    )
+  }
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${AVATAR_SIZES[size]} ${

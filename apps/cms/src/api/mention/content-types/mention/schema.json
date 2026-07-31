@@ -85,6 +85,10 @@
       "type": "text",
       "description": "which rule produced the lane \u2014 so a wrong route is fixable rather than mysterious"
     },
+    "laneEvidence": {
+      "type": "text",
+      "description": "the author's own verbatim words showing intent, verified to appear in the content. The artifact a human reads before reaching out, and what makes a lead auditable rather than a black box."
+    },
     "matchedKeywords": {
       "type": "json",
       "description": "search terms Octolens matched, with keywordTag (own_brand | competitor | industry_term)"
@@ -92,6 +96,28 @@
     "keywordTag": {
       "type": "string",
       "description": "strongest matched tag; own_brand beats industry_term beats competitor"
+    },
+    "authorName": {
+      "type": "string",
+      "description": "display name from Octolens (authorName)"
+    },
+    "authorProfileUrl": {
+      "type": "string",
+      "description": "canonical profile URL \u2014 the strong identity key, present on 95% of rows"
+    },
+    "authorAvatarUrl": {
+      "type": "string"
+    },
+    "authorFollowers": {
+      "type": "integer",
+      "description": "point-in-time follower count at posting; person.followers holds the latest. Reliable on X only."
+    },
+    "relevanceScore": {
+      "type": "decimal",
+      "description": "Octolens's own relevance score \u2014 an independent second opinion on our classifier"
+    },
+    "relevanceComment": {
+      "type": "text"
     },
     "qualityReason": {
       "type": "text",
@@ -190,6 +216,34 @@
     },
     "raw": {
       "type": "json"
+    },
+    "person": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::person.person",
+      "inversedBy": "mentions"
+    },
+    "postKind": {
+      "type": "enumeration",
+      "enum": [
+        "unknown",
+        "original",
+        "reply"
+      ],
+      "default": "unknown"
+    },
+    "venue": {
+      "type": "string"
+    },
+    "leadDirection": {
+      "type": "enumeration",
+      "enum": [
+        "none",
+        "open",
+        "toward-us",
+        "away-from-us"
+      ],
+      "default": "none"
     }
   }
 }

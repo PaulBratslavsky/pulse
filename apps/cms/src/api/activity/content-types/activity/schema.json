@@ -7,7 +7,9 @@
     "displayName": "Activity",
     "description": "System-written audit trail entry for a mention workflow transition"
   },
-  "options": { "draftAndPublish": false },
+  "options": {
+    "draftAndPublish": false
+  },
   "attributes": {
     "mention": {
       "type": "relation",
@@ -22,10 +24,34 @@
     },
     "action": {
       "type": "enumeration",
-      "enum": ["ingested", "analyzed", "claimed", "routed", "corrected", "answered", "resolved", "replayed", "acknowledged", "noted", "drafted"],
+      "enum": [
+        "ingested",
+        "analyzed",
+        "claimed",
+        "routed",
+        "corrected",
+        "answered",
+        "resolved",
+        "replayed",
+        "acknowledged",
+        "noted",
+        "drafted",
+        "person-status",
+        "person-scored",
+        "person-merged"
+      ],
       "required": true
     },
-    "detail": { "type": "json" },
-    "at": { "type": "datetime" }
+    "detail": {
+      "type": "json"
+    },
+    "at": {
+      "type": "datetime"
+    },
+    "person": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::person.person"
+    }
   }
 }

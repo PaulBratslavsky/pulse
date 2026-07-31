@@ -119,6 +119,37 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
     strapi.log.info(`pulse: routed ${routed} pre-existing mention(s) into lanes`)
   }
 
+  // Backfill the author + relevance fields that were being discarded into
+  // `raw` on every ingest. Unlike laneEvidence (which was never stored and is
+  // unrecoverable), all of this is still there — so the existing corpus can be
+  // enriched without a single API call or re-sweep.
+  const unenriched: any[] = await knex('mentions')
+    .whereNull('author_profile_url')
+    .whereNotNull('raw')
+    .select('id', 'raw')
+  if (unenriched.length) {
+    let filled = 0
+    for (const row of unenriched) {
+      let raw: any = {}
+      try {
+        raw = typeof row.raw === 'string' ? JSON.parse(row.raw) : (row.raw ?? {})
+      } catch {
+        continue
+      }
+      const patch: Record<string, unknown> = {}
+      if (raw.authorName) patch.author_name = String(raw.authorName).slice(0, 255)
+      if (raw.authorUrl) patch.author_profile_url = String(raw.authorUrl).slice(0, 255)
+      if (raw.authorAvatar) patch.author_avatar_url = String(raw.authorAvatar).slice(0, 255)
+      if (typeof raw.authorFollowers === 'number') patch.author_followers = raw.authorFollowers
+      if (typeof raw.relevanceScore === 'number') patch.relevance_score = raw.relevanceScore
+      if (raw.relevanceComment) patch.relevance_comment = String(raw.relevanceComment)
+      if (!Object.keys(patch).length) continue
+      await knex('mentions').where({ id: row.id }).update(patch)
+      filled++
+    }
+    if (filled) strapi.log.info(`pulse: backfilled author/relevance fields on ${filled} mention(s) from stored raw`)
+  }
+
   // real DB-level guard (works on SQLite and Postgres; NULLs unaffected)
   await knex.raw('CREATE UNIQUE INDEX IF NOT EXISTS mentions_external_id_uq ON mentions (external_id)')
 
