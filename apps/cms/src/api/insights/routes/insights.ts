@@ -6,6 +6,7 @@ export default {
     { method: 'GET', path: '/insights/feedback', handler: 'insights.feedback', config: { policies: [] } },
     { method: 'GET', path: '/insights/leaderboard', handler: 'insights.leaderboard', config: { policies: [] } },
     { method: 'GET', path: '/insights/snapshot', handler: 'insights.snapshot', config: { policies: [] } },
+    { method: 'GET', path: '/insights/graph', handler: 'insights.graph', config: { policies: [] } },
     { method: 'GET', path: '/insights/config', handler: 'insights.config', config: { policies: [] } },
   ],
 }

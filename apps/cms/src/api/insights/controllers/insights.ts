@@ -34,6 +34,21 @@ export default {
     return { data: await (strapi.service('api::analysis.insights') as any).snapshot({ days }) }
   },
 
+  /** GET /insights/graph — conversation map. `projections` lists what's available. */
+  async graph(ctx: any) {
+    const svc = strapi.service('api::analysis.graph') as any
+    return {
+      data: await svc.build({
+        projection: ctx.query.projection,
+        days: ctx.query.days ? Number(ctx.query.days) : undefined,
+        minWeight: ctx.query.minWeight ? Number(ctx.query.minWeight) : undefined,
+        maxNodes: ctx.query.maxNodes ? Number(ctx.query.maxNodes) : undefined,
+        maxEdges: ctx.query.maxEdges ? Number(ctx.query.maxEdges) : undefined,
+      }),
+      meta: { projections: svc.projections() },
+    }
+  },
+
   /** Feature flags the frontend renders against (AI is optional by design). */
   async config(_ctx: any) {
     return { data: { aiEnabled: (strapi.service('api::analysis.ai') as any).enabled() } }
