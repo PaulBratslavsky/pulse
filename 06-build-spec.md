@@ -486,3 +486,21 @@ removes them, matched on the exact prefixes the specs use so real topics can't b
   means "not about Strapi" — a topicality judgement — and deriving it from a spam flag
   would conflate two independent axes and destroy `sentimentScore` on rows a human might
   later unflag.
+- **2026-07-31 — Events can be annotated from Trends.** `POST /events` (validating
+  action, not the core create) plus an inline form beside "Events in range". This is the
+  one CRUD surface Pulse deliberately duplicates from the admin panel: the moment you
+  realise an annotation is needed is while reading the chart thinking "that dip was
+  v5.51", and sending someone to another app loses the context that made it worth
+  writing. Editing and deleting stay in admin — this captures the moment, it isn't a
+  manager. **Test note:** the title renders twice on purpose (chart annotation + list),
+  and the SVG `<title>` is a tooltip that is never "visible" — assertions must scope to
+  the list row.
+- **2026-07-31 — P0s from the second field report.** `pulse-queue` omitted
+  `authorHandle`, so **our own posts were indistinguishable from inbound ones in the
+  list** — an agent nearly drafted public replies to three of ours and had already
+  described one as an inbound question. The server clearly knew own-posts mattered
+  (`pulse-acknowledge` has an `own-post` reason precisely to keep them out of metrics)
+  but didn't surface it where the decision is made. `authorHandle` and
+  `acknowledgeReason` are now on every row. Second: no `quality` filter, so "what still
+  needs a spam judgement" required fetching every mention — there is now a `quality`
+  arg.

@@ -57,6 +57,10 @@ export const PULSE_TOOLS: PulseTool[] = [
         sentiment: z.enum(['positive', 'neutral', 'negative', 'na']).optional(),
         topic: z.string().optional().describe('Topic slug'),
         search: z.string().optional().describe('Case-insensitive substring of the mention content'),
+        quality: z
+          .enum(['normal', 'suspected-spam', 'spam'])
+          .optional()
+          .describe("Filter by spam judgement — 'suspected-spam' is the review backlog"),
         topics: z
           .enum(['any', 'none'])
           .optional()
@@ -90,6 +94,7 @@ export const PULSE_TOOLS: PulseTool[] = [
         ...(args.topic ? { topics: { slug: args.topic } } : {}),
         ...(args.search ? { content: { $containsi: args.search } } : {}),
         ...(args.topics === 'none' ? { topics: { documentId: { $null: true } } } : {}),
+        ...(args.quality ? { quality: args.quality } : {}),
         ...(args.draft === 'has-draft' ? { draftText: { $notNull: true } } : {}),
         ...(args.draft === 'no-draft' ? { draftText: { $null: true } } : {}),
       };
@@ -98,7 +103,21 @@ export const PULSE_TOOLS: PulseTool[] = [
           filters,
           // 'quality' must be selected explicitly — an omitted field reads back
           // as undefined, which silently blanked the marker below
-          fields: ['content', 'sentimentLabel', 'status', 'postedAt', 'url', 'draftText', 'externalId', 'quality'],
+          fields: [
+            'content',
+            'sentimentLabel',
+            'status',
+            'postedAt',
+            'url',
+            'draftText',
+            'externalId',
+            'quality',
+            // authorHandle + acknowledgeReason: without them our OWN posts are
+            // indistinguishable from inbound ones here, and an agent nearly
+            // drafted public replies to three of ours (field report 2026-07-31)
+            'authorHandle',
+            'acknowledgeReason',
+          ],
           populate: { topics: { fields: ['name', 'slug', 'kind'] }, channel: { fields: ['name'] } } as any,
           sort: 'postedAt:asc' as any,
           limit,
@@ -114,6 +133,10 @@ export const PULSE_TOOLS: PulseTool[] = [
         mentions: (rows as any[]).map((m) => ({
           documentId: m.documentId,
           externalId: m.externalId,
+          authorHandle: m.authorHandle ?? null,
+          // surfaced so "this is one of ours" is visible where the decision to
+          // reply is actually made, not only via pulse-get-mention
+          ...(m.acknowledgeReason ? { acknowledgeReason: m.acknowledgeReason } : {}),
           excerpt: String(m.content ?? '').slice(0, excerpt),
           truncated: String(m.content ?? '').length > excerpt,
           sentimentLabel: m.sentimentLabel,

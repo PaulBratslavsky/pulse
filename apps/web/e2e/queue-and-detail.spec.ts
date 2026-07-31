@@ -176,6 +176,30 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('Nothing matches')).toBeHidden()
   })
 
+  test('an event can be annotated onto the trend chart', async ({ page }) => {
+    const title = `E2E event ${Date.now().toString(36)}`
+    await page.goto('/trends')
+
+    await page.getByRole('button', { name: 'Add event' }).click()
+    await page.getByLabel('What happened').fill(title)
+    await page.getByLabel('Kind').selectOption('incident')
+    await page.getByRole('button', { name: 'Add event' }).click()
+
+    // it lands in the list AND as a chart annotation. The SVG <title> is a
+    // tooltip and never "visible", so every assertion scopes to the list row.
+    const row = page.locator('li').filter({ hasText: title })
+    await expect(row).toBeVisible()
+    await expect(row).toContainText('(incident)')
+    await expect(page.locator('svg title', { hasText: title })).toHaveCount(1)
+  })
+
+  test('the event form rejects an empty title', async ({ page }) => {
+    await page.goto('/trends')
+    await page.getByRole('button', { name: 'Add event' }).click()
+    // submit stays disabled until there is something to save
+    await expect(page.getByRole('button', { name: 'Add event' })).toBeDisabled()
+  })
+
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {
     const { documentId } = await injectMention(request, {
       tags: ['competitor_mention'],

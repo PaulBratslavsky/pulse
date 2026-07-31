@@ -44,6 +44,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::insights.insights.leaderboard',
   'api::insights.insights.feedback',
   'api::insights.insights.graph',
+  'api::event.event.add',
   'api::preference.preference.mine',
   'api::preference.preference.updateMine',
   'api::insights.insights.config',

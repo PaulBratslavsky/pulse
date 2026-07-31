@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { strapiFetch, qs } from '@/lib/strapi'
+import EventForm from '@/components/event-form'
 import TrendChart from '@/components/trend-chart'
 
 export default async function TrendsPage({
@@ -54,20 +55,31 @@ export default async function TrendsPage({
         <TrendChart series={series} events={events} />
       )}
 
-      {events.length > 0 && (
-        <section className="mt-8">
-          <h2 className="font-medium mb-2">Events in range</h2>
+      <section className="mt-8">
+        <div className="mb-2 flex items-center justify-between gap-4">
+          <h2 className="font-medium">Events in range</h2>
+          {/* the annotation is written where the chart is read — that context
+              is the whole reason this lives here and not only in admin */}
+          <EventForm />
+        </div>
+        {events.length > 0 ? (
           <ul className="text-sm space-y-1">
             {events.map((e: any) => (
               <li key={e.documentId}>
                 <span className="text-zinc-400">{new Date(e.date).toISOString().slice(0, 10)}</span>{' '}
                 <span className="font-medium">{e.title}</span>{' '}
                 <span className="text-xs text-zinc-500">({e.kind})</span>
+                {e.notes && <span className="text-xs text-zinc-500"> — {e.notes}</span>}
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        ) : (
+          <p className="text-sm text-zinc-500">
+            Nothing marked in this window. Adding releases and incidents makes a spike readable
+            months later.
+          </p>
+        )}
+      </section>
     </div>
   )
 }
