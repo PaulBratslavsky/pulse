@@ -589,3 +589,13 @@ and resolved at runtime. The plugin also needs its own `npm run build`; editing 
   gap: the lane options were reply work / leads / monitor with **no way to see the whole
   corpus at once** — `lane=all` now bypasses the filter entirely. Guarded by a test that
   asserts the two axes are independent (clicking sentiment `all` must not reset the lane).
+- **2026-07-31 — Queue filters: one row per axis.** All the filters shared two wrapping
+  rows, so a group could split mid-way — "monitor" and "all lanes" ended up on a
+  different line from "reply work", making a lane read like a sentiment, and the
+  sentiment **all** pill looked like it should clear everything. Now `FilterRow` gives
+  each axis (topic · status · lane · sentiment · flags) its own line with an aligned
+  label column, so groups can never interleave and the block scans vertically. The
+  column is `w-24` because "SENTIMENT" is ~76px and was overrunning a 64px column into
+  the first pill; it collapses to full width under `sm` so a phone doesn't lose a third
+  of the row to a label. Broadest option first in every row (`queue`, `all lanes`,
+  `all`) so the pattern is learnable.

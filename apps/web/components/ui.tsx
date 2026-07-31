@@ -132,3 +132,29 @@ export function Spinner({ size = 14, className = '' }: { size?: number; classNam
     </svg>
   )
 }
+
+/**
+ * One filter axis: a fixed-width label column plus its pills.
+ *
+ * The queue's filters previously shared two wrapping rows, so a group could
+ * split mid-way — "monitor" and "all lanes" ended up on a different line from
+ * "reply work", which made a lane look like a sentiment. A dedicated row per
+ * axis with an aligned label column means the groups can never interleave, and
+ * the whole block scans vertically.
+ *
+ * The label column collapses under `sm`: on a phone it would eat a third of
+ * the width, and the pills wrap under it instead.
+ */
+export function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* w-24: "SENTIMENT" at this size is ~76px and was overrunning a 64px
+          column straight into the first pill. Sized to the longest label so
+          every row's pills start on the same vertical line. */}
+      <span className="w-24 shrink-0 text-xs uppercase tracking-wide text-zinc-400 max-sm:w-full">
+        {label}
+      </span>
+      {children}
+    </div>
+  )
+}
