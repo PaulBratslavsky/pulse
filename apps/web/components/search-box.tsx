@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
+import { Search } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
 import { SentimentBadge } from './badges'
 
@@ -17,11 +18,19 @@ export default function SearchBox() {
 
   return (
     <div className="relative w-full max-w-md">
+      {/* leading icon matches the Themes search — same affordance, same shape */}
+      <Search
+        size={16}
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+        aria-hidden
+      />
       <input
+        type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search mentions & past responses…"
-        className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
+        aria-label="Search mentions and past responses"
+        className="w-full rounded-md border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
       />
       {enabled && (
         <div className="absolute z-10 mt-1 w-full rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg max-h-96 overflow-auto">

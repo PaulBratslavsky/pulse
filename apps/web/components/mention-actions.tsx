@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query'
 import { ChevronRight, X } from 'lucide-react'
 import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
+import { TopicPicker } from '@/components/topic-picker'
 import MuteAuthorButton from '@/components/mute-author-button'
 import SpamFlagButton from '@/components/spam-flag-button'
 
@@ -32,7 +33,6 @@ export default function MentionActions({
   const [corrLabel, setCorrLabel] = useState(mention.sentimentLabel ?? 'neutral')
   const [corrTopics, setCorrTopics] = useState<string[]>((mention.topics ?? []).map((t: any) => t.documentId))
   const [newTopics, setNewTopics] = useState<string[]>([])
-  const [topicDraft, setTopicDraft] = useState('')
   const [showAck, setShowAck] = useState(false)
   const [ackReason, setAckReason] = useState('competitor')
   const [ackNote, setAckNote] = useState('')
@@ -143,6 +143,15 @@ export default function MentionActions({
             Acknowledge — no reply
           </button>
         )}
+        <MutationError m={claim} className="text-xs" />
+        <MutationError m={genDraft} className="text-xs" />
+        <MutationError m={outcome} className="text-xs" />
+      </div>
+
+      {/* second row: moderation. Separated from the workflow actions above
+          because five buttons wrapped raggedly across three lines, and these
+          two are a different kind of decision — about the AUTHOR, not the reply */}
+      <div className="flex gap-2 flex-wrap">
         {mention.quality !== 'spam' && (
           <SpamFlagButton
             documentId={mention.documentId}
@@ -176,9 +185,6 @@ export default function MentionActions({
             ))}
           </div>
         )}
-        <MutationError m={claim} className="text-xs" />
-        <MutationError m={genDraft} className="text-xs" />
-        <MutationError m={outcome} className="text-xs" />
       </div>
 
       {showAck && (
@@ -258,56 +264,13 @@ export default function MentionActions({
               </label>
             ))}
           </div>
-          <div className="flex gap-2 flex-wrap">
-            {allTopics.map((t: any) => (
-              <label key={t.documentId} className="text-xs flex items-center gap-1 border border-zinc-300 dark:border-zinc-700 rounded-full px-2 py-0.5">
-                <input
-                  type="checkbox"
-                  checked={corrTopics.includes(t.documentId)}
-                  onChange={(e) =>
-                    setCorrTopics((prev) =>
-                      e.target.checked ? [...prev, t.documentId] : prev.filter((id) => id !== t.documentId)
-                    )
-                  }
-                />
-                {t.name}
-              </label>
-            ))}
-          </div>
-          <div className="flex gap-2 items-center flex-wrap">
-            <input
-              value={topicDraft}
-              onChange={(e) => setTopicDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && topicDraft.trim()) {
-                  e.preventDefault()
-                  setNewTopics((prev) => [...new Set([...prev, topicDraft.trim()])])
-                  setTopicDraft('')
-                }
-              }}
-              placeholder="New topic name…"
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm"
-            />
-            <button
-              onClick={() => {
-                if (!topicDraft.trim()) return
-                setNewTopics((prev) => [...new Set([...prev, topicDraft.trim()])])
-                setTopicDraft('')
-              }}
-              className="text-sm rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5"
-            >
-              + Add topic
-            </button>
-            {newTopics.map((n) => (
-              <span
-                key={n}
-                className="text-xs rounded-full bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 px-2 py-0.5"
-              >
-                #{n} (new){' '}
-                <button onClick={() => setNewTopics((prev) => prev.filter((x) => x !== n))}>✕</button>
-              </span>
-            ))}
-          </div>
+          <TopicPicker
+            all={allTopics}
+            selectedIds={corrTopics}
+            onSelectedIds={setCorrTopics}
+            newNames={newTopics}
+            onNewNames={setNewTopics}
+          />
           <button
             onClick={() => correct.mutate()}
             disabled={correct.isPending}

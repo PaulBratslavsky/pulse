@@ -56,5 +56,23 @@ try {
   db.exec(`DELETE FROM mentions_topics_lnk WHERE mention_id IN (${list})`)
 } catch {}
 db.exec(`DELETE FROM mentions WHERE id IN (${list})`)
-console.log(`removed ${ids.length} e2e mention(s) and ${removed} child row(s)`)
+
+// Topics the suite invents each run ("Area <tag>", "E2E Topic <tag>"). They
+// leak ~2 per run and are otherwise invisible until something renders the whole
+// vocabulary — 109 of them had accumulated and made the labeling panel unusable.
+// Matched on the exact prefixes the specs use, so real topics can't be hit.
+const junk = db
+  .prepare("SELECT id FROM topics WHERE name LIKE 'Area fbms%' OR name LIKE 'E2E Topic %'")
+  .all()
+  .map((r) => r.id)
+if (junk.length) {
+  const jlist = junk.join(',')
+  for (const t of ['mentions_topics_lnk', 'comments_topics_lnk']) {
+    try {
+      db.exec(`DELETE FROM ${t} WHERE topic_id IN (${jlist})`)
+    } catch {}
+  }
+  db.exec(`DELETE FROM topics WHERE id IN (${jlist})`)
+}
+console.log(`removed ${ids.length} e2e mention(s), ${removed} child row(s), ${junk.length} e2e topic(s)`)
 db.close()

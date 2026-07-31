@@ -445,3 +445,30 @@ unaffected.
   reopens as `unanswered` (prior status isn't stored).
 - **2026-07-31 — Queue header shows the open count.** The filtered total (not the page)
   as a badge beside the heading, straight from the pagination meta — no extra query.
+
+### Finding things once the vocabulary grew (2026-07-31)
+
+The app was built when there were a dozen topics. At 100+ several surfaces broke down
+at once:
+- **Labeling panel** rendered every topic as a checkbox — an unusable wall that pushed
+  Save off screen. Replaced with `TopicPicker`: search and create in ONE box, because a
+  separate "new topic" field is how someone types "Documentation" when "Docs" exists and
+  silently forks the vocabulary. Creation is only offered when nothing matches, using the
+  same case-insensitive rule `topic.ensure()` applies server-side.
+- **Themes** listed every topic unpaginated. Now search-as-you-type + kind filter +
+  paging, filtered in memory (the ranked set is already loaded, so a Search button would
+  be pure friction). Fixed a real bug while there: `view queue →` linked to
+  `?sentiment=negative`, showing every negative mention regardless of which theme you
+  clicked — it now filters by that topic.
+- **Feedback** gained the same instant search, over the captured text, tags AND the
+  source mention. Its tag chips cap at the top 8 with a `<details>` disclosure for the
+  tail: the chips are ranked by count, so seeing the head IS the prioritisation signal a
+  plain dropdown would hide.
+- **Top-bar search** got the same leading magnifier for consistency.
+- **Mention actions** split into two rows — workflow (claim / label / acknowledge) and
+  moderation (spam / mute) — five buttons had been wrapping across three ragged lines,
+  and the two groups are different kinds of decision.
+
+**Test hygiene:** the suite invented ~2 topics per run (`Area <tag>`, `E2E Topic <tag>`)
+and 109 had accumulated — that pollution *was* the checkbox wall. `db:clean-e2e` now
+removes them, matched on the exact prefixes the specs use so real topics can't be hit.

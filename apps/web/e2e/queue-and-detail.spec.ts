@@ -117,11 +117,63 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await page.goto(`/mentions/${documentId}`)
 
     await page.getByRole('button', { name: /correct analysis|set sentiment/i }).click()
-    await page.getByPlaceholder('New topic name…').fill(topicName)
-    await page.getByRole('button', { name: '+ Add topic' }).click()
+    // search and create share one box: typing filters, and creating is only
+    // offered when nothing matches
+    await page.getByPlaceholder('Search topics, or type a new one…').fill(topicName)
+    await page.getByRole('button', { name: `+ Create “${topicName}”` }).click()
     await page.getByRole('button', { name: 'Save correction' }).click()
 
     await expect(page.getByText(`#${topicName}`).first()).toBeVisible()
+  })
+
+  test('topic picker filters instead of listing every topic', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+    await page.getByRole('button', { name: /correct analysis|set sentiment/i }).click()
+
+    const box = page.getByPlaceholder('Search topics, or type a new one…')
+    await box.click()
+    // the vocabulary is 100+ entries; the list must stay short enough to use
+    // scoped: the timeline and queue also render list items
+    const initial = await page.getByTestId('topic-options').getByRole('listitem').count()
+    expect(initial).toBeLessThanOrEqual(9)
+
+    await box.fill('webfl')
+    await expect(page.getByRole('button', { name: 'Webflow', exact: true })).toBeVisible()
+    // an existing topic must NOT offer creation — that is how the vocabulary forks
+    await box.fill('Webflow')
+    await expect(page.getByRole('button', { name: /\+ Create/ })).toBeHidden()
+  })
+
+  test('themes filter as you type, and view-queue links to that topic', async ({ page }) => {
+    await page.goto('/themes')
+    const count = page.getByTestId('themes-count')
+    const before = (await count.textContent()) ?? ''
+
+    // no submit button: typing alone narrows the list
+    await page.getByLabel('Search themes').fill('webfl')
+    await expect(count).not.toHaveText(before)
+    // the right rail also renders a #Webflow chip — scope to the list
+    await expect(page.getByRole('listitem').filter({ hasText: '#Webflow' }).first()).toBeVisible()
+
+    // the filtered view stays linkable
+    await expect(page).toHaveURL(/q=webfl/)
+
+    // "view queue" must carry the topic, not a bare sentiment filter
+    await page.getByRole('link', { name: 'view queue →' }).first().click()
+    await expect(page).toHaveURL(/topic=/)
+  })
+
+  test('feedback search filters as you type', async ({ page }) => {
+    await page.goto('/feedback?days=365')
+    const box = page.getByLabel('Search feedback')
+    await expect(box).toBeVisible()
+
+    await box.fill('zzz-no-such-feedback-zzz')
+    await expect(page.getByText('Nothing matches')).toBeVisible()
+
+    await box.fill('')
+    await expect(page.getByText('Nothing matches')).toBeHidden()
   })
 
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {

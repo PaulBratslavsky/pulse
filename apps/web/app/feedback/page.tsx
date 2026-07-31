@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { MessageSquareHeart, ExternalLink } from 'lucide-react'
+import { MessageSquareHeart } from 'lucide-react'
 import { strapiFetch } from '@/lib/strapi'
-import { SentimentBadge } from '@/components/badges'
-import { FilterPill, EmptyState, Avatar } from '@/components/ui'
+import { FilterPill, EmptyState } from '@/components/ui'
+import FeedbackList from '@/components/feedback-list'
 
 /**
  * Product feedback — the "what should we build" surface.
@@ -30,6 +30,11 @@ export default async function FeedbackPage({
     if (err.status === 401 || err.status === 403) redirect('/sign-in')
     throw err
   }
+
+  // ranked by count already — the head is the signal, the tail is reference
+  const TOP_AREAS = 8
+  const topTopics = (data.topics ?? []).slice(0, TOP_AREAS)
+  const restTopics = (data.topics ?? []).slice(TOP_AREAS)
 
   const url = (over: { topic?: string; days?: string }) => {
     const q = new URLSearchParams()
@@ -66,18 +71,36 @@ export default async function FeedbackPage({
             Product areas the team tagged — what keeps coming up, and the closest thing to a
             prioritisation signal
           </p>
+          {/* Top areas stay visible: they are ranked by count, so seeing them
+              at a glance IS the prioritisation signal a dropdown would hide.
+              The long tail folds into a disclosure so the list can't grow
+              without bound. <details> keeps it working without JS. */}
           <div className="flex flex-wrap gap-2">
             {params.topic && (
               <FilterPill href={url({ topic: undefined })} active activeClassName="border-[#4945FF] bg-[#4945FF]/10 font-medium text-[#4945FF]">
                 #{params.topic} ✕
               </FilterPill>
             )}
-            {data.topics.map((t: any) => (
+            {topTopics.map((t: any) => (
               <FilterPill key={t.slug} href={url({ topic: t.slug })} active={params.topic === t.slug}>
                 #{t.name} <span className="text-zinc-400">{t.count}</span>
               </FilterPill>
             ))}
           </div>
+          {restTopics.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
+                +{restTopics.length} more area{restTopics.length === 1 ? '' : 's'}
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {restTopics.map((t: any) => (
+                  <FilterPill key={t.slug} href={url({ topic: t.slug })} active={params.topic === t.slug}>
+                    #{t.name} <span className="text-zinc-400">{t.count}</span>
+                  </FilterPill>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
 
@@ -91,79 +114,7 @@ export default async function FeedbackPage({
           </p>
         </EmptyState>
       ) : (
-        <ul className="space-y-4">
-          {data.items.map((f: any) => (
-            <li
-              key={f.documentId}
-              className="rounded-lg border border-teal-300 bg-teal-50 p-4 dark:border-teal-800 dark:bg-teal-900/20"
-            >
-              <p className="whitespace-pre-wrap break-words text-sm">{f.body}</p>
-
-              {f.tags.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {f.tags.map((t: any) => (
-                    <Link
-                      key={t.slug}
-                      href={url({ topic: t.slug })}
-                      className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-900 hover:bg-teal-200 dark:bg-teal-900/40 dark:text-teal-200"
-                    >
-                      #{t.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {f.links.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {f.links.map((l: string) => (
-                    <a
-                      key={l}
-                      href={l}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs text-blue-600 hover:underline dark:border-zinc-700 dark:bg-zinc-900"
-                    >
-                      <ExternalLink size={11} /> {new URL(l).hostname.replace(/^www\./, '')}
-                    </a>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
-                <Avatar name={f.capturedBy} size="xs" />
-                captured by <strong>{f.capturedBy ?? '—'}</strong> ·{' '}
-                {new Date(f.capturedAt).toLocaleDateString()}
-              </div>
-
-              <div className="mt-3 rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                  <SentimentBadge label={f.mention.sentimentLabel} />
-                  <span>
-                    @{f.mention.authorHandle ?? 'unknown'} · {f.mention.channel ?? '—'}
-                  </span>
-                  {f.mention.topics.map((t: any) => (
-                    <Link key={t.slug} href={url({ topic: t.slug })} className="hover:text-[#4945FF]">
-                      #{t.name}
-                    </Link>
-                  ))}
-                </div>
-                <p className="line-clamp-3 text-sm text-zinc-700 dark:text-zinc-300">
-                  {f.mention.excerpt}
-                </p>
-                <div className="mt-2 flex gap-3 text-xs">
-                  <Link href={`/mentions/${f.mention.documentId}`} className="text-blue-600 hover:underline">
-                    Open in Pulse
-                  </Link>
-                  {f.mention.url && (
-                    <a href={f.mention.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                      View original ↗
-                    </a>
-                  )}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <FeedbackList items={data.items} days={days} activeTopic={params.topic} />
       )}
     </div>
   )
