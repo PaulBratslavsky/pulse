@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query'
 import { ChevronRight, X } from 'lucide-react'
 import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
+import { Spinner } from '@/components/ui'
 import { TopicPicker } from '@/components/topic-picker'
 import MuteAuthorButton from '@/components/mute-author-button'
 import SpamFlagButton from '@/components/spam-flag-button'
@@ -115,9 +116,10 @@ export default function MentionActions({
           <button
             onClick={() => claim.mutate()}
             disabled={claim.isPending}
-            className="text-sm rounded-md bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-3 py-1.5 font-medium"
+            className="inline-flex items-center gap-1.5 text-sm rounded-md bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-3 py-1.5 font-medium disabled:opacity-50"
           >
-            Claim
+            {claim.isPending && <Spinner size={12} />}
+            {claim.isPending ? 'Claiming…' : 'Claim'}
           </button>
         )}
         {aiEnabled && (
@@ -226,9 +228,10 @@ export default function MentionActions({
           <button
             onClick={() => acknowledge.mutate()}
             disabled={acknowledge.isPending}
-            className="text-sm rounded-md bg-violet-600 text-white px-3 py-1.5"
+            className="inline-flex items-center gap-1.5 text-sm rounded-md bg-violet-600 text-white px-3 py-1.5 disabled:opacity-50"
           >
-            {acknowledge.isPending ? 'Saving…' : 'Acknowledge'}
+            {acknowledge.isPending && <Spinner size={12} />}
+            {acknowledge.isPending ? 'Acknowledging…' : 'Acknowledge'}
           </button>
           {acknowledge.isError && <p className="text-sm text-red-600">{String(acknowledge.error)}</p>}
         </div>
@@ -274,9 +277,10 @@ export default function MentionActions({
           <button
             onClick={() => correct.mutate()}
             disabled={correct.isPending}
-            className="text-sm rounded-md bg-violet-600 text-white px-3 py-1.5"
+            className="inline-flex items-center gap-1.5 text-sm rounded-md bg-violet-600 text-white px-3 py-1.5 disabled:opacity-50"
           >
-            Save correction
+            {correct.isPending && <Spinner size={12} />}
+            {correct.isPending ? 'Saving…' : 'Save correction'}
           </button>
           <MutationError m={correct} />
         </div>
@@ -324,8 +328,9 @@ export default function MentionActions({
         <button
           onClick={() => respond.mutate()}
           disabled={respond.isPending || !finalText.trim()}
-          className="text-sm rounded-md bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-1.5 font-medium disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 text-sm rounded-md bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-1.5 font-medium disabled:opacity-50"
         >
+          {respond.isPending && <Spinner size={12} />}
           {respond.isPending ? 'Saving…' : 'Record response'}
         </button>
         {respond.isError && <p className="text-sm text-red-600">{String(respond.error)}</p>}

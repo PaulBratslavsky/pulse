@@ -102,3 +102,33 @@ export function EmptyState({
     </div>
   )
 }
+
+/**
+ * Inline busy indicator for pending mutations. The buttons were already
+ * `disabled` while in flight — the double-submit guard existed — but with no
+ * visual change a slow request looks like a dead button, which is exactly what
+ * makes people click again.
+ *
+ * `currentColor` so it inherits the button's text colour in both themes, and
+ * aria-hidden because the accompanying label already changes ("Claiming…").
+ */
+export function Spinner({ size = 14, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className={`animate-spin ${className}`}
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
+      <path
+        d="M12 2a10 10 0 0 1 10 10"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}

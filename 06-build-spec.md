@@ -563,3 +563,12 @@ and resolved at runtime. The plugin also needs its own `npm run build`; editing 
   check queries `mentions_owner_lnk` inside the same transaction. Verified by
   pre-assigning a mention to another user and confirming an acknowledge left ownership
   alone.
+- **2026-07-31 — Pending mutations show a spinner.** Claim, Record response, Acknowledge
+  and Save correction were already `disabled` while in flight, so double-submit was
+  guarded — but nothing changed visually, and a slow request looks exactly like a dead
+  button, which is what makes people click again. Added a shared `Spinner` (currentColor,
+  so it works in both themes) plus a busy label on all four. Record response matters most:
+  a second submit there would create two Response records.
+  **Test note:** "claimed" renders twice by design (status badge + activity entry), so
+  counting page text cannot distinguish one claim from two — the test asserts on the
+  activity trail instead.

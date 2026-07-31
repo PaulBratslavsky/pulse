@@ -264,6 +264,27 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('claimed', { exact: true }).first()).toBeVisible()
   })
 
+  test('claiming twice in a row cannot double-submit', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+
+    const claim = page.getByRole('button', { name: /^Claim/ })
+    // fire two clicks back to back — the second must hit a disabled button
+    await claim.click()
+    await expect(claim.or(page.getByRole('button', { name: 'Claiming…' })).first()).toBeDisabled()
+
+    await expect(page.getByText('claimed', { exact: true }).first()).toBeVisible()
+
+    // Assert on the record, not the page: "claimed" renders twice by design
+    // (status badge + activity entry), so counting text can't tell one claim
+    // from two. The activity trail is the source of truth.
+    const res = await request.get(
+      `http://localhost:3000/api/pulse/activities?filters[mention][documentId][$eq]=${documentId}&filters[action][$eq]=claimed`
+    )
+    const body = await res.json()
+    expect(body.data.length, 'a double click must not record two claims').toBe(1)
+  })
+
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {
     const { documentId } = await injectMention(request, {
       tags: ['competitor_mention'],
