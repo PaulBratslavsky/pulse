@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui'
 import { TopicPicker } from '@/components/topic-picker'
 import MuteAuthorButton from '@/components/mute-author-button'
 import SpamFlagButton from '@/components/spam-flag-button'
+import OwnPostButton from '@/components/own-post-button'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 
@@ -154,6 +155,9 @@ export default function MentionActions({
           because five buttons wrapped raggedly across three lines, and these
           two are a different kind of decision — about the AUTHOR, not the reply */}
       <div className="flex gap-2 flex-wrap">
+        {['unanswered', 'claimed'].includes(mention.status) && (
+          <OwnPostButton documentId={mention.documentId} />
+        )}
         {mention.quality !== 'spam' && (
           <SpamFlagButton
             documentId={mention.documentId}

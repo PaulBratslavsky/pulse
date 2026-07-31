@@ -285,6 +285,27 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     expect(body.data.length, 'a double click must not record two claims').toBe(1)
   })
 
+  test('marking a mention as ours closes it and keeps it out of the metrics', async ({
+    page,
+    request,
+  }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+
+    // one click, not three through the acknowledge panel
+    await page.getByRole('button', { name: /^Ours/ }).click()
+    await expect(page.getByText('acknowledged', { exact: true }).first()).toBeVisible()
+
+    // reason is own-post, which is what excludes it from sentiment metrics
+    const res = await request.get(`http://localhost:3000/api/pulse/mentions/${documentId}`)
+    const body = await res.json()
+    expect(body.data.acknowledgeReason).toBe('own-post')
+
+    // and it's gone from the reply queue
+    await page.goto('/')
+    await expect(page.locator(`li[data-mention-id="${documentId}"]`)).toHaveCount(0)
+  })
+
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {
     const { documentId } = await injectMention(request, {
       tags: ['competitor_mention'],

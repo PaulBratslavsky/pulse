@@ -8,6 +8,7 @@ import { commentCount } from '@/lib/types'
 import ClaimButton from '@/components/claim-button'
 import MuteAuthorButton from '@/components/mute-author-button'
 import SpamFlagButton from '@/components/spam-flag-button'
+import OwnPostButton from '@/components/own-post-button'
 import { SelectionProvider, SelectCheckbox, SelectionHint, QueueCard } from '@/components/bulk-triage'
 import SyncButton from '@/components/sync-button'
 
@@ -322,6 +323,12 @@ export default async function QueuePage({
                 >
                   Open
                 </Link>
+                {/* our own account replying to someone — recognisable from the
+                    handle right here, so it shouldn't cost a trip to the detail
+                    page and three clicks through the acknowledge panel */}
+                {['unanswered', 'claimed'].includes(m.status) && (
+                  <OwnPostButton documentId={m.documentId} compact />
+                )}
                 {m.quality !== 'spam' && (
                   <SpamFlagButton documentId={m.documentId} quality={m.quality} compact />
                 )}

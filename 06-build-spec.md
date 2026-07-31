@@ -572,3 +572,13 @@ and resolved at runtime. The plugin also needs its own `npm run build`; editing 
   **Test note:** "claimed" renders twice by design (status badge + activity entry), so
   counting page text cannot distinguish one claim from two — the test asserts on the
   activity trail instead.
+- **2026-07-31 — One-click "Ours" for our own posts.** Our team accounts get picked up by
+  Octolens whenever they name Strapi, and the reply then sits in the queue looking like
+  inbound work. `acknowledgeReason: 'own-post'` already meant exactly this and is
+  excluded from every metric — it just cost a trip to the detail page and three clicks
+  through the acknowledge panel. The button is on the queue card (where you recognise
+  your own handle) and the detail page, and only renders on open mentions.
+  **Follow-up worth doing:** this is still manual per post. A list of "our accounts"
+  would let ingest route them automatically — deliberately NOT the mute list, since
+  muting sets `quality: 'spam'` and removes a mention from analytics entirely, whereas an
+  own-post should be acknowledged and merely excluded from *sentiment*.
