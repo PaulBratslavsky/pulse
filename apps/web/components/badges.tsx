@@ -2,7 +2,13 @@ const sentimentStyles: Record<string, string> = {
   positive: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
   neutral: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
   negative: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  na: 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500 line-through decoration-zinc-400',
+  // no strikethrough: 'n/a' means "not about Strapi", a deliberate and correct
+  // classification, whereas a struck-through label reads as retracted or
+  // invalid. It was a rare edge case when this was written; with automatic
+  // classification it is now the majority of a competitor-heavy corpus, and a
+  // third of the queue looking crossed out reads as damage. Muted grey already
+  // carries "excluded from the numbers".
+  na: 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500',
 }
 
 /** enum value `na` renders as "n/a" (slash isn't enum-safe in Strapi) */

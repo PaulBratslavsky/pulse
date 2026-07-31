@@ -691,3 +691,9 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   stay shrinkable — pinning it there pushed the action row past a 412px phone and put the
   whole page into horizontal scroll, which `responsive.spec` caught immediately. Worth
   remembering that a fix for one viewport is a regression for another unless it is scoped.
+- **2026-07-31 — `n/a` is no longer struck through.** Strikethrough reads as *retracted*
+  or *invalid*, but `n/a` means "not about Strapi" — a deliberate, correct classification.
+  It was a rare edge case when the badge was written; automatic classification made it
+  **45% of labelled mentions** (191 of 422) on a competitor-heavy corpus, and half the
+  queue looking crossed out reads as damage. Muted grey already carries "excluded from
+  the numbers".
