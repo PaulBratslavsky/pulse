@@ -66,16 +66,16 @@ export default async function PersonPage({ params }: { params: Promise<{ documen
                 <h1 className="min-w-0 flex-1 basis-48 truncate text-2xl font-semibold leading-tight">
                   {p.displayName ?? `@${p.handle}`}
                 </h1>
-                <div className="ml-auto flex shrink-0 items-center gap-2">
+                {/* the control alone on the top row, flush right; who owns it
+                    is a fact, so it belongs with the other facts below */}
+                <span className="ml-auto shrink-0">
                   <LeadStatus documentId={p.documentId} status={p.status} />
-                  {p.owner && (
-                    <span className="whitespace-nowrap text-xs text-zinc-500">
-                      owned by {p.owner.username}
-                    </span>
-                  )}
-                </div>
+                </span>
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-500">
+              {/* text-xs, not text-sm: at 14px the five facts wrapped onto a
+                  second line and the header lost its shape. These are
+                  reference details, not something to read at body size. */}
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
                 {p.profileUrl ? (
                   <a
                     href={p.profileUrl}
@@ -102,6 +102,12 @@ export default async function PersonPage({ params }: { params: Promise<{ documen
                   <>
                     <span aria-hidden>·</span>
                     <span>since {new Date(p.firstSeenAt).toLocaleDateString()}</span>
+                  </>
+                )}
+                {p.owner && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span>owned by {p.owner.username}</span>
                   </>
                 )}
               </div>
