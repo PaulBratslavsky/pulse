@@ -357,6 +357,27 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('respond', { exact: true })).toHaveCount(0)
   })
 
+  test('a timeline entry can be re-filed as feedback after the fact', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    const body = `refile ${Date.now().toString(36)}`
+    await page.goto(`/mentions/${documentId}`)
+
+    // typed as a plain comment first — the common mistake
+    await page.getByPlaceholder('Quick comment…').fill(body)
+    await page.getByRole('button', { name: 'Comment', exact: true }).last().click()
+    const card = page.locator('li').filter({ hasText: body })
+    await expect(card).toBeVisible()
+
+    // re-file it as feedback; only feedback reaches the Feedback page
+    await card.getByRole('button', { name: 'Edit' }).click()
+    await card.getByRole('button', { name: 'Feedback' }).click()
+    await card.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(card.getByText('feedback', { exact: true })).toBeVisible()
+
+    await page.goto('/feedback?days=365')
+    await expect(page.getByText(body)).toBeVisible()
+  })
+
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {
     const { documentId } = await injectMention(request, {
       tags: ['competitor_mention'],

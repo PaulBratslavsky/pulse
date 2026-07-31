@@ -18,10 +18,16 @@ export function DiscussionCard({ entry, mine }: { entry: DiscussionEntryData; mi
   const [editing, setEditing] = useState(false)
   const [editBody, setEditBody] = useState(entry.body)
   const [editLinks, setEditLinks] = useState<string[]>(entry.links)
+  // kind is editable because misfiling matters: only 'feedback' reaches the
+  // Feedback page, so a pain point typed as a comment never reaches product
+  const [editKind, setEditKind] = useState<string>(entry.kind)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const saveEdit = useMutation({
-    mutationFn: () => pulseFetch('PUT', `comments/${entry.id}`, { data: { body: editBody, links: editLinks } }),
+    mutationFn: () =>
+      pulseFetch('PUT', `comments/${entry.id}`, {
+        data: { body: editBody, links: editLinks, kind: editKind },
+      }),
     onSuccess: () => {
       setEditing(false)
       router.refresh()
@@ -98,6 +104,26 @@ export function DiscussionCard({ entry, mine }: { entry: DiscussionEntryData; mi
             rows={3}
             className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
           />
+          <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+            {(Object.keys(KIND_META) as Array<keyof typeof KIND_META>).map((k) => (
+              <button
+                key={k}
+                onClick={() => setEditKind(k)}
+                className={`rounded-full border px-2.5 py-1 ${
+                  editKind === k
+                    ? KIND_META[k].active
+                    : 'border-zinc-300 text-zinc-500 dark:border-zinc-700'
+                }`}
+                title={
+                  k === 'feedback'
+                    ? 'Only feedback reaches the Feedback page — use it for product insight'
+                    : KIND_META[k].chip
+                }
+              >
+                {KIND_META[k].chip}
+              </button>
+            ))}
+          </div>
           <LinkListEditor links={editLinks} onChange={setEditLinks} />
           <div className="mt-2 flex items-center gap-2">
             <button

@@ -697,3 +697,9 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   **45% of labelled mentions** (191 of 422) on a competitor-heavy corpus, and half the
   queue looking crossed out reads as damage. Muted grey already carries "excluded from
   the numbers".
+- **2026-07-31 — Timeline entries can be re-filed between comment / note / feedback.** The
+  update controller already accepted `kind`; only the edit form didn't expose it, so a
+  misfiled entry was stuck. That matters because **only `feedback` reaches the Feedback
+  page** — a pain point typed as a quick comment never reaches product, and the fix was
+  previously delete-and-retype. Tested end to end: comment → re-file as feedback → it
+  appears on `/feedback`.
