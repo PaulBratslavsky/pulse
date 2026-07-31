@@ -21,13 +21,14 @@ export default function ClassificationPanel({
     enabled: boolean
     provider: string
     model: string
-    unclassified: number
+    counts: { missing: number; fallbackOnly: number }
     budget: { spent: number; budget: number; exceeded: boolean }
   }
 }) {
   const router = useRouter()
   const reclassify = useMutation({
-    mutationFn: (all: boolean) => pulseFetch('POST', 'analysis/reclassify', { all }),
+    mutationFn: (scope: 'missing' | 'fallback') =>
+      pulseFetch('POST', 'analysis/reclassify', { scope }),
     onSuccess: () => router.refresh(),
   })
 
@@ -65,8 +66,8 @@ export default function ClassificationPanel({
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-zinc-500">Not yet classified</dt>
-              <dd>{status.unclassified.toLocaleString()}</dd>
+              <dt className="text-xs text-zinc-500">Missing a score</dt>
+              <dd>{status.counts.missing.toLocaleString()}</dd>
             </div>
           </dl>
 
@@ -78,17 +79,29 @@ export default function ClassificationPanel({
           )}
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* only rows with NO score — pressing this repeatedly never
+                re-spends on mentions that already carry a label */}
             <button
-              onClick={() => reclassify.mutate(false)}
-              disabled={reclassify.isPending || status.unclassified === 0}
+              onClick={() => reclassify.mutate('missing')}
+              disabled={reclassify.isPending || status.counts.missing === 0}
               className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700"
-              title="Re-queue mentions that have no score, or whose label came from the Octolens fallback rather than the model"
+              title="Only mentions with no sentiment score at all"
             >
               {reclassify.isPending && <Spinner size={12} />}
-              {status.unclassified === 0
-                ? 'Everything is classified'
-                : `Classify ${status.unclassified.toLocaleString()} unclassified`}
+              {status.counts.missing === 0
+                ? 'Everything has a score'
+                : `Classify ${status.counts.missing.toLocaleString()} missing a score`}
             </button>
+            {status.counts.fallbackOnly > 0 && (
+              <button
+                onClick={() => reclassify.mutate('fallback')}
+                disabled={reclassify.isPending}
+                className="text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-700 disabled:opacity-50 dark:hover:text-zinc-300"
+                title="These already have a coarse Octolens score but no model-assigned lane or topics — a one-off upgrade, not something to repeat"
+              >
+                also upgrade {status.counts.fallbackOnly.toLocaleString()} Octolens-labelled
+              </button>
+            )}
             <MutationError m={reclassify} className="text-xs" />
           </div>
 

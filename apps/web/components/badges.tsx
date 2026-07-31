@@ -74,3 +74,29 @@ export function StalenessFlag({
     </span>
   )
 }
+
+/**
+ * Routing lane. `respond` is deliberately NOT rendered: it is the default view,
+ * so a badge on every row would be noise. `lead` is the point — someone
+ * shopping or leaving a competitor, usually with no Strapi keyword in the text
+ * — and `monitor` explains why a mention is here when you go looking for it.
+ *
+ * The reason rides in the tooltip so a surprising route is explainable without
+ * opening the mention.
+ */
+const laneStyles: Record<string, string> = {
+  lead: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+  monitor: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
+}
+
+export function LaneBadge({ lane, reason }: { lane?: string; reason?: string | null }) {
+  if (!lane || lane === 'respond') return null
+  return (
+    <span
+      className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${laneStyles[lane] ?? laneStyles.monitor}`}
+      title={reason ? `${lane} — ${reason}` : lane}
+    >
+      {lane}
+    </span>
+  )
+}

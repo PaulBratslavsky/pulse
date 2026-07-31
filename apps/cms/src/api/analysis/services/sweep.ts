@@ -18,6 +18,23 @@ let sweepRunning = false;
  *  key) starves the queue and pings ops every minute forever. */
 const MAX_ATTEMPTS = 5;
 
+/** Rows worth spending a model call on. 'missing' = no score at all. */
+const unclassifiedFilter = (scope: 'missing' | 'fallback') =>
+  ({
+    quality: { $ne: 'spam' },
+    humanCorrected: { $ne: true },
+    ...(scope === 'missing'
+      ? { sentimentScore: { $null: true } }
+      : {
+          $or: [
+            { sentimentScore: { $null: true } },
+            { modelVersion: { $null: true } },
+            { modelVersion: { $in: ['octolens', 'heuristic-v1', 'seed-demo'] } },
+          ],
+        }),
+  }) as any;
+
+
 /** Slack-notify only for fresh mentions — backfills of old content must not
  *  flood the team channel (same gate as the octolens intake). */
 const NOTIFY_FRESHNESS_MS = 6 * 3600_000;
@@ -224,34 +241,23 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
 
   /** Nightly: re-queue analyzed-but-topicless mentions (never touches humanCorrected). No-op when AI disabled or budget exhausted. */
   /**
-   * Re-queue mentions that never got a real classification, so the sweep picks
-   * them up on its next tick.
+   * Re-queue mentions for classification.
    *
-   * Needed because a mention labelled by the Octolens fallback is already
-   * `analysisStatus: 'analyzed'` — the sweep considers it done and will never
-   * revisit it. Turning AI on therefore changes nothing for the existing
-   * backlog without this. Selects rows with no sentiment score, or whose label
-   * came from something other than the current model.
+   * Two scopes, deliberately separate:
+   *  - 'missing'  — no sentiment score at all. The default, and the only thing
+   *                 the button does: it never re-spends on rows that already
+   *                 carry a label.
+   *  - 'fallback' — additionally rows labelled by the Octolens map or the seed,
+   *                 which DO have a coarse score (±0.5) but no model-assigned
+   *                 lane or topics. Useful once, not on every press.
+   *
+   * humanCorrected is never re-queued in either scope: a person's judgement
+   * outranks the model's, and re-running would spend tokens on a result we
+   * then refuse to write.
    */
-  async requeueUnclassified({ all = false }: { all?: boolean } = {}) {
-    const filters: any = all
-      ? { quality: { $ne: 'spam' } }
-      : {
-          quality: { $ne: 'spam' },
-          $or: [
-            { sentimentScore: { $null: true } },
-            { modelVersion: { $null: true } },
-            { modelVersion: { $in: ['octolens', 'heuristic-v1', 'seed-demo'] } },
-          ],
-        };
-
-    // humanCorrected is never re-queued: a person's judgement outranks the
-    // model's, and re-running would spend tokens to produce a result we then
-    // refuse to write.
-    filters.humanCorrected = { $ne: true };
-
+  async requeueUnclassified({ scope = 'missing' }: { scope?: 'missing' | 'fallback' } = {}) {
     const rows = await strapi.documents('api::mention.mention').findMany({
-      filters,
+      filters: unclassifiedFilter(scope),
       fields: ['documentId'],
       limit: 5000,
     });
@@ -261,23 +267,19 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
         data: { analysisStatus: 'pending', analysisAttempts: 0 } as any,
       });
     }
-    strapi.log.info(`[analysis] re-queued ${rows.length} mention(s) for classification`);
-    return { requeued: rows.length };
+    strapi.log.info(`[analysis] re-queued ${rows.length} mention(s) (scope: ${scope})`);
+    return { requeued: rows.length, scope };
   },
 
-  /** How many rows the button would act on — shown before you press it. */
+  /** Both counts, so the UI can label each action with what it will actually do. */
   async unclassifiedCount() {
-    return strapi.documents('api::mention.mention').count({
-      filters: {
-        quality: { $ne: 'spam' },
-        humanCorrected: { $ne: true },
-        $or: [
-          { sentimentScore: { $null: true } },
-          { modelVersion: { $null: true } },
-          { modelVersion: { $in: ['octolens', 'heuristic-v1', 'seed-demo'] } },
-        ],
-      } as any,
-    });
+    const [missing, fallback] = await Promise.all([
+      strapi.documents('api::mention.mention').count({ filters: unclassifiedFilter('missing') }),
+      strapi.documents('api::mention.mention').count({ filters: unclassifiedFilter('fallback') }),
+    ]);
+    // 'fallback' is a superset of 'missing'; report the extra separately so
+    // "classify 12" and "also upgrade 448" are not double-counted
+    return { missing, fallbackOnly: Math.max(0, fallback - missing) };
   },
 
   async recluster() {

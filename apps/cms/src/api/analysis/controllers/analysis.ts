@@ -9,7 +9,7 @@ export default {
         enabled: ai.enabled(),
         provider: process.env.AI_PROVIDER || 'anthropic',
         model: process.env.AI_MODEL || '(provider default)',
-        unclassified: await sweep.unclassifiedCount(),
+        counts: await sweep.unclassifiedCount(),
         budget: await budget.status(),
       },
     }
@@ -21,7 +21,7 @@ export default {
   async reclassify(ctx: any) {
     const ai = strapi.service('api::analysis.ai') as any
     if (!ai.enabled()) return ctx.badRequest('AI is disabled — set AI_API_KEY to classify')
-    const all = Boolean(ctx.request.body?.all)
-    return { data: await (strapi.service('api::analysis.sweep') as any).requeueUnclassified({ all }) }
+    const scope = ctx.request.body?.scope === 'fallback' ? 'fallback' : 'missing'
+    return { data: await (strapi.service('api::analysis.sweep') as any).requeueUnclassified({ scope }) }
   },
 }

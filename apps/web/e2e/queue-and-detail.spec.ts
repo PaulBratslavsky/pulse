@@ -339,6 +339,24 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     expect(await cursor('button:not(:disabled)')).toBe('pointer')
   })
 
+  test('a lead is visibly marked in the queue, respond is not badged', async ({ page, request }) => {
+    const tag = `bdg${Date.now().toString(36)}`
+    await injectMention(request, {
+      text: `${tag} we are moving away from Webflow, far too expensive at our size`,
+      keywords: [{ id: 1, keyword: 'webflow', keywordTag: 'competitor' }],
+    })
+    await page.goto(`/?q=${tag}&lane=lead`)
+    const row = page.locator('li').filter({ hasText: tag })
+    await expect(row).toHaveCount(1)
+    // the lane a human most needs to see is called out on the card itself
+    await expect(row.getByText('lead', { exact: true })).toBeVisible()
+
+    // 'respond' is the default view, so badging it on every row would be noise
+    const { documentId } = await injectMention(request, { text: `${tag}r plain strapi question` })
+    await page.goto(`/mentions/${documentId}`)
+    await expect(page.getByText('respond', { exact: true })).toHaveCount(0)
+  })
+
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {
     const { documentId } = await injectMention(request, {
       tags: ['competitor_mention'],

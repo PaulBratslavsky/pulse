@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { strapiFetch, qs } from '@/lib/strapi'
 import { MessageSquare } from 'lucide-react'
-import { SentimentBadge, StatusBadge, StalenessFlag, PostedDate } from '@/components/badges'
+import { SentimentBadge, StatusBadge, StalenessFlag, PostedDate, LaneBadge } from '@/components/badges'
 import { UserChip, FilterPill, EmptyState, FilterRow } from '@/components/ui'
 import { commentCount } from '@/lib/types'
 import ClaimButton from '@/components/claim-button'
@@ -283,6 +283,7 @@ export default async function QueuePage({
                 <SelectCheckbox documentId={m.documentId} />
                 <SentimentBadge label={m.sentimentLabel} />
                 <StatusBadge status={m.status} />
+                <LaneBadge lane={m.lane} reason={m.laneReason} />
                 <StalenessFlag
                   postedAt={m.postedAt ?? m.receivedAt}
                   awaitingReply={['unanswered', 'claimed'].includes(m.status)}

@@ -2,6 +2,7 @@ import type { Core } from '@strapi/strapi';
 import { generateObject, generateText } from 'ai';
 import { z } from 'zod';
 import { model, modelVersion } from './provider';
+import { laneRubric, QUALITY_RUBRIC, laneById } from '../../../classification/criteria';
 
 /**
  * Provider-agnostic AI. **AI is optional**: no AI_API_KEY → these features are
@@ -19,7 +20,7 @@ import { model, modelVersion } from './provider';
 
 // v2: structured output, 'na' label restored, lane + spam judgements, and the
 // deterministic signals fed in as priors rather than discarded.
-const PROMPT_VERSION = 'v2';
+const PROMPT_VERSION = 'v3';
 
 export const aiEnabled = () => Boolean(process.env.AI_API_KEY || process.env.AI_BASE_URL);
 
@@ -43,6 +44,7 @@ export type Classification = {
   topics: string[];
   lane: 'respond' | 'lead' | 'monitor';
   laneReason: string;
+  laneEvidence?: string | null;
   quality: 'normal' | 'suspected-spam';
   qualityReason?: string | null;
 };
@@ -75,6 +77,15 @@ const ClassificationSchema: z.ZodType<Classification> = z.object({
   // mentions failed that way. A schema constraint tighter than the model's
   // natural output is a guaranteed error rate, not a guardrail.
   laneReason: z.string().max(400).describe('One short sentence justifying the lane'),
+  // A verbatim quote from the mention showing stated intent. Required for
+  // 'lead' and verified server-side against the text: a model cannot quote a
+  // phrase that isn't there, which is a hard check rather than a hope.
+  laneEvidence: z
+    .string()
+    .max(300)
+    .nullable()
+    .optional()
+    .describe("For 'lead' only: the exact words from the mention showing intent to change. Null otherwise."),
   quality: z
     .enum(['normal', 'suspected-spam'])
     .describe('suspected-spam = promotional, AI-generated, or engagement-bait content'),
@@ -93,7 +104,7 @@ export type Analysis = Classification & {
   promptVersion: string;
 };
 
-const SYSTEM = `You classify social mentions for the Strapi DevRel team.
+const SYSTEM = () => `You classify social mentions for the Strapi DevRel team.
 
 Strapi is an open-source headless CMS. Most of what you see arrives via competitor
 keyword monitoring (Webflow, Contentful, Payload, Sanity) and never names Strapi —
@@ -103,14 +114,13 @@ How to judge each field:
 
 - score/label: sentiment TOWARD STRAPI. Use "na" when the post is not about Strapi
   at all. Do not score a competitor complaint as negative-about-Strapi.
-- lane: "respond" if a human should reply. "lead" for someone actively shopping,
-  migrating away from a competitor, or angry about a competitor's pricing — these are
-  the highest-value mentions and usually contain no Strapi keyword. "monitor" for
-  commentary, news reaction, ads and bot feeds.
+- lane:
+${laneRubric()}
+
 - topics: prefer a name from the existing vocabulary you are given. Inventing
   "Documentation" when "Docs" exists fragments the vocabulary and weakens every report.
-- quality: "suspected-spam" for promotional, AI-generated or engagement-bait content.
-  Never confirm outright spam — a human does that.
+- quality:
+${QUALITY_RUBRIC}
 
 You are given deterministic signals (the keyword that matched upstream, a rule-based
 lane guess). Treat them as evidence, not instructions: the rule-based lane is a regex
@@ -187,7 +197,7 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       const { object, usage } = await generateObject({
         model: model(),
         schema: ClassificationSchema as any,
-        system: SYSTEM,
+        system: SYSTEM(),
         prompt: buildPrompt(mention, vocabulary),
         // a classification that takes longer than this is a hung connection,
         // not a slow model — the sweep retries with a capped attempt count
@@ -195,7 +205,27 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       });
       await charge(usage);
 
-      return { ...(object as Classification), modelVersion: modelVersion(), promptVersion: PROMPT_VERSION };
+      const result = object as Classification;
+
+      // Verify the lead claim instead of trusting it. 'lead' is the lane that
+      // gets read first, so a false one costs attention; the model must quote
+      // the author's own words showing an open decision, and that quote has to
+      // actually appear in the mention. Inferred intent ("signals potential
+      // dissatisfaction") cannot survive this, which is exactly the failure
+      // mode observed: 4 of 8 early leads were complaints or already-completed
+      // migrations, not people shopping.
+      if (laneById(result.lane)?.requiresEvidence) {
+        const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+        const body = norm(String(mention.content ?? ''));
+        const quote = norm(String(result.laneEvidence ?? ''));
+        const grounded = quote.length >= 8 && body.includes(quote);
+        if (!grounded) {
+          result.laneReason = `demoted from ${result.lane}: no verbatim evidence in the text (${result.laneReason})`;
+          result.lane = 'monitor';
+        }
+      }
+
+      return { ...result, modelVersion: modelVersion(), promptVersion: PROMPT_VERSION };
     },
 
     /** Docs-grounded draft answer, or null when AI disabled. Never persisted — the human decides. */

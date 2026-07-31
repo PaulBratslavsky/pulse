@@ -10,7 +10,7 @@ export default async function SettingsPage() {
     strapiFetch('/api/muted-authors?sort=updatedAt:desc&pagination[pageSize]=100').catch(() => ({ data: [] })),
     strapiFetch('/api/preferences/me').catch(() => ({ data: { hideFromLeaderboard: false } })),
     strapiFetch('/api/analysis/status').catch(() => ({
-      data: { enabled: false, provider: '', model: '', unclassified: 0, budget: { spent: 0, budget: 0, exceeded: false } },
+      data: { enabled: false, provider: '', model: '', counts: { missing: 0, fallbackOnly: 0 }, budget: { spent: 0, budget: 0, exceeded: false } },
     })),
   ])
 

@@ -656,3 +656,32 @@ authors (which re-applies mutes and read as though it re-ran analysis). Needed b
 mention labelled by the Octolens fallback is already `analysisStatus: 'analyzed'`, so
 turning AI on changes nothing for the backlog without an explicit re-queue.
 `GET /analysis/status` reports model, tokens spent and how many rows are unclassified.
+- **2026-07-31 — Classification criteria are typed data, not prompt prose.**
+  `src/classification/criteria.ts` is the single source of truth for lanes: the `test`,
+  positive/negative examples, whether evidence is required, and the badge. The prompt is
+  **generated** from it, server-side verification reads `requiresEvidence` from it, and
+  the UI badge uses its labels — so a rule cannot drift from behaviour. Tuning a lane is
+  now a data edit with a measurable before/after, not a prompt rewrite.
+- **2026-07-31 — `lead` must cite the author's own words.** Reviewing the first AI-assigned
+  leads, **4 of 8 were wrong**: a *completed* migration ("we just rebuilt it in Next.js"),
+  two complaints about Webflow, and one whose stated reason was that the post "signals
+  **pote**ntial dissatisfaction" — inferred intent that was never in the text. The model
+  was scoring competitor *frustration* as buying intent.
+  Fix: `lead` requires `laneEvidence`, a verbatim quote, and the server checks that quote
+  actually appears in the mention (normalised) before accepting the lane; otherwise it is
+  demoted to `monitor` with the reason recorded. A model cannot quote a phrase that isn't
+  there, so this is a check rather than a hope.
+  Measured on a hand-labelled set: false leads 4/4 rejected. Recall needed tuning — the
+  first rubric was so strict it also rejected real leads (1/4 kept); after loosening the
+  criteria data, 6/8 overall. **Two real leads are still missed** ("thinking about
+  switching over to payload", "started exploring Payload"), so this trades recall for
+  precision and the criteria file is where to keep tuning it.
+- **2026-07-31 — Reclassify only touches rows missing a score.** The button previously
+  re-queued Octolens-labelled rows too, which already have a (coarse) score — pressing it
+  twice re-spent on the same mentions. Two scopes now: the button does `missing` only, and
+  a separate quieter action offers the one-off `fallback` upgrade for Octolens-labelled
+  rows that lack a model lane and topics.
+- **2026-07-31 — Lane is visible on the card.** `lead` (emerald) and `monitor` (muted) are
+  badged with `laneReason` in the tooltip; `respond` is deliberately not badged, being the
+  default view. Verified: the **budget ceiling works** — at 514,503/500,000 the sweep
+  logs and pauses instead of spending.

@@ -1,6 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import { strapiFetch } from '@/lib/strapi'
-import { SentimentBadge, StatusBadge } from '@/components/badges'
+import { SentimentBadge, StatusBadge, LaneBadge } from '@/components/badges'
 import MentionActions from '@/components/mention-actions'
 import { UserChip } from '@/components/ui'
 import Timeline from '@/components/timeline'
@@ -27,6 +27,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <SentimentBadge label={m.sentimentLabel} />
           <StatusBadge status={m.status} />
+          <LaneBadge lane={m.lane} reason={m.laneReason} />
           {m.status === 'acknowledged' && m.acknowledgeReason && (
             <span className="text-xs rounded px-1.5 py-0.5 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
               {m.acknowledgeReason}
