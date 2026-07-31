@@ -65,10 +65,28 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
     if (!ACK_REASONS.includes(reason)) throw new WorkflowError(400, 'invalid reason')
     return strapi.db.transaction(async ({ trx }: any) => {
       const row = await this.lockAndGuard(trx, documentId, ACK_SOURCES, 'acknowledge')
+      // Closing it out is also taking it. Adopt only when unowned — never
+      // reassign someone else's mention out from under them.
+      // NB: relations live in a link table (mentions_owner_lnk), so the raw
+      // row from lockAndGuard has NO owner_id column — reading one would be
+      // undefined forever and silently steal every claimed mention.
+      const ownerRow = await trx('mentions_owner_lnk').where({ mention_id: row.id }).first()
+      const adopt = !ownerRow
       const updated = await strapi.documents('api::mention.mention').update({
         documentId,
-        data: { status: 'acknowledged', acknowledgeReason: reason } as any,
+        data: {
+          status: 'acknowledged',
+          acknowledgeReason: reason,
+          ...(adopt ? { owner: user.id } : {}),
+        } as any,
       })
+      if (adopt)
+        await logActivity(strapi, {
+          mentionDocumentId: documentId,
+          action: 'claimed',
+          actorId: user.id,
+          detail: { auto: true, via: 'acknowledged without claiming' },
+        })
       await logActivity(strapi, {
         mentionDocumentId: documentId,
         action: 'acknowledged',

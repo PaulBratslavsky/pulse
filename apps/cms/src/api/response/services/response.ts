@@ -30,11 +30,32 @@ export default factories.createCoreService('api::response.response', ({ strapi }
         } as any,
       })
       if (!isInternal) {
+        // Auto-claim: replying IS taking the mention. Forgetting to press Claim
+        // first shouldn't leave it ownerless — but never take it from someone
+        // else, so only an unowned mention is adopted.
+        const current: any = await strapi
+          .documents('api::mention.mention')
+          .findOne({ documentId: mentionDocumentId, populate: { owner: { fields: ['id'] } } as any })
+        const adopt = !current?.owner
+
         await strapi.documents('api::mention.mention').update({
           documentId: mentionDocumentId,
           // the pending draft is consumed by the recorded reply (kept as response.draftText)
-          data: { status: 'answered', draftText: null, draftedAt: null, draftedVia: null } as any,
+          data: {
+            status: 'answered',
+            draftText: null,
+            draftedAt: null,
+            draftedVia: null,
+            ...(adopt ? { owner: user.id } : {}),
+          } as any,
         })
+        if (adopt)
+          await logActivity(strapi, {
+            mentionDocumentId,
+            action: 'claimed',
+            actorId: user.id,
+            detail: { auto: true, via: 'recorded a reply' },
+          })
       }
       await logActivity(strapi, {
         mentionDocumentId,

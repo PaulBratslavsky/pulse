@@ -238,6 +238,32 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(1)
   })
 
+  test('recording a reply auto-claims when you forgot to', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+
+    // deliberately skip Claim — replying IS taking it
+    await page.getByPlaceholder('What you actually replied…').fill('E2E auto-claim reply')
+    await page.getByRole('button', { name: 'Record response' }).click()
+    await expect(page.getByText('E2E auto-claim reply')).toBeVisible()
+
+    // owner is now set, and the trail records that the claim was automatic
+    await expect(page.getByText('answered', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('claimed', { exact: true }).first()).toBeVisible()
+  })
+
+  test('acknowledging auto-claims when you forgot to', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+
+    await page.getByRole('button', { name: 'Acknowledge — no reply' }).click()
+    await page.getByRole('radio', { name: /not relevant/ }).check()
+    await page.getByRole('button', { name: 'Acknowledge', exact: true }).click()
+
+    await expect(page.getByText('acknowledged', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('claimed', { exact: true }).first()).toBeVisible()
+  })
+
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {
     const { documentId } = await injectMention(request, {
       tags: ['competitor_mention'],

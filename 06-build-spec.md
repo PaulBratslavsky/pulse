@@ -552,3 +552,14 @@ the app but the plugin's `dist/` never gets it, and ingest silently kept the old
 behaviour. Classification is therefore exposed as `api::mention.mention.classifyLane`
 and resolved at runtime. The plugin also needs its own `npm run build`; editing its
 `src/` alone changes nothing.
+- **2026-07-31 — Replying or acknowledging auto-claims.** Forgetting to press Claim left
+  a mention ownerless even after someone did the work. Recording a public reply or
+  acknowledging now adopts an **unowned** mention, and logs a `claimed` activity marked
+  `auto: true` so the trail shows it wasn't a deliberate claim. It never reassigns a
+  mention someone else owns.
+  **Trap:** Strapi v5 keeps relations in a link table, so the raw row from
+  `lockAndGuard` has **no `owner_id` column** — the first cut read `row.owner_id`, got
+  `undefined` every time, and would have silently stolen every claimed mention. The
+  check queries `mentions_owner_lnk` inside the same transaction. Verified by
+  pre-assigning a mention to another user and confirming an acknowledge left ownership
+  alone.
