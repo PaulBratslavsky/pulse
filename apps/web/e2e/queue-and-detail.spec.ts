@@ -306,6 +306,24 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.locator(`li[data-mention-id="${documentId}"]`)).toHaveCount(0)
   })
 
+  test('lane filters are independent of sentiment, and "all lanes" shows everything', async ({
+    page,
+  }) => {
+    await page.goto('/')
+    const count = () => page.getByTestId('queue-count').textContent().then((t) => Number(t?.trim()))
+
+    const replyWork = await count()
+
+    // "all lanes" must be strictly larger — monitor is the bulk of the corpus
+    await page.getByRole('link', { name: 'all lanes' }).click()
+    await expect(page).toHaveURL(/lane=all/)
+    expect(await count()).toBeGreaterThan(replyWork)
+
+    // the sentiment "all" pill is a DIFFERENT axis — it must not reset the lane
+    await page.getByRole('link', { name: 'all', exact: true }).click()
+    await expect(page).toHaveURL(/lane=all/)
+  })
+
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {
     const { documentId } = await injectMention(request, {
       tags: ['competitor_mention'],

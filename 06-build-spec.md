@@ -582,3 +582,10 @@ and resolved at runtime. The plugin also needs its own `npm run build`; editing 
   would let ingest route them automatically — deliberately NOT the mute list, since
   muting sets `quality: 'spam'` and removes a mention from analytics entirely, whereas an
   own-post should be acknowledged and merely excluded from *sentiment*.
+- **2026-07-31 — Lane filters labelled, and "all lanes" added.** The sentiment row and
+  the lane row wrapped into one visual line separated by a hairline, so the sentiment
+  **all** pill read as "clear every filter" when it only ever cleared sentiment. Both
+  groups now carry a small `sentiment` / `lane` label. The question also exposed a real
+  gap: the lane options were reply work / leads / monitor with **no way to see the whole
+  corpus at once** — `lane=all` now bypasses the filter entirely. Guarded by a test that
+  asserts the two axes are independent (clicking sentiment `all` must not reset the lane).

@@ -52,12 +52,14 @@ export default async function QueuePage({
           // Lanes: the queue is REPLY work. Competitor/industry discourse is
           // kept in full and still feeds trends and themes — it just doesn't
           // belong in a list a human works through. ~2/3 of ingest is that.
-          ...(params.lane
-            ? { 'filters[lane][$eq]': params.lane }
-            : {
-                'filters[lane][$in][0]': 'respond',
-                'filters[lane][$in][1]': 'lead',
-              }),
+          ...(params.lane === 'all'
+            ? {}
+            : params.lane
+              ? { 'filters[lane][$eq]': params.lane }
+              : {
+                  'filters[lane][$in][0]': 'respond',
+                  'filters[lane][$in][1]': 'lead',
+                }),
           sort: params.sort === 'newest' ? 'postedAt:desc' : 'postedAt:asc',
           'pagination[page]': page,
           'pagination[pageSize]': 25,
@@ -168,6 +170,7 @@ export default async function QueuePage({
             #{params.topic} ✕
           </Link>
         )}
+        <span className="text-xs uppercase tracking-wide text-zinc-400">sentiment</span>
         {['', 'negative', 'neutral', 'positive', 'na'].map((s) => (
           <FilterPill key={s || 'all'} href={filterUrl({ sentiment: s || undefined, page: 0 })} active={(params.sentiment ?? '') === s}>
             {s === 'na' ? 'n/a' : s || 'all'}
@@ -191,6 +194,7 @@ export default async function QueuePage({
         </FilterPill>
         {/* lanes — the queue defaults to reply work; these expose the rest */}
         <span className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-800" aria-hidden />
+        <span className="text-xs uppercase tracking-wide text-zinc-400">lane</span>
         <FilterPill
           href={filterUrl({ lane: undefined, page: 0 })}
           active={!params.lane}
@@ -212,6 +216,13 @@ export default async function QueuePage({
           title="Competitor and industry discourse — kept for trends and themes, not reply work"
         >
           monitor
+        </FilterPill>
+        <FilterPill
+          href={filterUrl({ lane: 'all', page: 0 })}
+          active={params.lane === 'all'}
+          title="Every lane at once — the whole corpus, routed or not"
+        >
+          all lanes
         </FilterPill>
         <span className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-800" aria-hidden />
         <FilterPill
