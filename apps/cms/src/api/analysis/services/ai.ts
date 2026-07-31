@@ -366,6 +366,99 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       }
       return audit.text;
     },
+
+    /**
+     * Polish a reply the human already wrote.
+     *
+     * Deliberately NOT draft(): draft() answers the mention, this one edits an
+     * existing answer. The distinction matters because the failure mode here is
+     * the model quietly replacing someone's judgement with its own — so the
+     * instruction is to preserve meaning, keep their voice, and change nothing
+     * it cannot justify. The caller keeps the original and can revert.
+     *
+     * Same tools and the same link verification as draft(): a refined reply is
+     * the one most likely to be posted verbatim, so it is the LAST place a
+     * fabricated URL should survive.
+     */
+    async refine(
+      mention: any,
+      replyText: string
+    ): Promise<{ text: string; grounded: boolean } | null> {
+      if (!aiEnabled()) return null;
+      const reply = String(replyText).trim();
+      if (!reply) return null;
+      const content = String(mention.content ?? '');
+
+      const loaded = await (strapi.service('api::analysis.mcp-tools') as any).load();
+      const hasTools = Object.keys(loaded.tools).length > 0;
+
+      let allowed: string[] = [];
+      try {
+        allowed = await shortlistDocsUrls(`${content} ${reply}`, 12);
+      } catch {
+        /* no links rather than invented ones */
+      }
+
+      const linkRule = allowed.length
+        ? `If a documentation link genuinely helps, use ONLY these real pages, copied exactly:\n${allowed
+            .map((u) => `  ${u}`)
+            .join('\n')}\nDo not invent or modify a URL. No link is better than a wrong one.\n\n`
+        : `Do NOT add any documentation URL.\n\n`;
+
+      let text: string;
+      let usage: any;
+      try {
+        ({ text, usage } = await generateText({
+          model: model(),
+          system:
+            'You are an editor for the Strapi DevRel team. You improve a reply someone has ALREADY written. ' +
+            'Preserve their meaning, their decisions and their voice — you are not rewriting it as you would have. ' +
+            'Fix technical inaccuracies, tighten wording, and correct anything factually wrong. ' +
+            'Keep roughly the same length unless it is padded. ' +
+            // Without this, a refine pass PRESERVED "mongodb works fine too"
+            // and strengthened it to "if you prefer it over Postgres" — Strapi
+            // does not support MongoDB or any NoSQL database. Inheriting a
+            // false claim from the input is the worst failure this feature has,
+            // because the output is what gets posted.
+            'Never strengthen, endorse or elaborate a technical claim you cannot verify. ' +
+            'If the reply asserts something you believe is wrong or unsupported, correct it; ' +
+            'if you are unsure, remove the claim rather than repeating it. ' +
+            (hasTools
+              ? 'Use the documentation tools to check every technical claim before you keep it. '
+              : // Telling an ungrounded model to "be conservative" does not work:
+                // asked to refine a reply saying "mongodb works fine too", it
+                // kept the claim AND elaborated it to "if you prefer it over
+                // Postgres" — Strapi supports no NoSQL database at all. So with
+                // no tools the job is narrowed to something it cannot get
+                // wrong: grammar, tone and structure. A human's own claim may
+                // stand as they wrote it; what we must never do is lend it
+                // extra authority it did not have.
+                'You have NO documentation tools, so you may ONLY fix grammar, spelling, tone and ' +
+                'structure. Copy every technical statement across VERBATIM — do not expand, ' +
+                'qualify, justify or add to any of them, and do not introduce a technical claim ' +
+                'the reply does not already make. ') +
+            'Return ONLY the improved reply — no preamble, no commentary, no explanation of your edits.',
+          prompt:
+            `The mention being replied to (@${mention.authorHandle ?? 'user'}):\n"${content}"\n\n` +
+            `${linkRule}Their reply to improve:\n---\n${reply}\n---\n\nReturn the improved reply:`,
+          ...(hasTools ? { tools: loaded.tools, stopWhen: stepCountIs(5) } : {}),
+          abortSignal: AbortSignal.timeout(90_000),
+        }));
+      } finally {
+        await loaded.close();
+      }
+      await charge(usage);
+
+      const audit = await stripDeadDocsLinks(text);
+      if (audit.removed.length) {
+        strapi.log.warn(
+          `[analysis] refine cited ${audit.removed.length} non-existent docs URL(s), removed: ${audit.removed.join(', ')}`
+        );
+      }
+      // `grounded` is reported so the UI can say plainly whether the technical
+      // claims were checked against the docs or merely rephrased.
+      return { text: audit.text.trim(), grounded: hasTools };
+    },
   };
 };
 

@@ -25,6 +25,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::response.response.findOne',
   'api::response.response.create',
   'api::response.response.outcome',
+  'api::mention.mention.refine',
   'api::mcp-server.mcp-server.list',
   'api::mcp-server.mcp-server.register',
   'api::mcp-server.mcp-server.connect',

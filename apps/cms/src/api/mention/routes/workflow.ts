@@ -48,5 +48,11 @@ export default {
       handler: 'mention.draft',
       config: { policies: [] },
     },
+    {
+      method: 'POST',
+      path: '/mentions/:documentId/refine',
+      handler: 'mention.refine',
+      config: { policies: [] },
+    },
   ],
 }

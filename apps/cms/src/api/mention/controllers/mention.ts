@@ -164,4 +164,25 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
     const draft = await (strapi.service('api::analysis.ai') as any).draft(mention)
     return { data: { draft } }
   },
+
+  /** POST /mentions/:documentId/refine — { text }. Improves a reply the human wrote. */
+  async refine(ctx) {
+    if (!(strapi.service('api::analysis.ai') as any).enabled()) {
+      ctx.status = 503
+      ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable this.' } }
+      return
+    }
+    const text = String(ctx.request.body?.text ?? '').trim()
+    if (!text) return ctx.badRequest('text is required')
+    // an editor pass over a novel is a runaway bill, not a feature
+    if (text.length > 8000) return ctx.badRequest('reply is too long to refine (8000 chars max)')
+
+    const mention = await strapi
+      .documents('api::mention.mention')
+      .findOne({ documentId: ctx.params.documentId, populate: { channel: true } as any })
+    if (!mention) return ctx.notFound('mention not found')
+
+    const refined = await (strapi.service('api::analysis.ai') as any).refine(mention, text)
+    return { data: { refined: refined?.text ?? null, grounded: Boolean(refined?.grounded) } }
+  },
 }))

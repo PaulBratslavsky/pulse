@@ -45,3 +45,37 @@ test.describe('external MCP servers', () => {
     expect(res.status()).toBe(400)
   })
 })
+
+test.describe('refine', () => {
+  test('rejects an empty or oversized reply without calling the model', async ({ page, request }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const q = await request.get(`${PULSE}/mentions?pagination[pageSize]=1`, { headers: { cookie } })
+    const id = (await q.json()).data?.[0]?.documentId
+    test.skip(!id, 'no mentions in this corpus')
+
+    for (const body of [{ text: '   ' }, { text: 'x'.repeat(8001) }]) {
+      const res = await request.post(`${PULSE}/mentions/${id}/refine`, {
+        headers: { cookie },
+        data: body,
+        failOnStatusCode: false,
+      })
+      // a model call on empty input is waste; on a novel it is a runaway bill
+      expect([400, 503]).toContain(res.status())
+    }
+  })
+
+  test('the button only offers itself once there is something to refine', async ({ page, request }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const q = await request.get(`${PULSE}/mentions?pagination[pageSize]=1`, { headers: { cookie } })
+    const id = (await q.json()).data?.[0]?.documentId
+    test.skip(!id, 'no mentions in this corpus')
+
+    await page.goto(`/mentions/${id}`)
+    const refine = page.getByRole('button', { name: 'Refine' })
+    if ((await refine.count()) === 0) return // AI disabled in this environment
+
+    await expect(refine).toBeDisabled()
+    await page.getByPlaceholder('What you actually replied…').fill('some reply text')
+    await expect(refine).toBeEnabled()
+  })
+})
