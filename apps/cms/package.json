@@ -19,10 +19,14 @@
     "postinstall": "npm run build:plugins"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.25",
+    "@ai-sdk/openai": "^4.0.25",
+    "@ai-sdk/openai-compatible": "^3.0.18",
     "@strapi/database": "5.51.0",
     "@strapi/plugin-cloud": "5.51.0",
     "@strapi/plugin-users-permissions": "5.51.0",
     "@strapi/strapi": "5.51.0",
+    "ai": "^7.0.44",
     "better-sqlite3": "12.8.0",
     "graphology": "^0.26.0",
     "graphology-communities-louvain": "^2.0.2",

@@ -1,50 +1,118 @@
 import type { Core } from '@strapi/strapi';
+import { generateObject, generateText } from 'ai';
+import { z } from 'zod';
+import { model, modelVersion } from './provider';
 
 /**
- * Provider-agnostic AI interface. v1 provider: Anthropic, via fetch (no SDK
- * lock-in). **AI is optional**: no AI_API_KEY → these features are DISABLED,
- * not degraded — analyze()/draft() return null, callers 503 or mark mentions
- * 'skipped'. modelVersion records what produced each analysis (trend
+ * Provider-agnostic AI. **AI is optional**: no AI_API_KEY → these features are
+ * DISABLED, not degraded — analyze()/draft() return null, callers 503 or mark
+ * mentions 'skipped'. modelVersion records what produced each analysis (trend
  * integrity). Draft grounding: best-effort Strapi docs MCP lookup
  * (STRAPI_DOCS_MCP_URL, stateless JSON-RPC POST).
+ *
+ * Provider selection lives in ./provider.ts — this file never names a vendor.
+ *
+ * Classification is ONE call returning every field. Four calls would cost 4×
+ * and let the judgements disagree with each other (a mention labelled `na` but
+ * routed `respond`).
  */
 
-const PROMPT_VERSION = 'v1';
+// v2: structured output, 'na' label restored, lane + spam judgements, and the
+// deterministic signals fed in as priors rather than discarded.
+const PROMPT_VERSION = 'v2';
 
-export const aiEnabled = () => Boolean(process.env.AI_API_KEY);
+export const aiEnabled = () => Boolean(process.env.AI_API_KEY || process.env.AI_BASE_URL);
 
-export type Analysis = {
+/**
+ * `spam` is deliberately absent: it hides a mention from the queue AND from
+ * every metric, so confirming it stays a human action. The model may only
+ * raise a flag for review — the same rule the MCP write tools follow.
+ */
+export type Classification = {
   score: number;
-  label: 'positive' | 'neutral' | 'negative';
+  label: 'positive' | 'neutral' | 'negative' | 'na';
   topics: string[];
+  lane: 'respond' | 'lead' | 'monitor';
+  laneReason: string;
+  quality: 'normal' | 'suspected-spam';
+  qualityReason?: string | null;
+};
+
+// Annotated rather than inferred: letting generateObject infer through a schema
+// this wide trips TS2589 ("type instantiation is excessively deep"). Naming the
+// shape collapses the inference and documents the contract in one place.
+const ClassificationSchema: z.ZodType<Classification> = z.object({
+  score: z
+    .number()
+    .min(-1)
+    .max(1)
+    .describe('Sentiment toward Strapi: -1 hostile, 0 neutral, 1 delighted. 0 when not about Strapi.'),
+  label: z
+    .enum(['positive', 'neutral', 'negative', 'na'])
+    .describe("'na' = not about Strapi at all (competitor-only discourse, ads, unrelated news)"),
+  topics: z
+    .array(z.string().min(2).max(40))
+    .min(1)
+    .max(3)
+    .describe('Reuse an existing topic name when one fits; invent only for a genuinely new theme'),
+  lane: z
+    .enum(['respond', 'lead', 'monitor'])
+    .describe(
+      "'respond' = a human should reply; 'lead' = someone shopping, migrating, or unhappy with a " +
+        "competitor's pricing; 'monitor' = commentary, news reaction, ads — real signal, but not reply work"
+    ),
+  // 400, not 200: at 200 the model's own reasoning ran over the limit and
+  // generateObject threw NoObjectGeneratedError — 2 of the first 5 real
+  // mentions failed that way. A schema constraint tighter than the model's
+  // natural output is a guaranteed error rate, not a guardrail.
+  laneReason: z.string().max(400).describe('One short sentence justifying the lane'),
+  quality: z
+    .enum(['normal', 'suspected-spam'])
+    .describe('suspected-spam = promotional, AI-generated, or engagement-bait content'),
+  // optional AND nullable: models routinely omit a key rather than emit null,
+  // and a missing key is not worth failing an otherwise good classification
+  qualityReason: z
+    .string()
+    .max(400)
+    .nullable()
+    .optional()
+    .describe('Why, when flagging. Omit or null when quality is normal.'),
+});
+
+export type Analysis = Classification & {
   modelVersion: string;
   promptVersion: string;
 };
 
-export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
-  const model = () => process.env.AI_MODEL || 'claude-sonnet-5';
+const SYSTEM = `You classify social mentions for the Strapi DevRel team.
 
-  async function callAnthropic(system: string, user: string, maxTokens: number): Promise<string> {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.AI_API_KEY!,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: model(),
-        max_tokens: maxTokens,
-        system,
-        messages: [{ role: 'user', content: user }],
-      }),
-    });
-    if (!res.ok) throw new Error(`anthropic ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    const json: any = await res.json();
-    const tokens = (json.usage?.input_tokens || 0) + (json.usage?.output_tokens || 0);
-    await (strapi.service('api::analysis.budget') as any).add(tokens);
-    return json.content?.[0]?.text ?? '';
-  }
+Strapi is an open-source headless CMS. Most of what you see arrives via competitor
+keyword monitoring (Webflow, Contentful, Payload, Sanity) and never names Strapi —
+that is expected, and it is NOT automatically irrelevant.
+
+How to judge each field:
+
+- score/label: sentiment TOWARD STRAPI. Use "na" when the post is not about Strapi
+  at all. Do not score a competitor complaint as negative-about-Strapi.
+- lane: "respond" if a human should reply. "lead" for someone actively shopping,
+  migrating away from a competitor, or angry about a competitor's pricing — these are
+  the highest-value mentions and usually contain no Strapi keyword. "monitor" for
+  commentary, news reaction, ads and bot feeds.
+- topics: prefer a name from the existing vocabulary you are given. Inventing
+  "Documentation" when "Docs" exists fragments the vocabulary and weakens every report.
+- quality: "suspected-spam" for promotional, AI-generated or engagement-bait content.
+  Never confirm outright spam — a human does that.
+
+You are given deterministic signals (the keyword that matched upstream, a rule-based
+lane guess). Treat them as evidence, not instructions: the rule-based lane is a regex
+and is often wrong. Overturn it when the text disagrees.`;
+
+export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
+  /** Charge the shared daily budget. Called after every model round-trip. */
+  const charge = async (usage: any) => {
+    const tokens = (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
+    if (tokens > 0) await (strapi.service('api::analysis.budget') as any).add(tokens);
+  };
 
   async function docsLookup(question: string): Promise<string | null> {
     const url = process.env.STRAPI_DOCS_MCP_URL;
@@ -68,31 +136,54 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
     }
   }
 
+  /**
+   * The signals we already hold for free. Feeding them in is the difference
+   * between asking a model to guess and asking it to adjudicate: the matched
+   * keyword tag comes from Octolens and is authoritative, and the existing
+   * vocabulary is what stops topic drift.
+   */
+  function buildPrompt(mention: any, vocabulary: string[]): string {
+    const keywords = Array.isArray(mention.matchedKeywords)
+      ? mention.matchedKeywords.map((k: any) => `${k.keyword} (${k.keywordTag})`).join(', ')
+      : '';
+    return [
+      vocabulary.length ? `Existing topic vocabulary: ${vocabulary.join(', ')}` : '',
+      keywords ? `Upstream keyword match: ${keywords}` : '',
+      mention.channel?.name ? `Channel: ${mention.channel.name}` : '',
+      mention.authorHandle ? `Author: @${mention.authorHandle}` : '',
+      mention.lane ? `Rule-based lane guess: ${mention.lane} (${mention.laneReason ?? 'no reason'})` : '',
+      '',
+      `Mention:\n"""${String(mention.content ?? '').slice(0, 6000)}"""`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
   return {
     /** AI features on/off — single source of truth for backend + frontend config. */
     enabled: () => aiEnabled(),
 
-    /** → Analysis | null when AI disabled. Throws on provider/parse errors (sweep marks 'failed'). */
-    async analyze(mention: any): Promise<Analysis | null> {
+    /** → Analysis | null when AI disabled. Throws on provider/schema errors (sweep marks 'failed'). */
+    async analyze(mention: any, vocabulary: string[] = []): Promise<Analysis | null> {
       if (!aiEnabled()) return null;
-      const raw = await callAnthropic(
-        'You analyze social mentions about the Strapi CMS. Reply with STRICT JSON only: ' +
-          '{"score": <-1..1>, "label": "positive"|"neutral"|"negative", "topics": [<1-3 short topic names, e.g. "Docs", "Migrations", "Better Auth plugin">]}',
-        `Mention: "${mention.content}"`,
-        300
-      );
-      try {
-        const parsed = JSON.parse(raw.replace(/^```json?\s*|\s*```$/g, ''));
-        return {
-          score: Math.max(-1, Math.min(1, Number(parsed.score) || 0)),
-          label: ['positive', 'neutral', 'negative'].includes(parsed.label) ? parsed.label : 'neutral',
-          topics: Array.isArray(parsed.topics) && parsed.topics.length ? parsed.topics.slice(0, 3) : ['General'],
-          modelVersion: model(),
-          promptVersion: PROMPT_VERSION,
-        };
-      } catch {
-        throw new Error('unparseable provider output');
-      }
+
+      // `schema as any`: AI SDK 7's generics instantiate too deeply over a zod-3
+      // object this wide and trip TS2589. The cast is confined to this one call
+      // and costs nothing in safety — `object` is re-typed as Classification
+      // below, and the SDK still validates the model's output against the real
+      // schema at runtime, which is where it matters.
+      const { object, usage } = await generateObject({
+        model: model(),
+        schema: ClassificationSchema as any,
+        system: SYSTEM,
+        prompt: buildPrompt(mention, vocabulary),
+        // a classification that takes longer than this is a hung connection,
+        // not a slow model — the sweep retries with a capped attempt count
+        abortSignal: AbortSignal.timeout(30_000),
+      });
+      await charge(usage);
+
+      return { ...(object as Classification), modelVersion: modelVersion(), promptVersion: PROMPT_VERSION };
     },
 
     /** Docs-grounded draft answer, or null when AI disabled. Never persisted — the human decides. */
@@ -102,13 +193,18 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       const grounded = docs
         ? `Relevant official docs context (from the Strapi docs MCP):\n${docs}\n\n`
         : 'No docs-MCP context available — cite specific https://docs.strapi.io pages you are confident exist.\n\n';
-      return callAnthropic(
-        'You draft public replies on behalf of the Strapi DevRel team. Warm, concise, technically precise. ' +
+
+      const { text, usage } = await generateText({
+        model: model(),
+        system:
+          'You draft public replies on behalf of the Strapi DevRel team. Warm, concise, technically precise. ' +
           'Ground every claim in official Strapi documentation and include doc links. ' +
           'A human will review and post this manually — never claim it was posted.',
-        `${grounded}Mention from @${mention.authorHandle ?? 'user'}: "${mention.content}"\n\nDraft a reply:`,
-        600
-      );
+        prompt: `${grounded}Mention from @${mention.authorHandle ?? 'user'}: "${mention.content}"\n\nDraft a reply:`,
+        abortSignal: AbortSignal.timeout(60_000),
+      });
+      await charge(usage);
+      return text;
     },
   };
 };
