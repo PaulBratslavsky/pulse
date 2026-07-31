@@ -57,6 +57,14 @@ export const PULSE_TOOLS: PulseTool[] = [
         sentiment: z.enum(['positive', 'neutral', 'negative', 'na']).optional(),
         topic: z.string().optional().describe('Topic slug'),
         search: z.string().optional().describe('Case-insensitive substring of the mention content'),
+        lane: z
+          .enum(['respond', 'lead', 'monitor'])
+          .optional()
+          .describe(
+            "Routing lane (default: respond + lead — actual reply work). 'monitor' is competitor " +
+              "and industry discourse, ~2/3 of ingest; 'lead' is someone shopping or leaving a " +
+              'competitor and often names no Strapi keyword at all.'
+          ),
         quality: z
           .enum(['normal', 'suspected-spam', 'spam'])
           .optional()
@@ -95,6 +103,9 @@ export const PULSE_TOOLS: PulseTool[] = [
         ...(args.search ? { content: { $containsi: args.search } } : {}),
         ...(args.topics === 'none' ? { topics: { documentId: { $null: true } } } : {}),
         ...(args.quality ? { quality: args.quality } : {}),
+        // reply work by default — the queue exists for mentions a human should
+        // act on, and monitor is two thirds of the corpus
+        ...(args.lane ? { lane: args.lane } : { lane: { $in: ['respond', 'lead'] } }),
         ...(args.draft === 'has-draft' ? { draftText: { $notNull: true } } : {}),
         ...(args.draft === 'no-draft' ? { draftText: { $null: true } } : {}),
       };
@@ -117,6 +128,8 @@ export const PULSE_TOOLS: PulseTool[] = [
             // drafted public replies to three of ours (field report 2026-07-31)
             'authorHandle',
             'acknowledgeReason',
+            'lane',
+            'laneReason',
           ],
           populate: { topics: { fields: ['name', 'slug', 'kind'] }, channel: { fields: ['name'] } } as any,
           sort: 'postedAt:asc' as any,
@@ -149,6 +162,9 @@ export const PULSE_TOOLS: PulseTool[] = [
           // an agent reported seeing no quality on any of 265 rows and
           // concluded the field didn't work (field report, 2026-07-31).
           quality: m.quality ?? 'normal',
+          // routing: 'respond' = names Strapi, 'lead' = shopping/leaving a
+          // competitor, 'monitor' = discourse kept for analytics only
+          lane: m.lane ?? 'respond',
           channel: m.channel?.name ?? null,
           topics: (m.topics ?? []).map((t: any) => t.name),
         })),
@@ -216,6 +232,9 @@ export const PULSE_TOOLS: PulseTool[] = [
           // already flagged instead of re-judging it on every sweep, and can
           // read back what it just wrote
           quality: m.quality ?? 'normal',
+          // routing: 'respond' = names Strapi, 'lead' = shopping/leaving a
+          // competitor, 'monitor' = discourse kept for analytics only
+          lane: m.lane ?? 'respond',
           qualityReason: m.qualityReason ?? null,
           qualityVia: m.qualityVia ?? null,
           topics: (m.topics ?? []).map((t: any) => ({ name: t.name, kind: t.kind })),
@@ -524,6 +543,63 @@ export const PULSE_TOOLS: PulseTool[] = [
         requested: args.assignments.length,
         assigned: results.filter((r) => r.assigned).length,
         failed: results.filter((r) => !r.assigned).length,
+        results,
+      };
+    },
+  },
+
+  {
+    name: 'pulse-set-lane',
+    title: 'Pulse: route mentions into lanes (write)',
+    description:
+      'Re-route mentions between lanes. Ingest classifies deterministically from the search term ' +
+      'Octolens matched plus a switching-intent regex, which is a defensible first pass but not a ' +
+      'judgement call — this is how you correct it. Use "lead" for someone actively shopping, ' +
+      'migrating, or complaining about a competitor\'s price (the highest-value mentions in the ' +
+      'corpus, and they usually contain no Strapi keyword); "monitor" for commentary, news ' +
+      'reaction and ads; "respond" for anything a human should reply to. ALWAYS send a reason — ' +
+      'a wrong route with no reason is unfixable. Nothing is ever deleted: monitor items keep ' +
+      'full data and stay in trends and theme reports.',
+    access: 'write',
+    subject: 'api::mention.mention',
+    input: () =>
+      z.object({
+        assignments: z
+          .array(
+            z.object({
+              documentId: z.string(),
+              lane: z.enum(['respond', 'lead', 'monitor']),
+              reason: z.string().min(3).max(300).describe('One line: why this lane'),
+            })
+          )
+          .min(1)
+          .max(40),
+      }),
+    execute: async (strapi, args, meta) => {
+      const results: any[] = [];
+      for (const item of args.assignments) {
+        const mention: any = await strapi
+          .documents('api::mention.mention')
+          .findOne({ documentId: item.documentId });
+        if (!mention) {
+          results.push({ documentId: item.documentId, routed: false, reason: 'not found' });
+          continue;
+        }
+        await strapi.documents('api::mention.mention').update({
+          documentId: item.documentId,
+          data: { lane: item.lane, laneReason: `${item.reason} (via ${meta.via})` } as any,
+        });
+        await logActivity(strapi, {
+          mentionDocumentId: item.documentId,
+          action: 'routed',
+          actorId: null,
+          detail: { lane: item.lane, reason: item.reason, via: meta.via },
+        });
+        results.push({ documentId: item.documentId, routed: true, lane: item.lane });
+      }
+      return {
+        requested: args.assignments.length,
+        routed: results.filter((r) => r.routed).length,
         results,
       };
     },

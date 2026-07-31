@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi'
+import { classify, extractKeywords, strongestTag } from '../../../utils/lane'
 import { logActivity } from '../../../utils/activity'
 import { WorkflowError } from '../../../utils/workflow-error'
 
@@ -212,6 +213,15 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
    * author remains the stronger action — it applies retroactively and to
    * everything they post next.
    */
+  /** Routing for a mention, shared by ingest and the boot backfill. Lives on a
+   *  service because the octolens plugin builds from its own tsconfig and
+   *  cannot import app code at build time — it resolves this at runtime. */
+  classifyLane(content: string, raw: any) {
+    const matchedKeywords = extractKeywords(raw)
+    const { lane, laneReason } = classify({ content, keywords: matchedKeywords })
+    return { lane, laneReason, matchedKeywords, keywordTag: strongestTag(matchedKeywords) }
+  },
+
   async setQuality(
     documentId: string,
     user: { id: number },

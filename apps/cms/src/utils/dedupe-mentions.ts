@@ -1,4 +1,5 @@
 import type { Core } from '@strapi/strapi'
+import { classify, extractKeywords, strongestTag } from './lane'
 
 /**
  * Duplicate-mention repair + prevention (bootstrap, idempotent).
@@ -90,6 +91,33 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
     .whereIn('status', ['unanswered', 'claimed'])
     .update({ status: 'acknowledged', acknowledge_reason: 'spam' })
   if (closed) strapi.log.info(`pulse: closed ${closed} muted-author mention(s) left open by an earlier mute`)
+
+  // Backfill routing on rows ingested before lanes existed. Without this the
+  // queue keeps showing every competitor thread until each one is re-ingested,
+  // which never happens. Runs only on rows with no lane yet, so it is a
+  // one-time pass and a human's later correction is never overwritten.
+  const unrouted: any[] = await knex('mentions').whereNull('lane').select('id', 'content', 'raw')
+  if (unrouted.length) {
+    let routed = 0
+    for (const row of unrouted) {
+      let raw: any = {}
+      try {
+        raw = typeof row.raw === 'string' ? JSON.parse(row.raw) : (row.raw ?? {})
+      } catch {}
+      const keywords = extractKeywords(raw)
+      const { lane, laneReason } = classify({ content: row.content, keywords })
+      await knex('mentions')
+        .where({ id: row.id })
+        .update({
+          lane,
+          lane_reason: laneReason,
+          matched_keywords: JSON.stringify(keywords),
+          keyword_tag: strongestTag(keywords),
+        })
+      routed++
+    }
+    strapi.log.info(`pulse: routed ${routed} pre-existing mention(s) into lanes`)
+  }
 
   // real DB-level guard (works on SQLite and Postgres; NULLs unaffected)
   await knex.raw('CREATE UNIQUE INDEX IF NOT EXISTS mentions_external_id_uq ON mentions (external_id)')

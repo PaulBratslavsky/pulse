@@ -71,6 +71,28 @@
       "default": "normal",
       "description": "spam = muted author or confirmed slop: hidden from queue AND excluded from all analytics"
     },
+    "lane": {
+      "type": "enumeration",
+      "enum": [
+        "respond",
+        "lead",
+        "monitor"
+      ],
+      "default": "respond",
+      "description": "routing: respond = reply work; lead = someone shopping or leaving a competitor; monitor = competitor/industry discourse kept for analytics but out of the reply queue"
+    },
+    "laneReason": {
+      "type": "text",
+      "description": "which rule produced the lane \u2014 so a wrong route is fixable rather than mysterious"
+    },
+    "matchedKeywords": {
+      "type": "json",
+      "description": "search terms Octolens matched, with keywordTag (own_brand | competitor | industry_term)"
+    },
+    "keywordTag": {
+      "type": "string",
+      "description": "strongest matched tag; own_brand beats industry_term beats competitor"
+    },
     "qualityReason": {
       "type": "text",
       "description": "why this was flagged \u2014 free text from whoever judged it (agent rubric hit, or a human note). Makes the confirm pass readable instead of a re-judge."

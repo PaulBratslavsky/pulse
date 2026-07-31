@@ -24,6 +24,7 @@ export default async function QueuePage({
     topics?: string
     sort?: string
     q?: string
+    lane?: string
   }>
 }) {
   const params = await searchParams
@@ -47,6 +48,15 @@ export default async function QueuePage({
           ...(params.quality
             ? { 'filters[quality][$eq]': params.quality }
             : { 'filters[quality][$ne]': 'spam' }),
+          // Lanes: the queue is REPLY work. Competitor/industry discourse is
+          // kept in full and still feeds trends and themes — it just doesn't
+          // belong in a list a human works through. ~2/3 of ingest is that.
+          ...(params.lane
+            ? { 'filters[lane][$eq]': params.lane }
+            : {
+                'filters[lane][$in][0]': 'respond',
+                'filters[lane][$in][1]': 'lead',
+              }),
           sort: params.sort === 'newest' ? 'postedAt:desc' : 'postedAt:asc',
           'pagination[page]': page,
           'pagination[pageSize]': 25,
@@ -71,6 +81,7 @@ export default async function QueuePage({
     topics?: string
     sort?: string
     q?: string
+    lane?: string
   }) => {
     const q = new URLSearchParams()
     // 'key' in over — NOT !== undefined — so passing an explicit undefined
@@ -81,6 +92,7 @@ export default async function QueuePage({
     const topic = 'topic' in over ? over.topic : params.topic
     const draft = 'draft' in over ? over.draft : params.draft
     const quality = 'quality' in over ? over.quality : params.quality
+    const lane = 'lane' in over ? over.lane : params.lane
     const noTopics = 'topics' in over ? over.topics : params.topics
     const sort = 'sort' in over ? over.sort : params.sort
     const qText = 'q' in over ? over.q : params.q
@@ -91,6 +103,7 @@ export default async function QueuePage({
     if (noTopics) q.set('topics', noTopics)
     if (sort) q.set('sort', sort)
     if (qText) q.set('q', qText)
+    if (lane) q.set('lane', lane)
     if (over.page && over.page > 1) q.set('page', String(over.page))
     const qs = q.toString()
     return qs ? `/?${qs}` : '/'
@@ -175,6 +188,31 @@ export default async function QueuePage({
         >
           mentions Strapi
         </FilterPill>
+        {/* lanes — the queue defaults to reply work; these expose the rest */}
+        <span className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-800" aria-hidden />
+        <FilterPill
+          href={filterUrl({ lane: undefined, page: 0 })}
+          active={!params.lane}
+          title="Reply work: mentions naming Strapi, plus people shopping or leaving a competitor"
+        >
+          reply work
+        </FilterPill>
+        <FilterPill
+          href={filterUrl({ lane: 'lead', page: 0 })}
+          active={params.lane === 'lead'}
+          activeClassName="border-emerald-500 bg-emerald-50 font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+          title="Someone actively switching or evaluating — usually names no Strapi keyword at all"
+        >
+          leads
+        </FilterPill>
+        <FilterPill
+          href={filterUrl({ lane: 'monitor', page: 0 })}
+          active={params.lane === 'monitor'}
+          title="Competitor and industry discourse — kept for trends and themes, not reply work"
+        >
+          monitor
+        </FilterPill>
+        <span className="mx-1 h-4 w-px bg-zinc-200 dark:bg-zinc-800" aria-hidden />
         <FilterPill
           href={filterUrl({ topics: params.topics === 'none' ? undefined : 'none', page: 0 })}
           active={params.topics === 'none'}

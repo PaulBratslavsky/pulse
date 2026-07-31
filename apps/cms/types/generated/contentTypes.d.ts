@@ -676,12 +676,17 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
       Schema.Attribute.Unique;
     humanCorrected: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
+    keywordTag: Schema.Attribute.String;
+    lane: Schema.Attribute.Enumeration<['respond', 'lead', 'monitor']> &
+      Schema.Attribute.DefaultTo<'respond'>;
+    laneReason: Schema.Attribute.Text;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'api::mention.mention'
     > &
       Schema.Attribute.Private;
+    matchedKeywords: Schema.Attribute.JSON;
     modelVersion: Schema.Attribute.String;
     owner: Schema.Attribute.Relation<
       'manyToOne',

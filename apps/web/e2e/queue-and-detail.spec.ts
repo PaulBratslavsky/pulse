@@ -200,6 +200,44 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByRole('button', { name: 'Add event' })).toBeDisabled()
   })
 
+  test('competitor-only mentions are routed out of the reply queue, not discarded', async ({
+    page,
+    request,
+  }) => {
+    const tag = `lane${Date.now().toString(36)}`
+    // a competitor-tagged post that never names Strapi: intel, not reply work
+    const { documentId } = await injectMention(request, {
+      text: `${tag} Webflow pricing keeps climbing for agencies`,
+      keywords: [{ id: 1, keyword: 'webflow', keywordTag: 'competitor' }],
+    })
+
+    // absent from the default queue…
+    await page.goto(`/?q=${tag}`)
+    await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(0)
+
+    // …but fully intact in the monitor lane, never dropped
+    await page.goto(`/?q=${tag}&lane=monitor`)
+    await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(1)
+
+    // and reachable directly, with the routing reason recorded
+    await page.goto(`/mentions/${documentId}`)
+    await expect(page.getByText(tag)).toBeVisible()
+  })
+
+  test('switching intent lands in the lead lane even with no Strapi keyword', async ({
+    page,
+    request,
+  }) => {
+    const tag = `lead${Date.now().toString(36)}`
+    await injectMention(request, {
+      text: `${tag} we are moving away from Webflow, it is too expensive at 60 sites`,
+      keywords: [{ id: 1, keyword: 'webflow', keywordTag: 'competitor' }],
+    })
+    // the most valuable mentions name no Strapi keyword at all
+    await page.goto(`/?q=${tag}&lane=lead`)
+    await expect(page.locator('li').filter({ hasText: tag })).toHaveCount(1)
+  })
+
   test('competitor keyword auto-creates a competitor topic at ingest', async ({ page, request }) => {
     const { documentId } = await injectMention(request, {
       tags: ['competitor_mention'],

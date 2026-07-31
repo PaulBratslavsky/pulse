@@ -157,6 +157,16 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     const signals = spamSignals(normalized.content);
     const quality = muted ? 'spam' : signals.length ? 'suspected-spam' : 'normal';
 
+    // Route, don't filter. Octolens tells us which search term fired and how
+    // it's tagged (own_brand / competitor / industry_term) — authoritative,
+    // free, and far better than re-deriving intent from body text. Competitor
+    // discourse stays fully stored and keeps feeding trends and themes; it
+    // just stops occupying a queue meant for human replies.
+    const routing = (strapi.service('api::mention.mention') as any).classifyLane(
+      normalized.content,
+      raw
+    );
+
     // Keyless mode: adopt Octolens' sentiment as the initial, provenance-stamped label.
     // single source of truth for the AI flag — the analysis service, not a
     // second env read that could drift from it
@@ -165,7 +175,7 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     let mention: any;
     try {
-      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens, quality);
+      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens, quality, routing);
     } catch (err: any) {
       // unique-index violation → another writer created it between check and insert
       const winner = await strapi
@@ -212,7 +222,8 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     channel: any,
     competitorTopicIds: string[],
     octolens: { label: string; score: number } | null,
-    quality: string = 'normal'
+    quality: string = 'normal',
+    routing?: { lane: string; laneReason: string; matchedKeywords: any[]; keywordTag: string | null }
   ) {
     return strapi.documents('api::mention.mention').create({
       data: {
@@ -229,6 +240,14 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
         // muted author, and the acknowledged pile has to stay readable later
         ...(quality === 'spam' ? { acknowledgeReason: 'spam' } : {}),
         quality,
+        ...(routing
+          ? {
+              lane: routing.lane,
+              laneReason: routing.laneReason,
+              matchedKeywords: routing.matchedKeywords,
+              keywordTag: routing.keywordTag,
+            }
+          : {}),
         ...(octolens
           ? {
               analysisStatus: 'analyzed',

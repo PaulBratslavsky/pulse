@@ -504,3 +504,51 @@ removes them, matched on the exact prefixes the specs use so real topics can't b
   `acknowledgeReason` are now on every row. Second: no `quality` filter, so "what still
   needs a spam judgement" required fetching every mention — there is now a `quality`
   arg.
+
+### Lanes: route, don't filter (2026-07-31)
+
+**The problem, measured:** of 393 real mentions, 198 name Webflow, 58 name Strapi, and
+**zero name both**. Everything landed in one reply queue regardless, so a queue meant
+for human replies was ~80% competitor discourse.
+
+**Why the obvious fix is the wrong lever.** A keyword allowlist at ingest
+(`strapi|webflow|headless cms`) keeps 256 of 393 and leaves the queue just as
+Webflow-heavy, while permanently discarding 137 rows — including competitor-evaluation
+threads naming none of those words. Filtering is lossy and unauditable: you cannot
+audit what you never stored, and a too-narrow rule only shows up as a thread that never
+surfaced.
+
+**What we do instead.** Octolens already sends the search term that fired, tagged
+`own_brand` / `competitor` / `industry_term` — present on **374 of 437** rows and
+previously discarded. Routing on that is authoritative and free, and beats re-deriving
+intent by scanning body text. Three lanes, set at ingest by `utils/lane.ts`:
+
+| lane | rule | where it goes |
+|---|---|---|
+| `respond` | names Strapi, or an own-brand term matched | reply queue |
+| `lead` | competitor/industry term **plus** switching or evaluation intent | reply queue |
+| `monitor` | everything else | out of the queue, still in trends and themes |
+
+Measured on the real corpus: **393 → 135 in the reply queue**, 258 to monitor, nothing
+discarded. `laneReason` records which rule fired, so a wrong route is fixable rather
+than mysterious — same contract as `qualityReason`.
+
+**The `lead` lane is the point.** ~1 in 5 Webflow-only mentions carries switching intent
+— people leaving on cost, comparing alternatives — and they typically contain no Strapi
+keyword at all. Any rule that treats "Webflow-only" as low value throws those away.
+
+**Deliberately no LLM.** The recommendation that prompted this proposed a
+classification call per mention. `AI_API_KEY` is unset by design, so lanes are
+deterministic (matched keyword + intent regex) and an agent refines them through
+`pulse-set-lane` — the same server-picks-candidates / agent-judges split as spam
+flagging. It upgrades to the AI sweep for free when a key is set.
+
+**Unclassified defaults to `respond`**, not `monitor`: when in doubt a human sees it.
+The failure mode of the other default is a thread that silently never surfaces.
+
+**Build trap:** the octolens plugin compiles from its own `server/tsconfig.build.json`,
+so it *cannot* import app code (`src/utils/…`) at build time — the import type-checks in
+the app but the plugin's `dist/` never gets it, and ingest silently kept the old
+behaviour. Classification is therefore exposed as `api::mention.mention.classifyLane`
+and resolved at runtime. The plugin also needs its own `npm run build`; editing its
+`src/` alone changes nothing.
