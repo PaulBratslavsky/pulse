@@ -1,15 +1,21 @@
 import type { Core } from '@strapi/strapi';
-import { generateObject, generateText } from 'ai';
+import { generateObject, generateText, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { model, modelVersion } from './provider';
 import { laneRubric, QUALITY_RUBRIC, laneById } from '../../../classification/criteria';
+import { shortlistDocsUrls, stripDeadDocsLinks, keepRealDocsUrls } from '../../../utils/docs-links';
 
 /**
  * Provider-agnostic AI. **AI is optional**: no AI_API_KEY → these features are
  * DISABLED, not degraded — analyze()/draft() return null, callers 503 or mark
  * mentions 'skipped'. modelVersion records what produced each analysis (trend
- * integrity). Draft grounding: best-effort Strapi docs MCP lookup
- * (STRAPI_DOCS_MCP_URL, stateless JSON-RPC POST).
+ * integrity).
+ *
+ * Draft grounding is TWO independent things, deliberately:
+ *   - prose: best-effort Strapi docs MCP lookup (STRAPI_DOCS_MCP_URL). Optional,
+ *     OAuth-gated, and allowed to fail.
+ *   - links: the docs sitemap (utils/docs-links). NOT optional and never
+ *     model-authored — see that file for the 404s that made this necessary.
  *
  * Provider selection lives in ./provider.ts — this file never names a vendor.
  *
@@ -147,24 +153,59 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
     if (tokens > 0) await (strapi.service('api::analysis.budget') as any).add(tokens);
   };
 
-  async function docsLookup(question: string): Promise<string | null> {
+  /**
+   * Ask the Strapi docs MCP. Returns the raw answer text plus any docs URLs it
+   * cited — retrieval is what this server is genuinely better at than we are:
+   * it searches page CONTENT, where our sitemap fallback can only match words
+   * in a URL path.
+   *
+   * The endpoint (https://strapi-docs.mcp.kapa.ai) is OAuth-protected and its
+   * authorization server advertises only `authorization_code` and
+   * `refresh_token` — there is NO client_credentials grant, so a server process
+   * cannot mint its own token. STRAPI_DOCS_MCP_TOKEN therefore comes from a
+   * one-time human consent (scripts/docs-mcp-auth.mjs). Without it we return
+   * null and fall back; drafting must never depend on this.
+   */
+  async function docsLookup(question: string): Promise<{ text: string; urls: string[] } | null> {
     const url = process.env.STRAPI_DOCS_MCP_URL;
     if (!url) return null;
+    const token = process.env.STRAPI_DOCS_MCP_TOKEN;
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          // the server negotiates SSE or JSON; accept both or it 406s
+          accept: 'application/json, text/event-stream',
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 1,
           method: 'tools/call',
-          params: { name: 'search', arguments: { query: question } },
+          params: {
+            name: process.env.STRAPI_DOCS_MCP_TOOL || 'search',
+            arguments: { query: question },
+          },
         }),
+        signal: AbortSignal.timeout(20_000),
       });
-      if (!res.ok) return null;
-      const json: any = await res.json();
-      return JSON.stringify(json.result ?? null)?.slice(0, 4000) ?? null;
-    } catch {
+      if (!res.ok) {
+        // 401 here is the normal unconfigured state, not an incident
+        strapi.log.debug(`[analysis] docs MCP ${res.status} — drafting from the sitemap instead`);
+        return null;
+      }
+      const body = await res.text();
+      // SSE framing when the server streams: pull the data lines back out
+      const payload = body.startsWith('event:') || body.startsWith('data:')
+        ? body.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trim()).join('')
+        : body;
+      const json: any = JSON.parse(payload);
+      const text = JSON.stringify(json.result ?? '').slice(0, 4000);
+      const urls = [...new Set(text.match(/https?:\/\/docs\.strapi\.io\/[^"\s\\)]+/g) ?? [])];
+      return { text, urls };
+    } catch (err: any) {
+      strapi.log.debug(`[analysis] docs MCP unavailable: ${err.message}`);
       return null;
     }
   }
@@ -245,22 +286,85 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
     /** Docs-grounded draft answer, or null when AI disabled. Never persisted — the human decides. */
     async draft(mention: any): Promise<string | null> {
       if (!aiEnabled()) return null;
-      const docs = await docsLookup(String(mention.content).slice(0, 300));
-      const grounded = docs
-        ? `Relevant official docs context (from the Strapi docs MCP):\n${docs}\n\n`
-        : 'No docs-MCP context available — cite specific https://docs.strapi.io pages you are confident exist.\n\n';
+      const content = String(mention.content);
 
-      const { text, usage } = await generateText({
-        model: model(),
-        system:
-          'You draft public replies on behalf of the Strapi DevRel team. Warm, concise, technically precise. ' +
-          'Ground every claim in official Strapi documentation and include doc links. ' +
-          'A human will review and post this manually — never claim it was posted.',
-        prompt: `${grounded}Mention from @${mention.authorHandle ?? 'user'}: "${mention.content}"\n\nDraft a reply:`,
-        abortSignal: AbortSignal.timeout(60_000),
-      });
+      // Registered MCP servers (Settings → MCP servers) become callable tools,
+      // so the model can look things up itself instead of us guessing once up
+      // front what it will need. Falls back to the legacy single-shot lookup
+      // when nothing is registered.
+      const loaded = await (strapi.service('api::analysis.mcp-tools') as any).load();
+      const docs = Object.keys(loaded.tools).length
+        ? null
+        : await docsLookup(content.slice(0, 300));
+
+      // Retrieval and verification are separate jobs, done by the tool that is
+      // actually good at each:
+      //   - WHICH page is relevant  → the MCP searches page content. Our
+      //     sitemap fallback can only match words in a URL path, which ranks
+      //     'admin-panel/favicon' highly for an ecommerce question.
+      //   - IS this URL real        → the sitemap, always. The MCP cannot
+      //     guarantee the model transcribes a URL correctly, and it is
+      //     OAuth-gated so it can simply be absent.
+      // Whatever the MCP cites is filtered against the sitemap too: a citation
+      // is a suggestion, never a warrant.
+      let allowed: string[] = [];
+      try {
+        const fromMcp = docs?.urls?.length ? await keepRealDocsUrls(docs.urls) : [];
+        allowed = fromMcp.length ? fromMcp : await shortlistDocsUrls(content, 12);
+        if (fromMcp.length) strapi.log.debug(`[analysis] ${fromMcp.length} link(s) from the docs MCP`);
+      } catch (err: any) {
+        strapi.log.warn(`[analysis] docs sitemap unavailable, drafting without links: ${err.message}`);
+      }
+
+      const linkRule = allowed.length
+        ? `You may link ONLY to these real documentation pages. Copy a URL exactly, character for character. ` +
+          `Never modify, shorten, or invent one — and if none of them fits, write the reply with no link at all:\n${allowed
+            .map((u) => `  ${u}`)
+            .join('\n')}\n\n`
+        : `Do NOT include any documentation URL in this reply — the link list could not be loaded, and a wrong link is worse than no link.\n\n`;
+
+      const grounded = docs?.text
+        ? `Relevant official docs context (from the Strapi docs MCP):\n${docs.text}\n\n`
+        : '';
+
+      const hasTools = Object.keys(loaded.tools).length > 0;
+      let text: string;
+      let usage: any;
+      try {
+        ({ text, usage } = await generateText({
+          model: model(),
+          system:
+            'You draft public replies on behalf of the Strapi DevRel team. Warm, concise, technically precise. ' +
+            'Ground every claim in official Strapi documentation. ' +
+            (hasTools
+              ? 'You have documentation search tools — use them before making a technical claim, and prefer what they return over what you remember. '
+              : '') +
+            'A human will review and post this manually — never claim it was posted.',
+          prompt: `${grounded}${linkRule}Mention from @${mention.authorHandle ?? 'user'}: "${content}"\n\nDraft a reply:`,
+          ...(hasTools
+            ? {
+                tools: loaded.tools,
+                // a few hops is enough to look something up; more is a loop
+                stopWhen: stepCountIs(5),
+              }
+            : {}),
+          abortSignal: AbortSignal.timeout(90_000),
+        }));
+      } finally {
+        // leaks sockets otherwise, on the error path especially
+        await loaded.close();
+      }
       await charge(usage);
-      return text;
+
+      // Belt and braces: instructions constrain a model, they do not bind it.
+      // Anything that is not a real page is removed before a human ever sees it.
+      const audit = await stripDeadDocsLinks(text);
+      if (audit.removed.length) {
+        strapi.log.warn(
+          `[analysis] draft for ${mention.documentId ?? '?'} cited ${audit.removed.length} non-existent docs URL(s), removed: ${audit.removed.join(', ')}`
+        );
+      }
+      return audit.text;
     },
   };
 };

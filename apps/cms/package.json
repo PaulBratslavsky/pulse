@@ -20,8 +20,10 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.25",
+    "@ai-sdk/mcp": "^2.0.21",
     "@ai-sdk/openai": "^4.0.25",
     "@ai-sdk/openai-compatible": "^3.0.18",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@strapi/database": "5.51.0",
     "@strapi/plugin-cloud": "5.51.0",
     "@strapi/plugin-users-permissions": "5.51.0",

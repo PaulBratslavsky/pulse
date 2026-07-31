@@ -638,6 +638,52 @@ export interface ApiEventEvent extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiMcpServerMcpServer extends Struct.CollectionTypeSchema {
+  collectionName: 'mcp_servers';
+  info: {
+    description: 'An external MCP server registered from Settings. Its tools become available to chat and to the reply drafter.';
+    displayName: 'MCP Server';
+    pluralName: 'mcp-servers';
+    singularName: 'mcp-server';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    accessToken: Schema.Attribute.Text & Schema.Attribute.Private;
+    clientId: Schema.Attribute.String & Schema.Attribute.Private;
+    clientSecret: Schema.Attribute.String & Schema.Attribute.Private;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    enabled: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    lastConnectedAt: Schema.Attribute.DateTime;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::mcp-server.mcp-server'
+    > &
+      Schema.Attribute.Private;
+    name: Schema.Attribute.String & Schema.Attribute.Required;
+    publishedAt: Schema.Attribute.DateTime;
+    refreshToken: Schema.Attribute.Text & Schema.Attribute.Private;
+    status: Schema.Attribute.Enumeration<
+      ['new', 'connected', 'needs-auth', 'error']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'new'>;
+    statusDetail: Schema.Attribute.Text;
+    tokenExpiresAt: Schema.Attribute.DateTime & Schema.Attribute.Private;
+    tools: Schema.Attribute.JSON;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    url: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+  };
+}
+
 export interface ApiMentionMention extends Struct.CollectionTypeSchema {
   collectionName: 'mentions';
   info: {
@@ -1487,6 +1533,7 @@ declare module '@strapi/strapi' {
       'api::comment.comment': ApiCommentComment;
       'api::dead-letter.dead-letter': ApiDeadLetterDeadLetter;
       'api::event.event': ApiEventEvent;
+      'api::mcp-server.mcp-server': ApiMcpServerMcpServer;
       'api::mention.mention': ApiMentionMention;
       'api::muted-author.muted-author': ApiMutedAuthorMutedAuthor;
       'api::person.person': ApiPersonPerson;

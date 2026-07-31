@@ -2,16 +2,18 @@ import { strapiFetch } from '@/lib/strapi'
 import MutedAuthors from '@/components/muted-authors'
 import ClassificationPanel from '@/components/classification-panel'
 import LeaderboardOptOut from '@/components/leaderboard-optout'
+import McpServers from '@/components/mcp-servers'
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 
 export default async function SettingsPage() {
-  const [muted, prefs, classification] = await Promise.all([
+  const [muted, prefs, classification, mcp] = await Promise.all([
     strapiFetch('/api/muted-authors?sort=updatedAt:desc&pagination[pageSize]=100').catch(() => ({ data: [] })),
     strapiFetch('/api/preferences/me').catch(() => ({ data: { hideFromLeaderboard: false } })),
     strapiFetch('/api/analysis/status').catch(() => ({
       data: { enabled: false, provider: '', model: '', counts: { missing: 0, fallbackOnly: 0 }, budget: { spent: 0, budget: 0, exceeded: false } },
     })),
+    strapiFetch('/api/mcp-servers').catch(() => ({ data: [] })),
   ])
 
   const links = [
@@ -35,6 +37,13 @@ export default async function SettingsPage() {
           cards stops "Rescan history" reading as "re-run analysis". */}
       <div className="mb-4">
         <ClassificationPanel status={classification.data} />
+      </div>
+
+      {/* directly under classification: both describe what the model can do,
+          and connecting the docs server is the single biggest quality lever on
+          drafted replies */}
+      <div className="mb-4">
+        <McpServers servers={mcp.data ?? []} />
       </div>
 
       <div className="mb-4">

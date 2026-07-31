@@ -1,0 +1,30 @@
+{
+  "kind": "collectionType",
+  "collectionName": "mcp_servers",
+  "info": {
+    "singularName": "mcp-server",
+    "pluralName": "mcp-servers",
+    "displayName": "MCP Server",
+    "description": "An external MCP server registered from Settings. Its tools become available to chat and to the reply drafter."
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "name": { "type": "string", "required": true },
+    "url": { "type": "string", "required": true, "unique": true },
+    "enabled": { "type": "boolean", "default": true },
+    "status": {
+      "type": "enumeration",
+      "enum": ["new", "connected", "needs-auth", "error"],
+      "default": "new",
+      "required": true
+    },
+    "statusDetail": { "type": "text" },
+    "tools": { "type": "json" },
+    "lastConnectedAt": { "type": "datetime" },
+    "accessToken": { "type": "text", "private": true },
+    "refreshToken": { "type": "text", "private": true },
+    "tokenExpiresAt": { "type": "datetime", "private": true },
+    "clientId": { "type": "string", "private": true },
+    "clientSecret": { "type": "string", "private": true }
+  }
+}
