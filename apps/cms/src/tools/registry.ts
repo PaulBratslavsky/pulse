@@ -485,6 +485,29 @@ export const PULSE_TOOLS: PulseTool[] = [
   },
 
   {
+    name: 'pulse-graph',
+    title: 'Pulse: conversation map',
+    description:
+      'Structural analysis of the conversation around Strapi: clusters of concepts that co-occur, ' +
+      'the bridge concepts joining otherwise separate clusters, and the structural GAPS — pairs of ' +
+      'clusters the corpus barely connects, which are usually content that has not been written. ' +
+      'Returns the analysis, NOT the graph: node/edge lists are useless to you and would blow the ' +
+      'response size limit. Use "terms" (mined from mention text, always populated) unless you have ' +
+      'a reason to want curated topics, which are only assigned when AI analysis is enabled.',
+    access: 'read',
+    subject: 'api::mention.mention',
+    input: () =>
+      z.object({
+        projection: z
+          .enum(['terms', 'topics', 'authors'])
+          .optional()
+          .describe("Which map to analyse (default 'terms')"),
+        days: z.number().int().min(1).max(365).optional().describe('Window in days (default 90)'),
+      }),
+    execute: (strapi, args) => (strapi.service('api::analysis.graph') as any).summary(args),
+  },
+
+  {
     name: 'pulse-theme-report',
     title: 'Pulse: recurring themes',
     description: 'Recurring themes ranked by volume × negativity over a window (days), with evidence mention ids.',

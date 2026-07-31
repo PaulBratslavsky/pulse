@@ -334,3 +334,54 @@ runs by default is iPhone/iPad *metrics on Chromium*, which covers overflow,
 breakpoints and tap targets but **not** Safari's actual `dvh` /
 `env(safe-area-inset-*)` behaviour. Enable `PW_WEBKIT=1` in CI or on a machine
 with a working WebKit to close that gap.
+
+## Conversation map (2026-07-30)
+
+Pulse treated mentions as a queue to drain. The map treats them as a corpus: what
+the community talks about, what travels together, and what nobody connects.
+Obsidian is the interaction model, [InfraNodus](https://infranodus.com/docs/text-network-analysis)
+the analytical one.
+
+**Nodes come from mention TEXT, not the Topic relation** — the decision the whole
+feature rests on. Measured before building: 687 of 1005 mentions carry no topic and
+only 7 carry more than one, and a co-occurrence edge needs two topics on one mention.
+A topic graph would have had ~10 edges. Verified after building: the `topics`
+projection returns **0 nodes**, while `terms` returns 194 nodes / 1200 edges / 5
+clusters. Term extraction is dependency-free and needs no AI, matching the current
+posture.
+
+**Extensibility** is a projection registry (`src/graph/projections.ts`), same shape as
+`PULSE_TOOLS`: a descriptor with `id/label/description/build`. Three ship — `terms`
+(concepts from text), `topics` (curated, ready for when the AI sweep runs), `authors`
+(bipartite author↔concept). The endpoint, the MCP tool and the renderer are generic
+over the wire format, so a fourth needs no change to any of them; the renderer keys
+colour/size off `node.kind` via `KIND_STYLE`.
+
+**Analysis runs server-side** (`api::analysis.graph`): Louvain clusters, betweenness
+bridges, and structural gaps, TTL-cached so every viewer sees the same map and a phone
+does no graph maths. Layout (ForceAtlas2) stays client-side because it has to be
+interactive.
+
+Traps hit while building, all now guarded:
+- **Strapi services register from the DEFAULT export.** A named-only export compiles
+  clean, registers nothing, and surfaces as `strapi.service(...)` being `undefined` at
+  call time.
+- **`graphology` ships no default export** — `import G from 'graphology'` is `undefined`
+  under esModuleInterop and only fails at `new G()`, long after the module loaded fine.
+- **Unbounded co-occurrence is a hairball**: 300 concepts produced 31,771 edges, which
+  renders as a solid disc and collapses Louvain into one meaningless community. Capped
+  to the heaviest `maxEdges`, reported via `truncated` rather than silently.
+- **A bipartite projection needs a per-side node cap.** Ranked globally by weight,
+  concept frequencies dwarfed every author and the graph collapsed to 4 nodes.
+- Hot reload can register a route before its controller compiles (`Handler not found`);
+  restart rather than debug it.
+
+**`pulse-graph`** returns the *analysis* — clusters, bridges, gaps — never the node/edge
+lists, which are useless to an LLM and would blow the ~950 KB doubled wire cap. Server
+computes, agent interprets. Like every tool it needs its permission box checked before
+a token can call it.
+
+**Testing:** `e2e/graph.spec.ts` asserts the graph is **not near-empty** (>30 concepts,
+>50 links) rather than merely that the page renders — a blank canvas would pass a
+"loads" test and be worthless. `/graph` is in the `responsive.spec.ts` PAGES list, so
+the no-horizontal-scroll invariant covers it on phone and tablet.

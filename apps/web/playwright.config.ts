@@ -29,7 +29,7 @@ export default defineConfig({
     },
     {
       name: 'app',
-      testMatch: /(queue-and-detail|insights)\.spec\.ts/,
+      testMatch: /(queue-and-detail|insights|graph)\.spec\.ts/,
       dependencies: ['setup'],
       use: { storageState: 'playwright/.auth/dana.json' },
     },

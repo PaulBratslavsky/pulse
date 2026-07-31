@@ -12,7 +12,7 @@ import { injectMention } from './helpers'
  * grid, a flex child missing min-w-0 — that no single component test would.
  */
 
-const PAGES = ['/', '/trends', '/themes', '/feedback', '/insights', '/chat', '/settings']
+const PAGES = ['/', '/trends', '/themes', '/feedback', '/insights', '/graph', '/chat', '/settings']
 
 /** Horizontal overflow, measured on the real layout. 1px of tolerance absorbs
  *  sub-pixel rounding at fractional DPRs (Pixel 7 is 2.625x). */
@@ -75,7 +75,7 @@ test.describe('phone navigation', () => {
     const drawer = page.getByRole('dialog', { name: 'Navigation' })
     await expect(drawer).toBeVisible()
 
-    for (const label of ['Queue', 'Trends', 'Themes', 'Feedback', 'Insights', 'Chat', 'Settings']) {
+    for (const label of ['Queue', 'Trends', 'Themes', 'Feedback', 'Insights', 'Map', 'Chat', 'Settings']) {
       await expect(drawer.getByRole('link', { name: label })).toBeVisible()
     }
   })
