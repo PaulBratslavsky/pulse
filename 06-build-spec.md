@@ -685,3 +685,9 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   badged with `laneReason` in the tooltip; `respond` is deliberately not badged, being the
   default view. Verified: the **budget ceiling works** — at 514,503/500,000 the sweep
   logs and pauses instead of spending.
+- **2026-07-31 — "Not spam" no longer wraps.** The 400-char `qualityReason` sat beside the
+  button in a flex row and squeezed the label onto two lines. The no-wrap treatment is
+  applied to the **detail view only**: on the queue card the button is `compact` and must
+  stay shrinkable — pinning it there pushed the action row past a 412px phone and put the
+  whole page into horizontal scroll, which `responsive.spec` caught immediately. Worth
+  remembering that a fix for one viewport is a regression for another unless it is scoped.

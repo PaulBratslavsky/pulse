@@ -36,11 +36,16 @@ export default function SpamFlagButton({
   const icon = compact ? 11 : 14
 
   return (
-    <span className="inline-flex items-center gap-1">
+    <span className="inline-flex items-start gap-1">
       <button
         onClick={() => set.mutate(flagged ? 'normal' : 'suspected-spam')}
         disabled={set.isPending}
-        className={`inline-flex items-center gap-1 rounded-md border ${size} ${
+        // no-wrap only in the detail view. There the 400-char reason sits
+        // beside the button and squeezed "Not spam" onto two lines. On the
+        // queue card the button is compact and MUST stay shrinkable — pinning
+        // it there pushed the action row past a 412px phone and put the whole
+        // page into horizontal scroll.
+        className={`inline-flex items-center gap-1 rounded-md border ${compact ? '' : 'shrink-0 whitespace-nowrap'} ${size} ${
           flagged
             ? 'border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
             : 'border-zinc-300 text-zinc-500 hover:border-amber-400 hover:text-amber-700 dark:border-zinc-700'
@@ -56,7 +61,9 @@ export default function SpamFlagButton({
       </button>
       {/* why it was flagged, so confirming is a read rather than a re-judge */}
       {flagged && qualityReason && !compact && (
-        <span className="text-xs text-zinc-500">
+        // min-w-0 + break-words so a 400-char reason wraps inside its column
+        // instead of widening the row; the button beside it never shrinks.
+        <span className="min-w-0 break-words text-xs leading-snug text-zinc-500">
           {qualityReason}
           {qualityVia && qualityVia !== 'app' && (
             <span className="text-zinc-400"> · via {qualityVia}</span>
