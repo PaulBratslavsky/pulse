@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
-import { IdCard, Check, AlertTriangle } from 'lucide-react'
+import { IdCard, Check, AlertTriangle, Sparkles, Quote } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
 import { Spinner } from '@/components/ui'
@@ -18,6 +18,14 @@ export type LeadProfile = {
   startedAt?: string | null
   researchedAt?: string | null
   researchedBy?: { username?: string } | null
+}
+
+type Suggestion = {
+  field: 'company' | 'role'
+  value: string
+  /** the author's own words, verified server-side to appear in the post */
+  evidence: string
+  url?: string | null
 }
 
 const FIELDS = [
@@ -60,9 +68,33 @@ export default function LeadProfilePanel({
     intentSummary: profile?.intentSummary ?? '',
   })
 
+  // Which fields came from a suggestion rather than from typing. Tracked per
+  // field because a save normally mixes the two, and the provenance has to
+  // describe each value rather than the request that carried them.
+  const [inferred, setInferred] = useState<Record<string, boolean>>({})
+
   const save = useMutation({
-    mutationFn: () => pulseFetch('PUT', `people/${documentId}/lead-profile`, form),
+    mutationFn: () =>
+      pulseFetch('PUT', `people/${documentId}/lead-profile`, {
+        ...form,
+        sources: Object.fromEntries(
+          Object.entries(inferred)
+            .filter(([, v]) => v)
+            .map(([k]) => [k, 'inferred'])
+        ),
+      }),
     onSuccess: () => router.refresh(),
+  })
+
+  /**
+   * Read their posts for company/role. Suggestions only — nothing is written
+   * until you click one, and clicking marks that field `inferred` rather than
+   * `human`, so a guess can never be mistaken later for something you checked.
+   */
+  const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null)
+  const suggest = useMutation({
+    mutationFn: () => pulseFetch('POST', `people/${documentId}/suggest-identity`),
+    onSuccess: (res: any) => setSuggestions(res.data ?? []),
   })
 
   if (!started && !open) {
@@ -116,12 +148,79 @@ export default function LeadProfilePanel({
             <span className="text-xs text-zinc-500">{f.label}</span>
             <input
               value={form[f.key]}
-              onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
+              onChange={(e) => {
+                setForm((s) => ({ ...s, [f.key]: e.target.value }))
+                // typed over: it is theirs now, not the model's
+                setInferred((m) => ({ ...m, [f.key]: false }))
+              }}
               placeholder={f.placeholder}
               className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
             />
           </label>
         ))}
+      </div>
+
+      {/* Suggestions sit between the fields and the notes: they fill the fields
+          above, and every one shows the quote that justifies it. A suggestion
+          with no quote never reaches here — the server drops findings whose
+          evidence does not literally appear in the post. */}
+      <div className="mb-3">
+        <button
+          onClick={() => suggest.mutate()}
+          disabled={suggest.isPending}
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-700 disabled:opacity-50 dark:hover:text-zinc-300"
+        >
+          {suggest.isPending ? <Spinner size={11} /> : <Sparkles size={11} />}
+          {suggest.isPending ? 'Reading their posts…' : 'Suggest from their posts'}
+        </button>
+        <MutationError m={suggest} className="mt-1 text-xs" />
+
+        {suggestions?.length === 0 && (
+          <p className="mt-2 text-xs text-zinc-500">
+            They never say who they work for or what they do — which is the usual case. Nothing was
+            invented to fill the gap.
+          </p>
+        )}
+
+        {!!suggestions?.length && (
+          <ul className="mt-2 space-y-2">
+            {suggestions.map((s, i) => (
+              <li
+                key={`${s.field}-${i}`}
+                className="rounded-md border border-zinc-200 p-2 text-xs dark:border-zinc-800"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-zinc-500">{s.field}</span>
+                  <span className="font-medium">{s.value}</span>
+                  <button
+                    onClick={() => {
+                      setForm((f) => ({ ...f, [s.field]: s.value }))
+                      setInferred((m) => ({ ...m, [s.field]: true }))
+                      setSuggestions((list) => (list ?? []).filter((_, j) => j !== i))
+                    }}
+                    className="ml-auto rounded-md border border-zinc-300 px-2 py-0.5 dark:border-zinc-700"
+                  >
+                    Use
+                  </button>
+                </div>
+                <blockquote className="mt-1 flex gap-1.5 italic text-zinc-500">
+                  <Quote size={11} className="mt-0.5 shrink-0" />
+                  <span className="min-w-0 break-words">{s.evidence}</span>
+                </blockquote>
+                {s.url && (
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-block text-zinc-400 underline underline-offset-2"
+                  >
+                    the post
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <label className="mb-3 block text-sm">

@@ -260,15 +260,17 @@ test.describe('leads', () => {
     const person = await (
       await request.get(`${PULSE}/people/${personId}`, { headers: { cookie } })
     ).json()
-    // both posts on ONE person...
+    // both posts on ONE person — the old model stranded them on separate rows
     expect(person.data?.mentions?.length, 'both posts belong to one person').toBe(2)
-    // ...held as TWO accounts, because both keys really were seen. The old
-    // model had to pick one and strand the other on a separate row.
-    expect(person.data?.aliases?.length, 'both identity keys are kept as accounts').toBe(2)
+    // Two account rows exist (both keys really were seen and are kept), but the
+    // alias VIEW collapses them: same handle, same channel, one presence.
+    // Listing both would read as two accounts and make the person more
+    // ambiguous, not less.
+    expect(person.data?.aliases?.length, 'one presence, however many keys').toBe(1)
     expect(
-      person.data?.aliases?.some((a: { profileUrl: string | null }) => a.profileUrl),
-      'the URL-keyed account carries the profile link'
-    ).toBe(true)
+      person.data?.aliases?.[0]?.profileUrl,
+      'and it keeps the row worth linking to'
+    ).toBeTruthy()
   })
 
   test('two people can be merged by hand, and the loser leaves the board', async ({
@@ -401,6 +403,51 @@ test.describe('leads', () => {
     const listed = (await board()).find((l: any) => l.documentId === personId)
     expect(listed, 'a profiled person stays listed').toBeTruthy()
     expect(listed.profile).toMatchObject({ started: true, hasEmail: true, company: 'Acme' })
+  })
+
+  /**
+   * Suggestions must never be able to pass themselves off as verified. The
+   * server drops any finding whose quote is not literally in the post, so this
+   * asserts the SHAPE that guarantee relies on: every suggestion carries its
+   * evidence, and nothing is written by asking.
+   */
+  test('identity suggestions are quoted, and asking for them writes nothing', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const handle = `e2e_ident_${Date.now().toString(36)}`
+    const { documentId } = await injectMention(request, {
+      text: 'I lead engineering at Northwind Logistics and we are costing out a move off Webflow.',
+      author: { handle },
+      authorUrl: `https://x.com/${handle}`,
+    })
+    const m = await (
+      await request.get(`${PULSE}/mentions/${documentId}`, { headers: { cookie } })
+    ).json()
+    const personId = m.data?.person?.documentId
+    expect(personId).toBeTruthy()
+
+    const res = await request.post(`${PULSE}/people/${personId}/suggest-identity`, {
+      headers: { cookie },
+      failOnStatusCode: false,
+    })
+    // keyless (CI) disables the feature outright rather than degrading it —
+    // the same contract as drafts and chat
+    test.skip(res.status() === 503, 'AI disabled — suggestions are off, by design')
+    expect(res.ok()).toBeTruthy()
+
+    const suggestions = (await res.json()).data ?? []
+    for (const s of suggestions) {
+      expect(['company', 'role']).toContain(s.field)
+      expect(s.evidence, 'a suggestion without its quote must never reach the UI').toBeTruthy()
+    }
+
+    // asking is read-only: no profile appears just because we looked
+    const person = await (
+      await request.get(`${PULSE}/people/${personId}`, { headers: { cookie } })
+    ).json()
+    expect(person.data?.leadProfile ?? null, 'suggesting must not create a profile').toBeNull()
   })
 
   test('status transitions persist and claim the lead', async ({ page, request }) => {

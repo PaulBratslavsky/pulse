@@ -56,6 +56,33 @@ export type Classification = {
   qualityReason?: string | null;
 };
 
+/** What someone states about THEMSELVES in their own posts, with the quote. */
+export type IdentityFindings = {
+  findings: {
+    field: 'company' | 'role';
+    value: string;
+    evidence: string;
+    post: number;
+  }[];
+};
+
+// Annotated for the same reason as ClassificationSchema below: inferring
+// through it trips TS2589.
+const IdentitySchema: z.ZodType<IdentityFindings> = z.object({
+  findings: z
+    .array(
+      z.object({
+        field: z.enum(['company', 'role']),
+        value: z.string().describe('The company name or role title, as short as it can be'),
+        evidence: z
+          .string()
+          .describe("The author's own words, copied EXACTLY from one post, that state this"),
+        post: z.number().int().describe('Index of the post the quote came from'),
+      })
+    )
+    .max(6),
+});
+
 // Annotated rather than inferred: letting generateObject infer through a schema
 // this wide trips TS2589 ("type instantiation is excessively deep"). Naming the
 // shape collapses the inference and documents the contract in one place.
@@ -281,6 +308,80 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       }
 
       return { ...result, modelVersion: modelVersion(), promptVersion: PROMPT_VERSION };
+    },
+
+    /**
+     * Read a person's own posts for who they are — company and role.
+     *
+     * SUGGESTIONS, never writes. Octolens carries no company or role, so the
+     * only place either could come from is the author stating it themselves,
+     * and people do: "we run our marketing site on Webflow", "I'm the only dev
+     * here". That is worth surfacing and worth nothing without the quote.
+     *
+     * Same gate as the lead lane (ai.ts analyze): the model must quote the
+     * author verbatim and the quote is checked against the text server-side. A
+     * plausible-sounding inference cannot survive that, which is the entire
+     * point — this feeds a field a human will later act on, and "sounds like a
+     * founder" is not a company name.
+     *
+     * On demand only, never on ingest: it would be a second model call on every
+     * mention to fill a field almost nobody has, and the daily budget is shared
+     * with classification, which is load-bearing.
+     */
+    async suggestIdentity(
+      mentions: { content?: string | null; url?: string | null; postedAt?: string | null }[]
+    ): Promise<{ field: 'company' | 'role'; value: string; evidence: string; url?: string | null }[] | null> {
+      if (!aiEnabled()) return null;
+      const usable = mentions.filter((m) => String(m.content ?? '').trim()).slice(0, 20);
+      if (!usable.length) return [];
+
+      const numbered = usable
+        .map((m, i) => `[${i}] ${String(m.content).slice(0, 800)}`)
+        .join('\n\n');
+
+      let object: any;
+      let usage: any;
+      try {
+        ({ object, usage } = await generateObject({
+          model: model(),
+          schema: IdentitySchema as any,
+          system:
+            'You extract who someone is from what they wrote, for a sales researcher who will verify it. ' +
+            'Report ONLY what the author states about THEMSELVES — their employer, their job. ' +
+            'A company they are evaluating, complaining about, or merely naming is NOT their employer. ' +
+            'Quote their exact words as evidence; a quote that is not in the text is worse than no finding. ' +
+            'Return an empty array when nobody says anything about themselves, which is the common case.',
+          prompt: `Posts by one person:\n\n${numbered}\n\nWhat do they say about who they are?`,
+          abortSignal: AbortSignal.timeout(30_000),
+        }));
+      } catch (err: any) {
+        strapi.log.warn(`[analysis] identity extraction failed: ${err.message}`);
+        return [];
+      }
+      await charge(usage);
+
+      // Verify, do not trust. Identical treatment to laneEvidence: normalize
+      // whitespace, then require the quote to actually appear in the post it
+      // claims to come from.
+      const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+      const out: { field: 'company' | 'role'; value: string; evidence: string; url?: string | null }[] = [];
+      for (const f of object?.findings ?? []) {
+        const source = usable[f.post];
+        if (!source) continue;
+        const quote = norm(String(f.evidence ?? ''));
+        if (quote.length < 8 || !norm(String(source.content ?? '')).includes(quote)) {
+          strapi.log.debug(`[analysis] dropped unquoted identity finding: ${f.field}=${f.value}`);
+          continue;
+        }
+        if (!String(f.value ?? '').trim()) continue;
+        out.push({
+          field: f.field,
+          value: String(f.value).trim().slice(0, 120),
+          evidence: String(f.evidence).trim(),
+          url: source.url ?? null,
+        });
+      }
+      return out;
     },
 
     /** Docs-grounded draft answer, or null when AI disabled. Never persisted — the human decides. */

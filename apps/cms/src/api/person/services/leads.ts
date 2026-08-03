@@ -275,7 +275,10 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
       if (!(f in patch)) continue
       const value = typeof patch[f] === 'string' ? patch[f].trim() : patch[f]
       next[f] = value || null
-      if (value) sources[f] = String(patch.source ?? 'human')
+      // Per FIELD, not per request: a save usually mixes one accepted
+      // suggestion with three fields somebody typed, and stamping the whole
+      // patch would relabel their work as inferred (or worse, the other way).
+      if (value) sources[f] = patch.sources?.[f] === 'inferred' ? 'inferred' : 'human'
       else delete sources[f]
     }
     next.sources = sources

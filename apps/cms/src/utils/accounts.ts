@@ -54,9 +54,26 @@ export function widestReach<T extends AccountLike>(
   return { followers: best.followers ?? null, reachTier: best.reachTier ?? 'unknown', account: best }
 }
 
-/** Every handle the person posts under, for the alias line on their page. */
+/**
+ * Every PRESENCE the person posts under, for the alias line on their page.
+ *
+ * Deduplicated by channel + handle, because one presence is routinely keyed
+ * twice: a post without a profile URL keys as `twitter:handle`, one with keys
+ * as `x.com/handle`, and the repair pass deliberately keeps both account rows
+ * since both were really seen. Listing both would render "@dev X · @dev X" —
+ * which reads as two accounts and makes the person MORE ambiguous, the opposite
+ * of the point. The row carrying a real profile URL wins, since it is the one
+ * worth linking to.
+ */
 export function aliasesOf<T extends AccountLike>(accounts: T[] | null | undefined) {
-  return (accounts ?? []).map((a) => ({
+  const byPresence = new Map<string, T>()
+  for (const a of accounts ?? []) {
+    const key = `${a.channel?.key ?? '?'}::${(a.handle ?? '').toLowerCase()}`
+    const held = byPresence.get(key)
+    const better = !held || (!held.profileUrl && a.profileUrl) || (held.identityProvisional && !a.identityProvisional)
+    if (better) byPresence.set(key, a)
+  }
+  return [...byPresence.values()].map((a) => ({
     identityKey: a.identityKey,
     handle: a.handle ?? null,
     profileUrl: a.profileUrl ?? null,

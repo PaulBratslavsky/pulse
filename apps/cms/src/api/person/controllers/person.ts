@@ -148,6 +148,29 @@ export default factories.createCoreController('api::person.person', ({ strapi })
     }
   },
 
+  /**
+   * POST /people/:documentId/suggest-identity — read their posts for company/role.
+   *
+   * Returns suggestions and writes NOTHING. Accepting one is a separate,
+   * deliberate act through the normal save, which is what stamps it `inferred`
+   * in `sources` — so the provenance always reflects what actually happened
+   * rather than what was offered.
+   */
+  async suggestIdentity(ctx) {
+    const person: any = await strapi.documents('api::person.person').findOne({
+      documentId: ctx.params.documentId,
+      populate: { mentions: true } as any,
+    })
+    if (!person) return ctx.notFound('person not found')
+
+    const aiService = strapi.service('api::analysis.ai') as any
+    if (!aiService.enabled()) {
+      return ctx.serviceUnavailable('AI is disabled — set AI_API_KEY to use suggestions')
+    }
+    const suggestions = await aiService.suggestIdentity(person.mentions ?? [])
+    return { data: suggestions ?? [] }
+  },
+
   /** POST /people/:documentId/status — { status } */
   async status(ctx) {
     try {

@@ -827,3 +827,27 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   record". e2e 13 leads tests passing, including one asserting ingest can never mint a profile.
   Known gap: a profile cannot be removed once started, only emptied — `startedAt` keeps the person
   on the board. Worth a delete route if anyone starts one by accident.
+- **2026-08-03 — Aliases, and identity suggestions that must show their working.**
+  Two of the four backfill sources, finishing what the identity split was for.
+  **Aliases** were already computed and returned by the detail endpoint and rendered nowhere, so a
+  merged person still read as one account. The header now lists every presence — but deduplicated
+  by channel + handle, which the first version got wrong: one presence is routinely keyed twice
+  (`twitter:handle` from a post with no URL, `x.com/handle` from one with) and listing both renders
+  "@dev X · @dev X", which makes a person MORE ambiguous, the opposite of the point. Both account
+  rows are still kept, since both were really seen; only the VIEW collapses. The row carrying a
+  real profile URL wins, being the one worth linking to.
+  **Suggestions** read a person's own posts for company and role, on demand behind a button. Same
+  gate as the lead lane: the model must quote the author verbatim and the quote is checked against
+  the post server-side, so a plausible inference cannot survive. Verified both directions — "I lead
+  engineering at Northwind Logistics" yields company AND role with the quote; a post naming
+  Webflow, Contentful and Sanity while saying nothing about the author yields **nothing**, which is
+  the case that matters, since naming a company is exactly what this corpus is full of.
+  Accepting a suggestion stamps that field `inferred` in `sources`, PER FIELD rather than per
+  request — a save usually mixes one accepted suggestion with three fields somebody typed, and
+  stamping the whole patch would relabel their work. Typing over a suggestion clears the mark.
+  On-demand only: a second model call on every mention, to fill a field almost nobody has, against
+  a budget shared with classification, is not a trade worth making.
+  Noted, not fixed: `suggestIdentity` does not check the daily token budget before calling — but
+  neither do `draft()` or `refine()`. Only the sweep does, because the ceiling was written to stop
+  a runaway LOOP, and these are all bounded by a human clicking. Worth revisiting together, not
+  one at a time. e2e 14 leads tests passing.

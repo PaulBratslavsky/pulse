@@ -78,23 +78,33 @@ export default async function PersonPage({ params }: { params: Promise<{ documen
                   second line and the header lost its shape. These are
                   reference details, not something to read at body size. */}
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
-                {p.profileUrl ? (
-                  <a
-                    href={p.profileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 underline underline-offset-2"
-                  >
-                    @{p.handle} <ExternalLink size={12} />
-                  </a>
-                ) : (
-                  <span>@{p.handle}</span>
-                )}
-                {p.channel?.name && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>{p.channel.name}</span>
-                  </>
+                {/* EVERY presence, not just the primary. A person merged across
+                    platforms otherwise still reads as one account, which is the
+                    thing the identity split exists to fix — and someone about to
+                    reach out needs to know the Reddit handle is the same human
+                    as the X one. One account renders exactly as it always did. */}
+                {(p.aliases ?? []).map(
+                  (
+                    a: { identityKey: string; handle: string | null; profileUrl: string | null; channelName: string | null },
+                    i: number
+                  ) => (
+                    <span key={a.identityKey} className="inline-flex items-center gap-x-2">
+                      {i > 0 && <span aria-hidden>·</span>}
+                      {a.profileUrl ? (
+                        <a
+                          href={a.profileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 underline underline-offset-2"
+                        >
+                          @{a.handle} <ExternalLink size={12} />
+                        </a>
+                      ) : (
+                        <span>@{a.handle}</span>
+                      )}
+                      {a.channelName && <span className="text-zinc-400">{a.channelName}</span>}
+                    </span>
+                  )
                 )}
                 <span aria-hidden>·</span>
                 <span>

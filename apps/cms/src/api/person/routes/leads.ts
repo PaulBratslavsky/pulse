@@ -6,6 +6,7 @@ export default {
     { method: 'GET', path: '/people/:documentId', handler: 'person.detail', config: { policies: [] } },
     { method: 'POST', path: '/people/:documentId/status', handler: 'person.status', config: { policies: [] } },
     { method: 'PUT', path: '/people/:documentId/lead-profile', handler: 'person.saveLeadProfile', config: { policies: [] } },
+    { method: 'POST', path: '/people/:documentId/suggest-identity', handler: 'person.suggestIdentity', config: { policies: [] } },
     { method: 'GET', path: '/people/:documentId/merge-candidates', handler: 'person.mergeCandidates', config: { policies: [] } },
     { method: 'POST', path: '/people/:documentId/merge', handler: 'person.merge', config: { policies: [] } },
   ],
