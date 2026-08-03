@@ -40,7 +40,7 @@ jobs:
       - name: Start stack (demo seed)
         run: |
           nohup npm run dev:demo > stack.log 2>&1 &
-          npx wait-on -t 240000 http://localhost:1337/_health
+          npx wait-on -t 240000 http://localhost:1338/_health
           npx wait-on -t 120000 http://localhost:3000/sign-in
 
       - name: E2E tests

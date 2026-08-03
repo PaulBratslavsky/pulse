@@ -421,6 +421,11 @@ traced. Pulse's backend now runs on **1338** (`apps/cms/.env`, all `NEXT_PUBLIC_
 fallbacks, the `wait-on` in the root `dev` script, e2e helpers, `.env.example`s and the
 README). Local MCP connectors need the same change; the deployed Strapi Cloud URL is
 unaffected.
+  **Missed at the time: `.github/workflows/ci.yml` (fixed 2026-08-03).** Its `wait-on` kept
+  polling 1337, so the stack never reported ready and CI timed out at 240s on every run
+  from 2026-07-31 onward — the suite never executed at all. Three commits landed on master
+  under a red X that said nothing about the code. Worth noting the shape: a port move is a
+  find-and-replace, and the one place nobody greps is the file that only runs in CI.
 - **2026-07-31 — Writes invalidate the graph cache.** The 10-minute TTL meant an agent
   could tag a batch, immediately ask for the map, and see its own work missing — which
   reads as the write having failed. `pulse-assign-topics` and quality/topic edits via
