@@ -29,6 +29,28 @@ export default {
     },
     options: { rule: '0 3 * * *' },
   },
+  /**
+   * Lead intent DECAYS with the age of the post — full weight for 14 days, then
+   * a fade to zero at 90 — but a score is only written when something touches
+   * that person. Without this, a lead scored 90 in July still reads 90 in
+   * October: the board goes stale on its own, silently, and the one number the
+   * team is meant to act on is the one nobody recomputes.
+   *
+   * Costs nothing to run: pure arithmetic over stored rows, no model call, so
+   * it is safe nightly regardless of the token budget. 03:30 — after recluster
+   * at 03:00, since re-clustering can change lanes and lanes decide leads.
+   */
+  leadRescore: {
+    task: async ({ strapi }: any) => {
+      try {
+        const n = await strapi.service('api::person.leads').rescoreAll()
+        strapi.log.info(`[cron] rescored ${n} people`)
+      } catch (err: any) {
+        await strapi.service('api::notify.slack').ops(`lead rescore crashed: ${err.message}`).catch(() => {})
+      }
+    },
+    options: { rule: '30 3 * * *' },
+  },
   staleDigest: {
     task: async ({ strapi }: any) => {
       try {

@@ -202,6 +202,26 @@ test.describe('leads', () => {
     expect(lead.leadContext?.evidence ?? null).toBeNull()
   })
 
+  /**
+   * The board drifts out of date by doing nothing — intent decays with the age
+   * of the post, but a score is only written when something touches that
+   * person. So "when was this last computed" is not a detail, it is the whole
+   * reason the panel exists.
+   */
+  test('lead scoring reports its own freshness and can be rescored from Settings', async ({
+    page,
+  }) => {
+    await page.goto('/settings')
+    const card = page.locator('div').filter({ hasText: /^Lead scoring/ }).first()
+    await expect(page.getByRole('heading', { name: 'Lead scoring' })).toBeVisible()
+    // it must not read as a metered action — that is why it is not in the
+    // classification card, which shows a token budget
+    await expect(card.getByText(/no model call, no tokens/)).toBeVisible()
+
+    await page.getByRole('button', { name: 'Rescore leads' }).click()
+    await expect(card.getByText('under an hour ago')).toBeVisible({ timeout: 20_000 })
+  })
+
   test('status transitions persist and claim the lead', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const leads = await (

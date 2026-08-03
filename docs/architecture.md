@@ -235,6 +235,7 @@ User data exposure is deliberately minimal: only `/api/users/me` is exposed; use
 | `analysisSweep` | every minute | analyze `pending` mentions (or apply Octolens labels keyless). Overlap-guarded; failures retry to a cap then park with ONE ops alert |
 | `octolensSync` | every 5 min | pull-sync reconciliation |
 | `nightlyRecluster` | 03:00 | AI topic clustering (no-op keyless; corrections preserved) |
+| `leadRescore` | 03:30 | Recompute every person's intent score. Pure arithmetic, no model call, so it runs regardless of the token budget. Required because intent **decays with the age of the post** while a score is only written when something touches that person — without it the board silently keeps showing the value each lead had on the day it was last computed. After recluster, since lanes decide leads |
 | `staleDigest` | 09:00 weekdays | Slack digest of stale unanswered mentions (`STALE_AFTER_DAYS`, default 2) |
 | `budgetReset` | midnight | resets the AI daily token budget |
 

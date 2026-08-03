@@ -183,6 +183,38 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
     return updated
   },
 
+  /**
+   * How fresh the board is.
+   *
+   * `staleCount` is the number that matters and the reason this panel exists:
+   * intent DECAYS with the age of the post (full weight 14 days, zero at 90),
+   * but a score is only ever written when something touches that person. A lead
+   * scored 90 three weeks ago still reads 90 until someone recomputes it, so a
+   * board nobody has rescored today is a board quietly showing yesterday's
+   * numbers. Nothing about that is visible without this readout.
+   */
+  async status() {
+    const scored = await strapi.documents('api::person.person').findMany({
+      filters: { leadScore: { $gt: 0 } } as any,
+      fields: ['leadScore', 'leadBand', 'leadScoredAt'] as any,
+      limit: 5000,
+    })
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    const times = scored
+      .map((p: any) => (p.leadScoredAt ? new Date(p.leadScoredAt).getTime() : 0))
+      .filter((t: number) => t > 0)
+    return {
+      scored: scored.length,
+      hot: scored.filter((p: any) => p.leadBand === 'hot').length,
+      warm: scored.filter((p: any) => p.leadBand === 'warm').length,
+      lastScoredAt: times.length ? new Date(Math.max(...times)).toISOString() : null,
+      staleCount: scored.filter((p: any) => {
+        const t = p.leadScoredAt ? new Date(p.leadScoredAt).getTime() : 0
+        return !t || t < cutoff
+      }).length,
+    }
+  },
+
   /** Rescore everyone. Cheap — no model calls, pure arithmetic over stored rows. */
   async rescoreAll() {
     const people = await strapi

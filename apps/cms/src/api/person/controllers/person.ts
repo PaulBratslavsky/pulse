@@ -101,6 +101,11 @@ export default factories.createCoreController('api::person.person', ({ strapi })
   },
 
 
+  /** GET /people/leads-status — freshness of the board, for the Settings card. */
+  async leadsStatus(ctx) {
+    return { data: await (strapi.service('api::person.leads') as any).status() }
+  },
+
   /** POST /people/rescore — pure arithmetic over stored rows, no model calls. */
   async rescore(ctx) {
     const count = await (strapi.service('api::person.leads') as any).rescoreAll()

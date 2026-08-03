@@ -745,3 +745,23 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   returns at the budget check before classifying anything. Everything it depends on is proven
   elsewhere — `correct()` reads `person.documentId` through the same document-service populate and
   its rescore fired — so what remains untested is only the lane condition in that one branch.
+- **2026-08-03 — Lead scoring gets its own cron and its own card, separate from classification.**
+  The question was whether leads need a second classification pass. They do not: `analyze()`
+  already returns `lane`, `laneEvidence` and `leadDirection` in the SAME call as sentiment, topics
+  and spam, so a separate lead pass would re-send the same post to the same model for a field it
+  already answered. What *is* separate is scoring, which is arithmetic over stored rows — 402
+  people in about a second, no tokens.
+  It needed a home because of decay, not because rows were missing: intent holds full weight for
+  14 days then fades to zero at 90, yet a score is only written when something touches that person.
+  A lead scored 90 in July still reads 90 in October. Nothing recomputed it — the registered crons
+  were sweep, recluster, staleDigest, budgetReset and octolensSync, and `POST /people/rescore` had
+  no caller outside a test. So: a `leadRescore` cron at 03:30 (after recluster, since lanes decide
+  leads) and a Settings card with the manual button for after a batch of hand-routing.
+  Kept OUT of the Automatic classification card deliberately. Everything in that card spends
+  tokens and shows a budget; a free action sitting beside a metered one reads as metered. The card
+  states "no model call, no tokens" and the e2e test asserts that line is present.
+  `GET /people/leads-status` reports scored / hot / warm / lastScoredAt / staleCount, because "when
+  was this last computed" is the only thing separating a current board from a stale one, and it was
+  previously invisible. Verified live: 38 scored (11 hot, 3 warm), and a rescore of 402 people took
+  ~1s and moved `lastScoredAt` 19:56 → 20:39. e2e 55 passing, 3 skipped. The cron is registered the
+  same way as the other five but has not been observed firing — it next runs at 03:30.

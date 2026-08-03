@@ -3,17 +3,21 @@ import MutedAuthors from '@/components/muted-authors'
 import ClassificationPanel from '@/components/classification-panel'
 import LeaderboardOptOut from '@/components/leaderboard-optout'
 import McpServers from '@/components/mcp-servers'
+import LeadScoring from '@/components/lead-scoring'
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 
 export default async function SettingsPage() {
-  const [muted, prefs, classification, mcp] = await Promise.all([
+  const [muted, prefs, classification, mcp, leads] = await Promise.all([
     strapiFetch('/api/muted-authors?sort=updatedAt:desc&pagination[pageSize]=100').catch(() => ({ data: [] })),
     strapiFetch('/api/preferences/me').catch(() => ({ data: { hideFromLeaderboard: false } })),
     strapiFetch('/api/analysis/status').catch(() => ({
       data: { enabled: false, provider: '', model: '', counts: { missing: 0, fallbackOnly: 0 }, budget: { spent: 0, budget: 0, exceeded: false } },
     })),
     strapiFetch('/api/mcp-servers').catch(() => ({ data: [] })),
+    strapiFetch('/api/people/leads-status').catch(() => ({
+      data: { scored: 0, hot: 0, warm: 0, lastScoredAt: null, staleCount: 0 },
+    })),
   ])
 
   const links = [
@@ -44,6 +48,13 @@ export default async function SettingsPage() {
           drafted replies */}
       <div className="mb-4">
         <McpServers servers={mcp.data ?? []} />
+      </div>
+
+      {/* after classification, because it consumes what classification produces:
+          lanes in, per-person intent scores out. Its own card so a free action
+          never sits inside the one that shows a token budget. */}
+      <div className="mb-4">
+        <LeadScoring status={leads.data} />
       </div>
 
       <div className="mb-4">
