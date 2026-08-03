@@ -154,7 +154,11 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
   async persist(documentId: string) {
     const scored = await this.score(documentId)
     if (!scored) return null
-    return strapi.documents('api::person.person').update({
+    const before: any = await strapi
+      .documents('api::person.person')
+      .findOne({ documentId, fields: ['leadBand'] as any })
+
+    const updated = await strapi.documents('api::person.person').update({
       documentId,
       data: {
         leadScore: scored.score,
@@ -163,6 +167,20 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
         leadScoredAt: new Date().toISOString(),
       } as any,
     })
+
+    // Log the BAND crossing, not every rescore. Now that the sweep rescores on
+    // every lane change, an entry per run would bury the notes — the same thing
+    // that made setStatus skip no-op transitions. A band change is the only
+    // part of a score a human acts on.
+    if (before && before.leadBand !== scored.band) {
+      await logActivity(strapi, {
+        personDocumentId: documentId,
+        action: 'person-scored',
+        actorId: null,
+        detail: { from: before.leadBand ?? 'none', to: scored.band, score: scored.score },
+      })
+    }
+    return updated
   },
 
   /** Rescore everyone. Cheap — no model calls, pure arithmetic over stored rows. */

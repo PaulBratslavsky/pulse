@@ -1,5 +1,6 @@
 import { factories } from '@strapi/strapi'
 import { classify, extractKeywords, strongestTag } from '../../../utils/lane'
+import { LANES } from '../../../classification/criteria'
 import { logActivity } from '../../../utils/activity'
 import { WorkflowError } from '../../../utils/workflow-error'
 
@@ -132,14 +133,31 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
     return updated
   },
 
-  async correct(documentId: string, user: { id: number }, { sentimentLabel, sentimentScore, topicIds, newTopics }: any) {
-    const mention = await this.requireMention(documentId, { topics: true })
+  async correct(
+    documentId: string,
+    user: { id: number },
+    { sentimentLabel, sentimentScore, topicIds, newTopics, lane }: any
+  ) {
+    const mention = await this.requireMention(documentId, { topics: true, person: true })
     const before = {
       sentimentLabel: mention.sentimentLabel,
       sentimentScore: mention.sentimentScore,
       topics: (mention.topics ?? []).map((t: any) => t.name),
+      lane: mention.lane,
     }
     const data: Record<string, unknown> = { humanCorrected: true }
+    if (lane && lane !== mention.lane) {
+      if (!LANES.some((l) => l.id === lane)) throw new WorkflowError(400, 'invalid lane')
+      data.lane = lane
+      data.laneReason = `routed by a human (was: ${mention.lane ?? 'unset'})`
+      // laneEvidence is the model's VERIFIED verbatim quote, worth 50 of the
+      // 100 intent points. Moving a mention OUT of 'lead' must drop it, or the
+      // score keeps crediting evidence for a call that no longer stands. Moving
+      // one IN cannot mint it — a human routing by hand has produced no quote,
+      // so a hand-routed lead tops out in 'warm', never 'hot'. That is the
+      // intended asymmetry, not a gap.
+      if (lane !== 'lead') data.laneEvidence = null
+    }
     if (sentimentLabel) {
       if (!SENTIMENTS.includes(sentimentLabel)) throw new WorkflowError(400, 'invalid sentimentLabel')
       data.sentimentLabel = sentimentLabel
@@ -161,16 +179,36 @@ export default factories.createCoreService('api::mention.mention', ({ strapi }) 
     if (Array.isArray(topicIds) || createdTopicIds.length)
       data.topics = [...new Set([...(Array.isArray(topicIds) ? topicIds : []), ...createdTopicIds])]
 
-    return strapi.db.transaction(async () => {
-      const updated = await strapi.documents('api::mention.mention').update({ documentId, data: data as any })
+    const updated = await strapi.db.transaction(async () => {
+      const u = await strapi.documents('api::mention.mention').update({ documentId, data: data as any })
       await logActivity(strapi, {
         mentionDocumentId: documentId,
         action: 'corrected',
         actorId: user.id,
-        detail: { before, after: { sentimentLabel, sentimentScore, topicIds, newTopics: newTopics ?? null } },
+        detail: {
+          before,
+          after: {
+            sentimentLabel,
+            sentimentScore,
+            topicIds,
+            newTopics: newTopics ?? null,
+            lane: data.lane ?? null,
+          },
+        },
       })
-      return updated
+      return u
     })
+
+    // After commit, and never inside the transaction: a lead score is derived
+    // data, and failing to refresh it must not roll back the correction a human
+    // just made. Only a lane touching 'lead' can change a score.
+    const personId = (mention as any).person?.documentId
+    if (personId && (data.lane === 'lead' || mention.lane === 'lead')) {
+      await (strapi.service('api::person.leads') as any)
+        .persist(personId)
+        .catch((err: Error) => strapi.log.warn(`[mention] lead rescore failed for ${personId}: ${err.message}`))
+    }
+    return updated
   },
 
   /**

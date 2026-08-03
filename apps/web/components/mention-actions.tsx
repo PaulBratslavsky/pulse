@@ -37,6 +37,7 @@ export default function MentionActions({
   const [showCorrect, setShowCorrect] = useState(false)
   const [corrLabel, setCorrLabel] = useState(mention.sentimentLabel ?? 'neutral')
   const [corrTopics, setCorrTopics] = useState<string[]>((mention.topics ?? []).map((t: any) => t.documentId))
+  const [corrLane, setCorrLane] = useState<string>(mention.lane ?? 'respond')
   const [newTopics, setNewTopics] = useState<string[]>([])
   const [showAck, setShowAck] = useState(false)
   const [ackReason, setAckReason] = useState('competitor')
@@ -96,6 +97,7 @@ export default function MentionActions({
         sentimentLabel: corrLabel,
         topicIds: corrTopics,
         newTopics: newTopics.length ? newTopics : undefined,
+        lane: corrLane,
       }),
     onSuccess: () => {
       setShowCorrect(false)
@@ -285,6 +287,31 @@ export default function MentionActions({
                 {l.label}
               </label>
             ))}
+          </div>
+          {/* Routing was correctable by an agent (pulse-set-lane) but by nobody
+              in this app, so "this person is shopping for a CMS" could only be
+              fixed from Claude Code. Saving a lane also claims the mention as
+              human-corrected, so re-analysis leaves it alone. */}
+          <div className="space-y-1">
+            <p className="text-sm text-zinc-500">Routing lane</p>
+            <div className="flex gap-3 flex-wrap">
+              {[
+                { value: 'respond', label: 'reply work' },
+                { value: 'lead', label: 'lead — choosing, trying or moving' },
+                { value: 'monitor', label: 'monitor — no reply needed' },
+              ].map((l) => (
+                <label key={l.value} className="text-sm flex items-center gap-1">
+                  <input type="radio" checked={corrLane === l.value} onChange={() => setCorrLane(l.value)} />{' '}
+                  {l.label}
+                </label>
+              ))}
+            </div>
+            {corrLane === 'lead' && mention.lane !== 'lead' && (
+              <p className="text-xs text-zinc-500">
+                Scores as a lead, but not a hot one — the 50-point signal is a quote from the author
+                verified against their post, and only automatic classification can produce that.
+              </p>
+            )}
           </div>
           <TopicPicker
             all={allTopics}

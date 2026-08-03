@@ -91,11 +91,11 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
 
   async correct(ctx) {
     try {
-      const { sentimentLabel, sentimentScore, topicIds, newTopics } = ctx.request.body ?? {}
+      const { sentimentLabel, sentimentScore, topicIds, newTopics, lane } = ctx.request.body ?? {}
       const data = await (strapi.service('api::mention.mention') as any).correct(
         ctx.params.documentId,
         ctx.state.user,
-        { sentimentLabel, sentimentScore, topicIds, newTopics }
+        { sentimentLabel, sentimentScore, topicIds, newTopics, lane }
       )
       return { data }
     } catch (err) {

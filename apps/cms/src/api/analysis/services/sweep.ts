@@ -133,7 +133,9 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
           },
         ],
       } as any,
-      populate: { topics: true, channel: true } as any,
+      // person: the lane written below decides whether its author is a lead,
+      // and the score cannot be refreshed without knowing who that is
+      populate: { topics: true, channel: true, person: true } as any,
       limit: 20,
       sort: 'receivedAt:asc' as any,
     });
@@ -217,6 +219,24 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
             at: new Date().toISOString(),
           } as any,
         });
+        // Re-score the author, or the leads board never learns what just
+        // happened. persist() used to be reachable only through
+        // POST /people/rescore, which nothing in the app calls — so a mention
+        // promoted to 'lead' here left its author scoreless until someone hit
+        // that endpoint by hand. It is pure arithmetic over stored rows, no
+        // model call, and only a lane that touches 'lead' can change a score.
+        const personId = (mention as any).person?.documentId;
+        const laneNow = (updated as any).lane;
+        if (personId && (laneNow === 'lead' || mention.lane === 'lead')) {
+          await (strapi.service('api::person.leads') as any)
+            .persist(personId)
+            .catch((err: Error) =>
+              // a stale score is worth less than a parked mention: never let
+              // scoring failure mark a successful analysis as failed
+              strapi.log.warn(`[analysis] lead rescore failed for ${personId}: ${err.message}`)
+            );
+        }
+
         if (mention.analysisStatus === 'pending' && isFresh(mention)) {
           await notifySlack().newMention(updated).catch(() => {});
         }

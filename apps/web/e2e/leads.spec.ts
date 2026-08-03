@@ -160,6 +160,48 @@ test.describe('leads', () => {
     expect(await trail()).toBe(before)
   })
 
+  /**
+   * Routing used to be correctable only by an agent (pulse-set-lane), and the
+   * board only moved when someone POSTed /people/rescore by hand — which
+   * nothing in the app did. So a human who spotted a missed lead had no way to
+   * capture it. This walks the whole path: route it, and the person appears.
+   */
+  test('a human can route a mention into the lead lane, and the board picks it up', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const handle = `e2e_router_${Date.now().toString(36)}`
+    // Deliberately NOT lead-shaped: no switching phrasing for the ingest regex
+    // to catch, so the lane below is the human's doing and nothing else's.
+    const { documentId } = await injectMention(request, {
+      text: 'We run a few client sites on Webflow and I keep an eye on what else is out there.',
+      author: { handle },
+    })
+
+    const board = async () =>
+      (await (await request.get(`${PULSE}/people/leads`, { headers: { cookie } })).json()).data ?? []
+    expect(
+      (await board()).find((l: any) => l.handle === handle),
+      'must not be a lead before a human says so'
+    ).toBeFalsy()
+
+    await page.goto(`/mentions/${documentId}`)
+    await page.getByRole('button', { name: /correct analysis|set sentiment/i }).click()
+    await page.getByRole('radio', { name: /lead — choosing/ }).check()
+    await page.getByRole('button', { name: 'Save correction' }).click()
+    await expect(page.getByText('human-corrected')).toBeVisible()
+
+    const lead = (await board()).find((l: any) => l.handle === handle)
+    expect(lead, 'routing to the lead lane must score the author').toBeTruthy()
+    expect(lead.leadScore).toBeGreaterThan(0)
+    // The asymmetry that keeps the score honest: the 50-point signal is a quote
+    // verified against the post, and only classification can produce one. A
+    // hand-routed lead is real, but it is never 'hot'.
+    expect(lead.leadBand).not.toBe('hot')
+    expect(lead.leadContext?.evidence ?? null).toBeNull()
+  })
+
   test('status transitions persist and claim the lead', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const leads = await (

@@ -580,14 +580,22 @@ export const PULSE_TOOLS: PulseTool[] = [
       for (const item of args.assignments) {
         const mention: any = await strapi
           .documents('api::mention.mention')
-          .findOne({ documentId: item.documentId });
+          .findOne({ documentId: item.documentId, populate: { person: true } as any });
         if (!mention) {
           results.push({ documentId: item.documentId, routed: false, reason: 'not found' });
           continue;
         }
         await strapi.documents('api::mention.mention').update({
           documentId: item.documentId,
-          data: { lane: item.lane, laneReason: `${item.reason} (via ${meta.via})` } as any,
+          data: {
+            lane: item.lane,
+            laneReason: `${item.reason} (via ${meta.via})`,
+            // Without this the next sweep silently overturns the call: the
+            // sweep only leaves a lane alone when humanCorrected is set. A
+            // route made deliberately, with a stated reason, is exactly the
+            // judgement that flag exists to protect.
+            humanCorrected: true,
+          } as any,
         });
         await logActivity(strapi, {
           mentionDocumentId: item.documentId,
@@ -595,6 +603,15 @@ export const PULSE_TOOLS: PulseTool[] = [
           actorId: null,
           detail: { lane: item.lane, reason: item.reason, via: meta.via },
         });
+        // A route that does not move the leads board is only half a route.
+        const personId = mention.person?.documentId;
+        if (personId && (item.lane === 'lead' || mention.lane === 'lead')) {
+          await (strapi.service('api::person.leads') as any)
+            .persist(personId)
+            .catch((err: Error) =>
+              strapi.log.warn(`[tools] lead rescore failed for ${personId}: ${err.message}`)
+            );
+        }
         results.push({ documentId: item.documentId, routed: true, lane: item.lane });
       }
       return {

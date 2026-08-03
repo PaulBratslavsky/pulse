@@ -722,3 +722,26 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   with no server connected it may only touch grammar, tone and structure and must copy every
   technical statement verbatim; with one connected it is told to check each claim, and the UI
   says which of the two happened.
+- **2026-08-03 — Lead capture closes three gaps that made it look automatic when it wasn't.**
+  (1) `leads.persist()` was reachable only through `POST /people/rescore`, which **nothing in the
+  app called** — the only caller in the repo was a test. A mention promoted to `lead` left its
+  author scoreless indefinitely. The sweep now rescores the author whenever a lane touches `lead`;
+  it is pure arithmetic over rows already read, runs after commit, and a failure warns rather than
+  parking the mention. (2) `pulse-set-lane` never set `humanCorrected`, so the next sweep silently
+  overturned a deliberate route — a judgement stated with a reason is exactly what that flag exists
+  to protect. (3) Routing was correctable by an agent and by **nobody in this app**: a human who
+  spotted a missed lead had to open Claude Code. The correction panel now carries the lane, and
+  saving one rescores the author immediately.
+  The deliberate asymmetry: moving a mention OUT of `lead` clears `laneEvidence`, moving one IN
+  cannot mint it — the 50-point signal is a quote verified verbatim against the post, so a
+  hand-routed lead scores as `watch`/`warm` and **never `hot`**. The panel says so inline.
+  Also made real: `person-scored`, a declared activity type that was never written. Logged on band
+  CROSSINGS only — an entry per rescore would bury the notes, the same reason `setStatus` skips
+  no-op transitions.
+  Verified end to end on a real row: routing to `lead` scored the author 21 (`watch`) — 15 lane +
+  10 competitor, decayed ×0.84 for a 26-day-old post, matching the formula exactly — and routing
+  back returned it to 0/`none`, with both band crossings in the trail. e2e 54 passing, 3 skipped.
+  **Not verified live: the sweep's rescore call.** Today's usage is 503,668/500,000, so `run()`
+  returns at the budget check before classifying anything. Everything it depends on is proven
+  elsewhere — `correct()` reads `person.documentId` through the same document-service populate and
+  its rescore fired — so what remains untested is only the lane condition in that one branch.
