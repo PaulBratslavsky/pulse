@@ -94,6 +94,24 @@ export default factories.createCoreController('api::mcp-server.mcp-server', ({ s
     }
   },
 
+  /** POST /mcp-servers/:documentId/test — { query? }, runs one real tool call. */
+  async test(ctx) {
+    // A default that reads as a question, because the docs server asks for "a
+    // single, well-formed natural-language query" and other servers will differ.
+    const query = String(ctx.request.body?.query ?? '').trim() || 'How do I get started?'
+    try {
+      const data = await (strapi.service('api::mcp-server.mcp-server') as any).test(
+        ctx.params.documentId,
+        query.slice(0, 300)
+      )
+      return { data }
+    } catch (err: any) {
+      if (err.status === 404) return ctx.notFound(err.message)
+      if (err.status === 401) return ctx.unauthorized(err.message)
+      return ctx.badRequest(err.message)
+    }
+  },
+
   /** POST /mcp-servers/:documentId/toggle — { enabled } */
   async toggle(ctx) {
     const enabled = Boolean(ctx.request.body?.enabled)

@@ -9,6 +9,8 @@ flowchart LR
     SLACK[Slack webhooks]
     ANTH[Claude API]
     MCPC["MCP clients\n(Claude Desktop / Code)"]
+    MCPS["external MCP servers\n(Strapi docs @ kapa.ai)"]
+    SITE["docs.strapi.io sitemap"]
   end
 
   subgraph cms ["apps/cms — Strapi v5 (owns everything)"]
@@ -17,6 +19,8 @@ flowchart LR
     REG["tool registry\nsrc/tools/registry.ts"]
     MCP["built-in MCP server (/mcp)"]
     CHAT["assistant service\n(Claude tool-use loop)"]
+    DRAFT["reply drafter\napi::analysis.ai"]
+    MCPX["MCP client\napi::mcp-server"]
     API["REST API + workflow routes\n(U&P JWT)"]
   end
 
@@ -30,6 +34,11 @@ flowchart LR
   REG --- MCP
   REG --- CHAT
   CHAT --- ANTH
+  DRAFT --- ANTH
+  CHAT --- MCPX
+  DRAFT --- MCPX
+  MCPX -- "OAuth (tokens in DB)" --> MCPS
+  DRAFT -- "verify every URL" --> SITE
   MCPC -- admin token --> MCP
   UI -- "per-user JWT (httpOnly cookie)" --> API
 ```
@@ -47,7 +56,10 @@ flowchart LR
 | `apps/web/lib/{pulse-client,types}.ts` | The one client-side API helper + shared wire types |
 | `apps/web/app/providers.tsx` | TanStack Query provider — **mutation state only** (26 `useMutation` sites) plus one cached query (search). No polling; freshness is `router.refresh()`. Auth uses server actions + `useActionState` instead, since sign-in is a form submit with redirect semantics |
 | `apps/web/components/{ui,timeline/}` | Shared UI atoms; timeline split into entry/card/composer parts |
-| `apps/cms/src/mcp` | Registers registry tools on the built-in MCP server + their admin permission actions |
+| `apps/cms/src/mcp` | Registers registry tools on the built-in MCP server + their admin permission actions (**inbound**) |
+| `apps/cms/src/api/mcp-server` | MCP **client** — registers external MCP servers, drives their OAuth, stores tokens as `private` fields (**outbound**) |
+| `apps/cms/src/api/analysis/services/mcp-tools.ts` | Turns every connected external server into AI-SDK tools for the drafter and chat |
+| `apps/cms/src/utils/docs-links.ts` | The docs sitemap — a shortlist of real URLs in, every cited URL checked on the way out |
 | `apps/web` | Next.js 16 App Router frontend (Epic Next auth pattern, DevFlow-style UI) |
 | `apps/web/e2e` | Playwright suite (18 tests) — injects data through the real webhook |
 | `0*.md` | The six-stage product spec (living docs; `06-build-spec.md` carries the revision log) |
@@ -120,11 +132,11 @@ Everything except three features works with no AI key. With `AI_API_KEY` unset:
 - **Built-in MCP server** (`/mcp`, GA since Strapi 5.49) — `src/mcp/index.ts` loops the registry in `register()`.
 - **In-app assistant** (`api::assistant.answer`) — a Claude API tool-use loop; `z.toJSONSchema()` bridges the same schemas to the Messages API.
 
-Tools (9): `pulse-queue` (semantic filters — `draft: no-draft|has-draft`, status, sentiment, topic,
+Tools (12): `pulse-queue` (semantic filters — `draft: no-draft|has-draft`, status, sentiment, topic,
 search — paged, excerpt-trimmed, relations as names), `pulse-get-mention` (context + similar past
 replies), `pulse-save-draft`, `pulse-update-mention` (**partial by construction**),
-`pulse-save-drafts-bulk` (25/call), `pulse-acknowledge`, `pulse-search-mentions`,
-`pulse-trend-summary`, `pulse-theme-report`.
+`pulse-save-drafts-bulk` (25/call), `pulse-assign-topics`, `pulse-set-lane`, `pulse-acknowledge`,
+`pulse-search-mentions`, `pulse-trend-summary`, `pulse-graph`, `pulse-theme-report`.
 
 **Agent-safety design** (after a real session with Strapi's generic content-manager tools silently
 overwrote a long post): our write tools never expose `content`, so a truncated resend can't destroy
@@ -135,6 +147,67 @@ results carry a wire-size guard measuring the *doubled* MCP payload and return a
 tools. The draft loop is human-in-the-loop by construction: agents save `draftText`, the queue shows
 a "draft ready" chip, the reply form pre-fills, a human posts on the platform and records the real
 reply (which consumes the draft). **Nothing auto-posts.**
+
+## MCP goes both ways
+
+Two different directions share a protocol and nothing else. Keeping them straight is the whole point
+of this section:
+
+| | Inbound (server) | Outbound (client) |
+|---|---|---|
+| Code | `src/mcp/index.ts` on `strapi.ai.mcp` | `src/api/mcp-server` |
+| Who dials | Claude Desktop / Code dials **us** | Strapi dials **out** |
+| Auth | admin token, one permission action per tool | OAuth 2.1 + PKCE, tokens in the DB |
+| Carries | Pulse's own 12 tools | whatever the remote server exposes |
+
+**Pulse's own tools are never consumed over MCP.** The drafter and chat call the registry in-process;
+making the app dial its own `/mcp` would add a hop, a second token, and a self-deadlock risk.
+
+**Connections are made in Strapi, not the browser.** `AI_API_KEY`, the daily token budget and the
+tool-calling loop already live server-side, so this keeps one copy of each, gives the backend drafter
+the same tools as chat, and keeps OAuth tokens in `private` attributes rather than localStorage.
+`POST /mcp-servers` validates the URL as public http(s) — a registered URL is fetched **by the
+server**, so an unvalidated one is an SSRF primitive.
+
+The MCP SDK drives registration, PKCE, exchange and refresh, calling back into `DbOAuthProvider`,
+which persists to the row. Two things that will bite anyone touching it:
+
+- **Read the row, not the document.** `clientId`/`clientSecret`/`accessToken` are `private`, and
+  `strapi.documents().findOne()` sanitizes them away — handing the provider an undefined `client_id`.
+  Use `strapi.db.query(…)` (`loadRow`). The same trap applies to `update()`, which returns a
+  sanitized document.
+- **State the auth method.** The SDK prefers `client_secret_basic` whenever a secret exists and the
+  server lists basic *at all*, whatever order the server listed. kapa.ai reads `client_id` from the
+  request body only, so an unstated method fails the exchange with a bare "Missing client_id".
+  `clientInformation()` returns the method we registered with.
+
+The PKCE verifier lives in a module-level `Map` with a 10-minute TTL, deliberately never in the DB —
+it is a secret that is useless after the exchange.
+
+### What this buys the drafter
+
+`api::analysis.mcp-tools` loads every `enabled && connected` server into AI-SDK tools (namespacing on
+name collision), and `draft()` gives the model up to 5 tool-calling hops. Everything is best-effort:
+a dead or unauthorized server costs a less-informed draft, never the draft.
+
+**Retrieval and verification are separate jobs, done by whichever tool is good at each** — the fix
+for a draft that once cited four 404s, all of them v4 `/dev-docs/…` paths the model recalled:
+
+- *Which page is relevant* → the MCP, which searches page **content**. The sitemap fallback can only
+  match words in a URL path, which ranks `admin-panel/favicon` highly for an ecommerce question.
+- *Is this URL real* → the sitemap, **always**, including URLs the MCP itself cited. A citation is a
+  suggestion, never a warrant. `stripDeadDocsLinks` runs on every draft and refine before a human
+  sees the text, because instructions constrain a model, they do not bind it.
+
+`POST /mcp-servers/:id/test` (the **Test** button in Settings) calls one read-shaped tool with a
+plain-language question and returns the tool name, elapsed ms, result count and a preview. It exists
+because `connected` is a weaker claim than it looks — it means the handshake and `tools/list`
+worked, not that the token is still valid or that the tool answers. It never writes `status`: a
+failing test is information, not a state change.
+
+`STRAPI_DOCS_MCP_URL` is the legacy single-shot path, used only when no server is registered. It
+pasted one blind lookup into the prompt; registered servers let the model ask its own questions, and
+ask again.
 
 ## Permissions model (three registries, kept distinct)
 

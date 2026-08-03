@@ -30,6 +30,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::mcp-server.mcp-server.register',
   'api::mcp-server.mcp-server.connect',
   'api::mcp-server.mcp-server.finishAuth',
+  'api::mcp-server.mcp-server.test',
   'api::mcp-server.mcp-server.toggle',
   'api::mcp-server.mcp-server.remove',
   'api::person.person.leads',

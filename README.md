@@ -56,14 +56,15 @@ curl -X POST http://localhost:1338/api/octolens/ingest \
 
 ## Connecting AI clients (MCP)
 
-The backend exposes Strapi's built-in MCP server at `POST /mcp` with nine Pulse tools — queue (semantic
+The backend exposes Strapi's built-in MCP server at `POST /mcp` with twelve Pulse tools — queue (semantic
 filters + paging), mention detail, **save-draft**, **update-mention** (partial), **save-drafts-bulk**,
-**acknowledge**, search, trends, themes — the same registry the in-app assistant uses. Drafts saved by an
-agent pre-fill the reply form for a human to review and post; **nothing auto-posts**, and write tools
-never expose the mention body, so an agent can't overwrite a post's content.
+**assign-topics**, **set-lane**, **acknowledge**, search, trends, graph, themes — the same registry the
+in-app assistant uses. Drafts saved by an agent pre-fill the reply form for a human to review and post;
+**nothing auto-posts**, and write tools never expose the mention body, so an agent can't overwrite a
+post's content.
 
 1. In the Strapi admin, create an **Admin Token** (Settings → Admin Tokens — a classic content-API token is rejected by `/mcp`).
-2. On the token's permission screen, open the **Settings tab → "Pulse MCP tools"** and check the tools this token may call (per-tool, granular; four of the nine are writes, marked `(write)`). The **Plugins tab → octolens** separately gates the plugin's admin sync UI. ⚠️ Grant **only** these actions — adding content-manager permissions re-exposes Strapi's generic CRUD tools, whose update flow requires resending the whole record (a truncated resend silently overwrote a long post in a real session).
+2. On the token's permission screen, open the **Settings tab → "Pulse MCP tools"** and check the tools this token may call (per-tool, granular; six of the twelve are writes, marked `(write)`). The **Plugins tab → octolens** separately gates the plugin's admin sync UI. ⚠️ Grant **only** these actions — adding content-manager permissions re-exposes Strapi's generic CRUD tools, whose update flow requires resending the whole record (a truncated resend silently overwrote a long post in a real session).
 3. Point your client at the endpoint, e.g. Claude Desktop `claude_desktop_config.json`:
    ```json
    "pulse": {
@@ -74,3 +75,23 @@ never expose the mention body, so an agent can't overwrite a post's content.
    ```
 
 Unchecking a tool's box revokes it for that token immediately — permissions are managed entirely from the admin UI.
+
+## Giving Pulse MCP tools (the other direction)
+
+The section above is other clients calling **into** Pulse. Pulse is also an MCP **client**: register a
+server in the app under **Settings → MCP servers** and its tools become callable by the reply drafter
+and chat.
+
+The one worth adding is the Strapi docs server, `https://strapi-docs.mcp.kapa.ai` — it searches the
+docs by **content**, which is what stops a draft citing pages the model merely remembers.
+
+1. Paste a name and URL, click **Add server**, then **Connect**. If the server wants OAuth, a popup
+   opens for you to approve once; tokens are stored server-side as `private` fields and refreshed
+   automatically. The browser never sees them.
+2. Click **Test**. It runs one real tool call with a generic question and shows the tool name, elapsed
+   time, result count and a preview of the answer — `connected` only means the handshake worked, not
+   that the token is still good or the tool answers.
+
+Every documentation URL in a draft is checked against docs.strapi.io's sitemap regardless, and any
+that isn't a real page is removed before you see the draft. `STRAPI_DOCS_MCP_URL` is the older
+single-lookup fallback and is only used when no server is registered.

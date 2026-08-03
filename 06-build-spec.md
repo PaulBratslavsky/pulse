@@ -703,3 +703,22 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   page** — a pain point typed as a quick comment never reaches product, and the fix was
   previously delete-and-retype. Tested end to end: comment → re-file as feedback → it
   appears on `/feedback`.
+- **2026-08-03 — The docs MCP actually connects, and a button proves it.** OAuth died at
+  the token exchange with a bare `Missing client_id`, leaving the drafter ungrounded while
+  the UI said nothing was wrong. Cause: `clientInformation()` rebuilt a bare
+  `{client_id, client_secret}` and dropped the `token_endpoint_auth_method` we registered
+  with, so the SDK fell back to its own preference — `client_secret_basic`, which it picks
+  whenever a secret exists and the server lists basic *at all*, whatever order the server
+  listed them in. kapa.ai reads `client_id` from the request body only. Stating the method
+  fixes it. Worth recording that the obvious probe **could not confirm this**: kapa returns
+  an identical generic `invalid_grant` for a bogus code whether credentials arrive in the
+  header, the body, or not at all, so only a real code distinguishes them.
+  Hence `POST /mcp-servers/:id/test` and the **Test** button — one real tool call with a
+  generic question, reporting tool name, elapsed ms, result count and a preview. `connected`
+  only ever meant the handshake and `tools/list` worked, which is a much weaker claim than
+  it reads as. It never writes `status`: a failing test is information, not a state change.
+  Verified live: `search_strapi_knowledge_sources` · 3940 ms · 15 results.
+  The consequence is largest for **Refine**, which changes job description based on this —
+  with no server connected it may only touch grammar, tone and structure and must copy every
+  technical statement verbatim; with one connected it is told to check each claim, and the UI
+  says which of the two happened.

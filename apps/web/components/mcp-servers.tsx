@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
-import { Plug, Trash2, RefreshCw } from 'lucide-react'
+import { Plug, Trash2, RefreshCw, FlaskConical } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
 import { Spinner } from '@/components/ui'
@@ -17,6 +17,16 @@ type Server = {
   statusDetail?: string | null
   tools: string[]
   lastConnectedAt?: string | null
+}
+
+type TestResult = {
+  tool: string
+  query: string
+  ms: number
+  isError: boolean
+  resultCount: number | null
+  preview: string
+  truncated: boolean
 }
 
 const STATUS: Record<string, string> = {
@@ -40,6 +50,7 @@ export default function McpServers({ servers }: { servers: Server[] }) {
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [tested, setTested] = useState<Record<string, TestResult>>({})
 
   const add = useMutation({
     mutationFn: () => pulseFetch('POST', 'mcp-servers', { name, url }),
@@ -59,6 +70,18 @@ export default function McpServers({ servers }: { servers: Server[] }) {
     mutationFn: (v: { id: string; enabled: boolean }) =>
       pulseFetch('POST', `mcp-servers/${v.id}/toggle`, { enabled: v.enabled }),
     onSuccess: () => router.refresh(),
+  })
+
+  /**
+   * A real tool call, because "connected" is a weaker claim than it looks: it
+   * means the handshake and tools/list worked, not that the token is still
+   * valid or that the tool answers. The drafter depends on the latter.
+   */
+  const test = useMutation({
+    mutationFn: (id: string) => pulseFetch('POST', `mcp-servers/${id}/test`, {}),
+    onSuccess: (res: any, id) => setTested((t) => ({ ...t, [id]: res.data })),
+    // deliberately no router.refresh(): a test writes nothing, and re-rendering
+    // the list would throw away the result the user asked to see
   })
 
   const connect = useMutation({
@@ -162,6 +185,23 @@ export default function McpServers({ servers }: { servers: Server[] }) {
                     )}
                     {s.status === 'connected' ? 'Reconnect' : 'Connect'}
                   </button>
+                  {s.status === 'connected' && (
+                    <button
+                      onClick={() => {
+                        setBusy(s.documentId)
+                        test.mutate(s.documentId)
+                      }}
+                      disabled={test.isPending}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-xs disabled:opacity-50 dark:border-zinc-700"
+                    >
+                      {busy === s.documentId && test.isPending ? (
+                        <Spinner size={11} />
+                      ) : (
+                        <FlaskConical size={11} />
+                      )}
+                      Test
+                    </button>
+                  )}
                   <button
                     onClick={() => remove.mutate(s.documentId)}
                     disabled={remove.isPending}
@@ -178,6 +218,30 @@ export default function McpServers({ servers }: { servers: Server[] }) {
               )}
               {s.tools.length > 0 && (
                 <p className="mt-1 text-xs text-zinc-500">{s.tools.join(' · ')}</p>
+              )}
+              {tested[s.documentId] && (
+                <div className="mt-2 rounded-md bg-zinc-50 p-2 dark:bg-zinc-800/50">
+                  <p className="text-xs text-zinc-500">
+                    <code>{tested[s.documentId].tool}</code> · {tested[s.documentId].ms} ms
+                    {tested[s.documentId].resultCount !== null &&
+                      ` · ${tested[s.documentId].resultCount} result${
+                        tested[s.documentId].resultCount === 1 ? '' : 's'
+                      }`}
+                    {tested[s.documentId].isError && (
+                      <span className="text-red-600 dark:text-red-400">
+                        {' '}
+                        · the tool returned an error
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs italic text-zinc-400">
+                    &ldquo;{tested[s.documentId].query}&rdquo;
+                  </p>
+                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-600 dark:text-zinc-300">
+                    {tested[s.documentId].preview}
+                    {tested[s.documentId].truncated && '…'}
+                  </pre>
+                </div>
               )}
             </li>
           ))}
@@ -208,6 +272,7 @@ export default function McpServers({ servers }: { servers: Server[] }) {
       </div>
       <MutationError m={add} className="mt-2 text-xs" />
       <MutationError m={connect} className="mt-2 text-xs" />
+      <MutationError m={test} className="mt-2 text-xs" />
       <MutationError m={remove} className="mt-2 text-xs" />
     </div>
   )
