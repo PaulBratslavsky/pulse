@@ -853,9 +853,7 @@ export interface ApiPersonPerson extends Struct.CollectionTypeSchema {
     followers: Schema.Attribute.Integer;
     followersObservedAt: Schema.Attribute.DateTime;
     handle: Schema.Attribute.String;
-    identityKey: Schema.Attribute.String &
-      Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+    identityKey: Schema.Attribute.String & Schema.Attribute.Unique;
     identityProvisional: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     kind: Schema.Attribute.Enumeration<
@@ -897,6 +895,10 @@ export interface ApiPersonPerson extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'unknown'>;
+    socialAccounts: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::social-account.social-account'
+    >;
     status: Schema.Attribute.Enumeration<
       ['new', 'watching', 'contacted', 'qualified', 'not-a-fit']
     > &
@@ -976,6 +978,54 @@ export interface ApiResponseResponse extends Struct.CollectionTypeSchema {
       'manyToOne',
       'plugin::users-permissions.user'
     >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiSocialAccountSocialAccount
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'social_accounts';
+  info: {
+    description: 'One presence on one platform. A human is a Person; the accounts they post from live here, so the same person can hold an X, a Reddit and a Bluesky identity without being three rows.';
+    displayName: 'Social Account';
+    pluralName: 'social-accounts';
+    singularName: 'social-account';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    avatarUrl: Schema.Attribute.String;
+    channel: Schema.Attribute.Relation<'manyToOne', 'api::channel.channel'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    firstSeenAt: Schema.Attribute.DateTime;
+    followers: Schema.Attribute.Integer;
+    followersObservedAt: Schema.Attribute.DateTime;
+    handle: Schema.Attribute.String;
+    identityKey: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    identityProvisional: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    lastSeenAt: Schema.Attribute.DateTime;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::social-account.social-account'
+    > &
+      Schema.Attribute.Private;
+    person: Schema.Attribute.Relation<'manyToOne', 'api::person.person'>;
+    profileUrl: Schema.Attribute.String;
+    publishedAt: Schema.Attribute.DateTime;
+    reachTier: Schema.Attribute.Enumeration<
+      ['unknown', 'small', 'mid', 'large']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'unknown'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1539,6 +1589,7 @@ declare module '@strapi/strapi' {
       'api::person.person': ApiPersonPerson;
       'api::preference.preference': ApiPreferencePreference;
       'api::response.response': ApiResponseResponse;
+      'api::social-account.social-account': ApiSocialAccountSocialAccount;
       'api::topic.topic': ApiTopicTopic;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

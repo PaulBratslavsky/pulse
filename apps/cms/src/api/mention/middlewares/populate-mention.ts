@@ -20,6 +20,10 @@ const DETAIL_POPULATE = {
   topics: { fields: ['name', 'slug', 'kind'] },
   owner: { fields: ['username'] },
   assignee: { fields: ['username'] },
+  // detail only, deliberately: one join on one row, so a mention can reach its
+  // author. On the LIST this would be 25 extra joins to render a card that
+  // shows the handle it already has.
+  person: { fields: ['handle', 'displayName', 'identityKey'] },
   responses: {
     fields: ['finalText', 'draftText', 'respondedAt', 'notes', 'internal'],
     populate: {

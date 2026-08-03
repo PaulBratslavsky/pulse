@@ -6,6 +6,7 @@ import { Avatar, Disclosure } from '@/components/ui'
 import { SentimentBadge, LaneBadge } from '@/components/badges'
 import Timeline from '@/components/timeline'
 import LeadStatus from '@/components/lead-status'
+import PersonMerge from '@/components/person-merge'
 
 const BAND_STYLE: Record<string, string> = {
   hot: 'border-red-400 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300',
@@ -110,6 +111,14 @@ export default async function PersonPage({ params }: { params: Promise<{ documen
                     <span>owned by {p.owner.username}</span>
                   </>
                 )}
+              </div>
+              {/* below the facts, not among them: merging is an action, and the
+                  line above is reference detail */}
+              <div className="mt-2">
+                <PersonMerge
+                  documentId={p.documentId}
+                  name={p.displayName ?? `@${p.handle}`}
+                />
               </div>
             </div>
           </header>

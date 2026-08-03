@@ -9,7 +9,7 @@
   },
   "options": { "draftAndPublish": false },
   "attributes": {
-    "identityKey": { "type": "string", "required": true, "unique": true },
+    "identityKey": { "type": "string", "unique": true },
     "identityProvisional": { "type": "boolean", "default": false },
     "handle": { "type": "string" },
     "displayName": { "type": "string" },
@@ -51,6 +51,7 @@
     "statusChangedAt": { "type": "datetime" },
     "owner": { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" },
     "mergedInto": { "type": "relation", "relation": "manyToOne", "target": "api::person.person" },
-    "mentions": { "type": "relation", "relation": "oneToMany", "target": "api::mention.mention", "mappedBy": "person" }
+    "mentions": { "type": "relation", "relation": "oneToMany", "target": "api::mention.mention", "mappedBy": "person" },
+    "socialAccounts": { "type": "relation", "relation": "oneToMany", "target": "api::social-account.social-account", "mappedBy": "person" }
   }
 }

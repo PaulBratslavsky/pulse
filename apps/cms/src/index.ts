@@ -2,6 +2,8 @@ import type { Core } from '@strapi/strapi'
 import { seedDemo } from './seed-demo'
 import { registerAllMcpTools, registerMcpToolPermissions } from './mcp'
 import { dedupeMentionsAndEnforceUnique } from './utils/dedupe-mentions'
+import { dedupeSplitPeople } from './utils/dedupe-people'
+import { splitSocialAccounts } from './utils/split-social-accounts'
 import { backfillPeople } from './utils/backfill-people'
 
 /** Actions the Authenticated (team member) role gets. Each is its own permission record —
@@ -37,6 +39,8 @@ const AUTHENTICATED_ACTIONS = [
   'api::person.person.detail',
   'api::person.person.status',
   'api::person.person.leadsStatus',
+  'api::person.person.mergeCandidates',
+  'api::person.person.merge',
   'api::person.person.rescore',
   'api::muted-author.muted-author.find',
   'api::muted-author.muted-author.mute',
@@ -126,6 +130,23 @@ export default {
     // Non-fatal: an unresolved author costs a leads-list row, not a mention.
     await backfillPeople(strapi).catch((err: Error) => {
       strapi.log.error(`pulse: person backfill failed: ${err.message}`)
+    })
+
+    // ---- Move platform identity onto SocialAccount (idempotent, phase A) ----
+    // BEFORE the dedupe below, which reads accounts: on a first boot after the
+    // refactor there are none until this has run. It points each account at the
+    // SURVIVING person, so a tombstoned half becomes a second account rather
+    // than a hidden row.
+    await splitSocialAccounts(strapi).catch((err: Error) => {
+      strapi.log.error(`pulse: social account split failed: ${err.message}`)
+    })
+
+    // ---- Fold split identities back together (idempotent) ----
+    // Two accounts for the same presence — same handle, same channel — still
+    // pointing at different people. Non-fatal: a split person is a duplicate
+    // row, not lost data.
+    await dedupeSplitPeople(strapi).catch((err: Error) => {
+      strapi.log.error(`pulse: person dedupe failed: ${err.message}`)
     })
 
     // ---- Seed Authenticated role permissions (idempotent) ----

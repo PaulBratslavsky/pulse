@@ -74,7 +74,7 @@ export async function backfillPeople(strapi: Core.Strapi) {
   // Recompute from the mentions themselves, the mistake muted_authors made.
   const people = await strapi
     .documents('api::person.person')
-    .findMany({ fields: ['identityKey'] as any, limit: 5000 })
+    .findMany({ fields: ['displayName'] as any, limit: 5000 })
   for (const p of people) {
     await personService.recount(p.documentId)
     // the mute list changes after a person row already exists

@@ -222,6 +222,122 @@ test.describe('leads', () => {
     await expect(card.getByText('under an hour ago')).toBeVisible({ timeout: 20_000 })
   })
 
+  /**
+   * The same account used to become two people. A post with no profile URL is
+   * keyed `channel:handle`; one WITH a URL is keyed by the URL. ensure()
+   * reconciled those only when the handle-keyed sighting came second — so when
+   * it came first, the next sighting forked a second person and both halves
+   * scored below the bar the whole would clear.
+   */
+  test('one author posting with and without a profile URL stays one person', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const handle = `e2e_split_${Date.now().toString(36)}`
+
+    // handle-keyed FIRST — the order that used to fork
+    await injectMention(request, {
+      text: 'Looking at headless options for a rebuild, no strong opinions yet.',
+      author: { handle },
+      authorUrl: null,
+      platform: 'x',
+    })
+    // ...then the same account with the profile URL that keys it firmly
+    const { documentId } = await injectMention(request, {
+      text: 'Following up on the rebuild — pricing is the sticking point.',
+      author: { handle },
+      authorUrl: `https://x.com/${handle}`,
+      platform: 'x',
+    })
+
+    const m = await (
+      await request.get(`${PULSE}/mentions/${documentId}`, { headers: { cookie } })
+    ).json()
+    const personId = m.data?.person?.documentId
+    expect(personId, 'the second mention must resolve to a person').toBeTruthy()
+
+    const person = await (
+      await request.get(`${PULSE}/people/${personId}`, { headers: { cookie } })
+    ).json()
+    // both posts on ONE person...
+    expect(person.data?.mentions?.length, 'both posts belong to one person').toBe(2)
+    // ...held as TWO accounts, because both keys really were seen. The old
+    // model had to pick one and strand the other on a separate row.
+    expect(person.data?.aliases?.length, 'both identity keys are kept as accounts').toBe(2)
+    expect(
+      person.data?.aliases?.some((a: { profileUrl: string | null }) => a.profileUrl),
+      'the URL-keyed account carries the profile link'
+    ).toBe(true)
+  })
+
+  test('two people can be merged by hand, and the loser leaves the board', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const stamp = Date.now().toString(36)
+    // same display name, different platforms — exactly the judgement call the
+    // repair pass refuses to make automatically
+    const a = await injectMention(request, {
+      text: 'We are pricing out a CMS migration this quarter.',
+      author: { handle: `e2e_x_${stamp}` },
+      authorName: `E2E Person ${stamp}`,
+      authorUrl: `https://x.com/e2e_x_${stamp}`,
+      platform: 'x',
+    })
+    const b = await injectMention(request, {
+      text: 'Same person, different platform, still pricing out a migration.',
+      author: { handle: `e2e_rd_${stamp}` },
+      authorName: `E2E Person ${stamp}`,
+      authorUrl: `https://www.reddit.com/user/e2e_rd_${stamp}`,
+      platform: 'reddit',
+    })
+
+    const personOf = async (mentionId: string) =>
+      (await (await request.get(`${PULSE}/mentions/${mentionId}`, { headers: { cookie } })).json())
+        .data?.person?.documentId
+    const [winner, loser] = [await personOf(a.documentId), await personOf(b.documentId)]
+    expect(winner).toBeTruthy()
+    expect(loser).toBeTruthy()
+    expect(loser, 'different platforms must NOT merge automatically').not.toBe(winner)
+
+    // the display-name match is offered as a candidate, with its reason
+    const cands = await (
+      await request.get(`${PULSE}/people/${winner}/merge-candidates`, { headers: { cookie } })
+    ).json()
+    expect((cands.data ?? []).some((c: any) => c.documentId === loser)).toBe(true)
+
+    const res = await request.post(`${PULSE}/people/${loser}/merge`, {
+      headers: { cookie },
+      data: { into: winner },
+    })
+    expect(res.ok()).toBeTruthy()
+
+    const merged = await (
+      await request.get(`${PULSE}/people/${winner}`, { headers: { cookie } })
+    ).json()
+    expect(merged.data?.mentions?.length, 'both mentions move to the survivor').toBe(2)
+    // the survivor now holds BOTH platform presences — the point of the merge
+    expect(merged.data?.aliases?.length, 'the survivor holds both accounts').toBe(2)
+    expect(
+      new Set(merged.data?.aliases?.map((a: { channel: string | null }) => a.channel)).size,
+      'and they are on different platforms'
+    ).toBe(2)
+
+    // the tombstone is kept — the row still resolves — but it is off the board
+    const board = await (await request.get(`${PULSE}/people/leads`, { headers: { cookie } })).json()
+    expect((board.data ?? []).some((l: any) => l.documentId === loser)).toBe(false)
+
+    // merging twice is refused rather than chaining tombstones
+    const again = await request.post(`${PULSE}/people/${loser}/merge`, {
+      headers: { cookie },
+      data: { into: winner },
+      failOnStatusCode: false,
+    })
+    expect(again.status()).toBe(409)
+  })
+
   test('status transitions persist and claim the lead', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const leads = await (

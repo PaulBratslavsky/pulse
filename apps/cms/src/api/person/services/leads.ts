@@ -6,6 +6,7 @@ import {
   type LeadDirection,
 } from '../../../classification/criteria'
 import { logActivity } from '../../../utils/activity'
+import { primaryAccount, widestReach } from '../../../utils/accounts'
 
 const daysBetween = (iso: string | null | undefined, now: number): number => {
   if (!iso) return Number.POSITIVE_INFINITY
@@ -49,7 +50,7 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
   async score(documentId: string): Promise<ScoredLead | null> {
     const person: any = await strapi.documents('api::person.person').findOne({
       documentId,
-      populate: { mentions: true } as any,
+      populate: { mentions: true, socialAccounts: { populate: { channel: true } } } as any,
     })
     if (!person) return null
 
@@ -63,6 +64,8 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
     if (person.kind && person.kind !== 'community' && person.kind !== 'unknown') return none
 
     const mentions: any[] = person.mentions ?? []
+    const primary = primaryAccount(person.socialAccounts)
+    const reach = widestReach(person.socialAccounts)
     const now = Date.now()
     const signals: { id: string; points: number; label: string }[] = []
     const add = (id: string) => {
@@ -134,11 +137,16 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
       // A facts panel, never arithmetic. Followers appear here and nowhere in
       // the score — asserted by the e2e "fit trap" test.
       context: {
+        // Reach across every account they post from, not just one. Still never
+        // summed into the score — see the note on INTENT_SIGNALS — but taking
+        // only the primary would understate someone with 40k on X who last
+        // posted from a small Bluesky account.
         followers:
-          typeof person.followers === 'number'
-            ? person.followers
-            : `not available on ${person.channel?.key ?? 'this platform'}`,
-        reachTier: person.reachTier,
+          typeof reach.followers === 'number'
+            ? reach.followers
+            : `not available on ${primary?.channel?.key ?? 'this platform'}`,
+        reachTier: reach.reachTier,
+        accounts: (person.socialAccounts ?? []).length,
         venue: best.venue ?? null,
         postKind: best.postKind ?? 'unknown',
         competitor,

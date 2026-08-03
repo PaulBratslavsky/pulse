@@ -1,0 +1,39 @@
+{
+  "kind": "collectionType",
+  "collectionName": "social_accounts",
+  "info": {
+    "singularName": "social-account",
+    "pluralName": "social-accounts",
+    "displayName": "Social Account",
+    "description": "One presence on one platform. A human is a Person; the accounts they post from live here, so the same person can hold an X, a Reddit and a Bluesky identity without being three rows."
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "identityKey": { "type": "string", "required": true, "unique": true },
+    "identityProvisional": { "type": "boolean", "default": false },
+    "handle": { "type": "string" },
+    "profileUrl": { "type": "string" },
+    "avatarUrl": { "type": "string" },
+    "channel": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::channel.channel"
+    },
+    "followers": { "type": "integer" },
+    "followersObservedAt": { "type": "datetime" },
+    "reachTier": {
+      "type": "enumeration",
+      "enum": ["unknown", "small", "mid", "large"],
+      "default": "unknown",
+      "required": true
+    },
+    "firstSeenAt": { "type": "datetime" },
+    "lastSeenAt": { "type": "datetime" },
+    "person": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::person.person",
+      "inversedBy": "socialAccounts"
+    }
+  }
+}

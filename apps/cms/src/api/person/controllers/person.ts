@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi'
+import { primaryAccount, widestReach, aliasesOf } from '../../../utils/accounts'
 
 export default factories.createCoreController('api::person.person', ({ strapi }) => ({
   /** GET /people/leads — the leads board, ordered by score. */
@@ -16,30 +17,38 @@ export default factories.createCoreController('api::person.person', ({ strapi })
 
     const people = await strapi.documents('api::person.person').findMany({
       filters,
-      populate: { channel: true, owner: true } as any,
+      populate: { owner: true, socialAccounts: { populate: { channel: true } } } as any,
       sort: ['leadScore:desc', 'lastSeenAt:desc'] as any,
       limit: 200,
     })
 
     const shaped = people
-      .map((p: any) => ({
+      .map((p: any) => {
+        // one card, one identity: the presence they are actually using
+        const primary = primaryAccount(p.socialAccounts)
+        const reach = widestReach(p.socialAccounts)
+        return {
         documentId: p.documentId,
-        handle: p.handle,
+        handle: primary?.handle ?? null,
         displayName: p.displayName,
-        profileUrl: p.profileUrl,
-        avatarUrl: p.avatarUrl,
-        channel: p.channel?.key ?? null,
+        profileUrl: primary?.profileUrl ?? null,
+        avatarUrl: primary?.avatarUrl ?? null,
+        channel: primary?.channel?.key ?? null,
+        // how many places they post from — the card says "+2 more" rather than
+        // pretending the primary is all of them
+        accountCount: (p.socialAccounts ?? []).length,
         leadScore: p.leadScore,
         leadBand: p.leadBand,
-        reachTier: p.reachTier,
-        followers: p.followers,
+        reachTier: reach.reachTier,
+        followers: reach.followers,
         leadContext: p.leadContext ?? {},
         status: p.status,
         owner: p.owner ? { id: p.owner.id, username: p.owner.username } : null,
         mentionCount: p.mentionCount,
         lastSeenAt: p.lastSeenAt,
         direction: (p.leadContext as any)?.direction ?? 'none',
-      }))
+        }
+      })
       .filter((p: any) => !direction || p.direction === direction)
 
     return { data: shaped }
@@ -49,7 +58,11 @@ export default factories.createCoreController('api::person.person', ({ strapi })
   async detail(ctx) {
     const person: any = await strapi.documents('api::person.person').findOne({
       documentId: ctx.params.documentId,
-      populate: { channel: true, owner: true, mentions: { populate: { channel: true } } } as any,
+      populate: {
+        owner: true,
+        mentions: { populate: { channel: true } },
+        socialAccounts: { populate: { channel: true } },
+      } as any,
     })
     if (!person) return ctx.notFound('person not found')
     // Returned under `comments` / `activities` so the person page can render
@@ -74,6 +87,9 @@ export default factories.createCoreController('api::person.person', ({ strapi })
         new Date(a.postedAt ?? a.receivedAt ?? 0).getTime()
     )
 
+    const primary = primaryAccount(person.socialAccounts)
+    const reach = widestReach(person.socialAccounts)
+
     return {
       data: {
         ...person,
@@ -81,6 +97,16 @@ export default factories.createCoreController('api::person.person', ({ strapi })
         owner: person.owner ? { id: person.owner.id, username: person.owner.username } : null,
         comments,
         activities,
+        // Flattened for the header, which needs one of each — while `aliases`
+        // carries every presence, so a person who posts from three platforms
+        // reads as one human with three accounts rather than a mystery.
+        handle: primary?.handle ?? null,
+        profileUrl: primary?.profileUrl ?? null,
+        avatarUrl: primary?.avatarUrl ?? null,
+        channel: primary?.channel ?? null,
+        followers: reach.followers,
+        reachTier: reach.reachTier,
+        aliases: aliasesOf(person.socialAccounts),
       },
     }
   },
@@ -100,6 +126,88 @@ export default factories.createCoreController('api::person.person', ({ strapi })
     }
   },
 
+
+  /**
+   * POST /people/:documentId/merge — { into }
+   *
+   * The param is the person being FOLDED AWAY and `into` is the survivor, so
+   * the URL names the row that disappears from the board. Merging is
+   * human-confirmed on purpose: the boot repair only folds a provisional row
+   * into a firm one on the same channel, and joining an X account to a Reddit
+   * account has no reliable automatic signal.
+   */
+  async merge(ctx) {
+    const into = String(ctx.request.body?.into ?? '')
+    if (!into) return ctx.badRequest('into is required')
+    try {
+      const data = await (strapi.service('api::person.person') as any).merge(
+        ctx.params.documentId,
+        into,
+        ctx.state.user
+      )
+      return { data }
+    } catch (err: any) {
+      if (err.status === 404) return ctx.notFound(err.message)
+      if (err.status === 409) return ctx.conflict(err.message)
+      return ctx.badRequest(err.message)
+    }
+  },
+
+  /**
+   * GET /people/:documentId/merge-candidates — plausible same-person rows.
+   *
+   * Suggestions only, and deliberately weak ones: same handle (any channel), or
+   * the same display name. A stronger heuristic would invite trusting it, and
+   * the cost of a wrong merge is paid by whoever has to unpick it.
+   */
+  async mergeCandidates(ctx) {
+    const person: any = await strapi.documents('api::person.person').findOne({
+      documentId: ctx.params.documentId,
+      populate: { socialAccounts: true } as any,
+    })
+    if (!person) return ctx.notFound('person not found')
+
+    // Match on ANY of their handles, not just the primary one: a person who
+    // already holds two accounts should still surface a third.
+    const handles: string[] = (person.socialAccounts ?? [])
+      .map((a: any) => (a.handle ?? '').trim().replace(/^@+/, ''))
+      .filter(Boolean)
+
+    const or: any[] = []
+    if (handles.length) or.push({ socialAccounts: { handle: { $in: handles } } })
+    if (person.displayName) or.push({ displayName: { $eqi: person.displayName } })
+    if (!or.length) return { data: [] }
+
+    const rows = await strapi.documents('api::person.person').findMany({
+      filters: { $or: or, mergedInto: { $null: true } } as any,
+      populate: { socialAccounts: { populate: { channel: true } } } as any,
+      limit: 10,
+    })
+    const lower = handles.map((h) => h.toLowerCase())
+    return {
+      data: rows
+        .filter((r: any) => r.documentId !== person.documentId)
+        .map((r: any) => {
+          const accounts = r.socialAccounts ?? []
+          const primary = primaryAccount(accounts)
+          return {
+            documentId: r.documentId,
+            handle: primary?.handle ?? null,
+            displayName: r.displayName,
+            identityKey: primary?.identityKey ?? null,
+            identityProvisional: Boolean(primary?.identityProvisional),
+            channel: primary?.channel?.key ?? null,
+            accountCount: accounts.length,
+            mentionCount: r.mentionCount,
+            leadScore: r.leadScore,
+            // why it is being suggested, so nobody merges on faith
+            because: accounts.some((a: any) => lower.includes((a.handle ?? '').toLowerCase()))
+              ? 'same handle'
+              : 'same display name',
+          }
+        }),
+    }
+  },
 
   /** GET /people/leads-status — freshness of the board, for the Settings card. */
   async leadsStatus(ctx) {

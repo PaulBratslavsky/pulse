@@ -765,3 +765,34 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   previously invisible. Verified live: 38 scored (11 hot, 3 warm), and a rescore of 402 people took
   ~1s and moved `lastScoredAt` 19:56 → 20:39. e2e 55 passing, 3 skipped. The cron is registered the
   same way as the other five but has not been observed firing — it next runs at 03:30.
+- **2026-08-03 — A Person is an internal id; social accounts hang off it (phase A).** `Person` was
+  one row per social account by construction: `identityKey` unique and required, `channel` a single
+  relation. Nine of its fields described an account, not a human, and the schema physically could
+  not hold a second presence — so the same person on X and Reddit was two rows, and the only way to
+  say otherwise was a `mergedInto` tombstone with one half hidden. Identity now lives on
+  `api::social-account`, and a person holds N of them. The 5 previously-merged pairs became one
+  person with two accounts rather than one live row and one hidden one.
+  `ensure()` resolves the ACCOUNT first, then its person, which collapses two asymmetric adoption
+  branches into one rule — same handle, same channel, same human — so arrival order stops mattering.
+  Verified live: injecting handle-only then handle+profileURL, the order that used to fork, produced
+  one person with `x:fix…` and `x.com/fix…`. Reads derive a primary account (most recently active)
+  for single-identity views, widest reach ACROSS accounts for followers, and an alias list for the
+  person page: 200 followers on Bluesky and 40k on X should not read as small because they last
+  posted somewhere quiet.
+  Two bugs the tests caught. (1) `Person.identityKey` was still `required`, so after the rewrite
+  every ingest failed with "identityKey must be defined" — and intake's per-item isolation logged a
+  warning and left the mention unlinked rather than erroring, which is exactly the failure mode that
+  isolation is meant to buy and also the one that hides it. (2) The already-merged guard read
+  `loser.mergedInto` without populating it, so it was always undefined and a second merge returned
+  200 instead of 409 — a relation is ABSENT, not null, when you do not ask for it.
+  **Phase B is deliberately not done.** Dropping the moved columns must be a SECOND deploy: Strapi
+  drops a column the moment its attribute leaves the schema, and the copy above runs in `bootstrap()`
+  — after `syncSchema()` — so a single deploy would drop the source data before anything read it. It
+  cannot be a `database/migrations` file either: migrations run BEFORE sync
+  (`@strapi/database/dist/schema/index.js:73`), and on the introducing deploy `social_accounts` does
+  not exist yet. Phase B ships with a guard migration that throws while the columns still exist if
+  any person has an `identity_key` with no matching account row — in the SAME deploy as the drop,
+  because umzug runs each migration exactly once and an earlier one would pass trivially and never
+  fire again.
+  e2e 57 passing, 3 skipped. Also learned: two `strapi develop` processes against one SQLite file
+  turn a 42-second suite into 13.8 minutes and produce phantom failures.
