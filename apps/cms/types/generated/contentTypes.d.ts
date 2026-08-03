@@ -471,6 +471,7 @@ export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
         'person-status',
         'person-scored',
         'person-merged',
+        'lead-researched',
       ]
     > &
       Schema.Attribute.Required;
@@ -873,6 +874,7 @@ export interface ApiPersonPerson extends Struct.CollectionTypeSchema {
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'none'>;
     leadContext: Schema.Attribute.JSON;
+    leadProfile: Schema.Attribute.Component<'shared.lead-profile', false>;
     leadScore: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     leadScoredAt: Schema.Attribute.DateTime;
     locale: Schema.Attribute.String & Schema.Attribute.Private;

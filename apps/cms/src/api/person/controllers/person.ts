@@ -6,18 +6,25 @@ export default factories.createCoreController('api::person.person', ({ strapi })
   async leads(ctx) {
     const { band, status, direction } = ctx.query as Record<string, string>
     const filters: any = {
-      // people with no intent signal at all are not leads; showing them would
-      // bury the 30-odd rows that matter under 300 that don't
-      leadScore: { $gt: 0 },
       kind: { $in: ['community', 'unknown'] },
       mergedInto: { $null: true },
+      $or: [
+        // people with no intent signal at all are not leads; showing them would
+        // bury the 30-odd rows that matter under 300 that don't
+        { leadScore: { $gt: 0 } },
+        // ...but a person somebody WORKED stays, whatever the score says.
+        // Intent decays to zero at 90 days, so a lead researched in July would
+        // otherwise drop off the board in October — silently, and precisely
+        // because a human had invested in it.
+        { leadProfile: { startedAt: { $notNull: true } } },
+      ],
     }
     if (band) filters.leadBand = band
     if (status) filters.status = status
 
     const people = await strapi.documents('api::person.person').findMany({
       filters,
-      populate: { owner: true, socialAccounts: { populate: { channel: true } } } as any,
+      populate: { owner: true, leadProfile: true, socialAccounts: { populate: { channel: true } } } as any,
       sort: ['leadScore:desc', 'lastSeenAt:desc'] as any,
       limit: 200,
     })
@@ -47,6 +54,16 @@ export default factories.createCoreController('api::person.person', ({ strapi })
         mentionCount: p.mentionCount,
         lastSeenAt: p.lastSeenAt,
         direction: (p.leadContext as any)?.direction ?? 'none',
+        // Enough for the card to show that someone is working this and whether
+        // it is reachable — but not the email itself. The board is a list
+        // everyone scans; an address belongs on the page you opened on purpose.
+        profile: p.leadProfile?.startedAt
+          ? {
+              started: true,
+              hasEmail: Boolean(p.leadProfile.email),
+              company: p.leadProfile.company ?? null,
+            }
+          : null,
         }
       })
       .filter((p: any) => !direction || p.direction === direction)
@@ -60,6 +77,7 @@ export default factories.createCoreController('api::person.person', ({ strapi })
       documentId: ctx.params.documentId,
       populate: {
         owner: true,
+        leadProfile: { populate: { researchedBy: true } },
         mentions: { populate: { channel: true } },
         socialAccounts: { populate: { channel: true } },
       } as any,
@@ -108,6 +126,25 @@ export default factories.createCoreController('api::person.person', ({ strapi })
         reachTier: reach.reachTier,
         aliases: aliasesOf(person.socialAccounts),
       },
+    }
+  },
+
+  /** PUT /people/:documentId/lead-profile — { email?, company?, companyDomain?, role?, intentSummary? } */
+  async saveLeadProfile(ctx) {
+    const body = ctx.request.body ?? {}
+    if (body.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(body.email).trim())) {
+      return ctx.badRequest('that does not look like an email address')
+    }
+    try {
+      const data = await (strapi.service('api::person.leads') as any).saveLeadProfile(
+        ctx.params.documentId,
+        body,
+        ctx.state.user
+      )
+      return { data }
+    } catch (err: any) {
+      if (err.status === 404) return ctx.notFound(err.message)
+      return ctx.badRequest(err.message)
     }
   },
 

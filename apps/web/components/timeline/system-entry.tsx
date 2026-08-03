@@ -8,6 +8,7 @@ const ACTION_LABEL: Record<string, string> = {
   'person-status': 'status changed',
   'person-scored': 'rescored',
   'person-merged': 'merged',
+  'lead-researched': 'profile updated',
 }
 
 /** Compact muted system line; "answered" expands to the recorded reply

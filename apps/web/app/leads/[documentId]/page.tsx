@@ -7,6 +7,7 @@ import { SentimentBadge, LaneBadge } from '@/components/badges'
 import Timeline from '@/components/timeline'
 import LeadStatus from '@/components/lead-status'
 import PersonMerge from '@/components/person-merge'
+import LeadProfilePanel from '@/components/lead-profile'
 
 const BAND_STYLE: Record<string, string> = {
   hot: 'border-red-400 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300',
@@ -130,6 +131,14 @@ export default async function PersonPage({ params }: { params: Promise<{ documen
               <span className="min-w-0 break-words italic">{ctx.evidence}</span>
             </blockquote>
           )}
+
+          {/* above the history: what you would DO next, before what they said.
+              The evidence justifies the lead; the profile is how you act on it. */}
+          <LeadProfilePanel
+            documentId={p.documentId}
+            profile={p.leadProfile ?? null}
+            status={p.status}
+          />
 
           <h2 className="mb-3 font-medium">
             Conversation history

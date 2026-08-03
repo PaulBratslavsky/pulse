@@ -38,7 +38,8 @@
         "drafted",
         "person-status",
         "person-scored",
-        "person-merged"
+        "person-merged",
+        "lead-researched"
       ],
       "required": true
     },

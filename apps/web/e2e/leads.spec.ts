@@ -338,6 +338,71 @@ test.describe('leads', () => {
     expect(again.status()).toBe(409)
   })
 
+  /**
+   * The profile is the one thing on a person that no signal creates. Starting
+   * one IS the pre-qualification — there is no separate flag to fall out of
+   * sync with it — so these assertions are really about that boundary holding.
+   */
+  test('a profile is only ever started by a human, and keeps the lead on the board', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const handle = `e2e_prof_${Date.now().toString(36)}`
+    await injectMention(request, {
+      text: 'Costing out a move away from Webflow this quarter.',
+      author: { handle },
+      authorUrl: `https://x.com/${handle}`,
+    })
+
+    const board = async () =>
+      (await (await request.get(`${PULSE}/people/leads`, { headers: { cookie } })).json()).data ?? []
+    // ingest alone must never mint a profile, whatever the post says
+    const before = (await board()).find((l: any) => l.handle === handle)
+    expect(before?.profile ?? null, 'ingest must not create a profile').toBeNull()
+
+    const personId =
+      before?.documentId ??
+      (
+        await (
+          await request.get(`${PULSE}/mentions/${
+            (await injectMention(request, { author: { handle }, authorUrl: `https://x.com/${handle}` }))
+              .documentId
+          }`, { headers: { cookie } })
+        ).json()
+      ).data?.person?.documentId
+    expect(personId).toBeTruthy()
+
+    await page.goto(`/leads/${personId}`)
+    await expect(page.getByText('No profile yet')).toBeVisible()
+    await page.getByRole('button', { name: 'Start a profile' }).click()
+
+    // the gate is stated before it is met, so it is never a mystery
+    await expect(page.getByText(/Add an email to make this actionable/)).toBeVisible()
+    await page.getByPlaceholder('name@company.com').fill('someone@acme.com')
+    await page.getByPlaceholder('Acme Inc').fill('Acme')
+    await page.getByRole('button', { name: 'Create profile' }).click()
+    await expect(page.getByText(/Reachable/)).toBeVisible({ timeout: 15_000 })
+
+    // survives a reload, and the trail records that it happened
+    await page.reload()
+    await expect(page.getByPlaceholder('name@company.com')).toHaveValue('someone@acme.com')
+    await expect(page.getByText('profile updated').first()).toBeVisible()
+
+    // a rubbish address is refused rather than stored
+    const bad = await request.put(`${PULSE}/people/${personId}/lead-profile`, {
+      headers: { cookie },
+      data: { email: 'nope' },
+      failOnStatusCode: false,
+    })
+    expect(bad.status()).toBe(400)
+
+    // and the worked lead stays on the board even with no intent score at all
+    const listed = (await board()).find((l: any) => l.documentId === personId)
+    expect(listed, 'a profiled person stays listed').toBeTruthy()
+    expect(listed.profile).toMatchObject({ started: true, hasEmail: true, company: 'Acme' })
+  })
+
   test('status transitions persist and claim the lead', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const leads = await (

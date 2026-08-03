@@ -39,6 +39,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::person.person.detail',
   'api::person.person.status',
   'api::person.person.leadsStatus',
+  'api::person.person.saveLeadProfile',
   'api::person.person.mergeCandidates',
   'api::person.person.merge',
   'api::person.person.rescore',

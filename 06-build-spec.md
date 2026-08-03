@@ -801,3 +801,29 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   fire again.
   e2e 57 passing, 3 skipped. Also learned: two `strapi develop` processes against one SQLite file
   turn a 42-second suite into 13.8 minutes and produce phantom failures.
+- **2026-08-03 — The lead profile: starting one IS the qualification (M-L1).** Octolens carries a
+  handle, display name, avatar and follower count and nothing else — no email, company or role
+  exists anywhere in the pipeline (checked across 400 raw payloads). So the identity that makes a
+  lead actionable has to be supplied by a person, and the question was what should trigger that.
+  Answer, matching where every mature CRM landed: **two layers.** Automatic scoring for everyone,
+  because it is free and reversible and never leaves Pulse; a worked record only when a human
+  decides to work it. Salesforce calls that Convert, Common Room calls it Send to CRM — and even
+  where Common Room auto-qualifies against criteria, the push stays a human click. Here it is
+  simply "the profile exists". **No separate pre-qualified flag**, because a flag and a record can
+  disagree and then neither is trusted.
+  `shared.lead-profile` (component, so it stores nothing until someone works the lead) carries
+  email / company / companyDomain / role / intentSummary, plus `startedAt` — the qualification
+  timestamp, kept distinct from `researchedAt` which every later edit overwrites — and `sources`,
+  a per-field provenance map. Provenance is the same habit as `humanCorrected` and `laneEvidence`:
+  today every field is typed by a person, and when suggestions arrive they must not be able to
+  masquerade as something someone verified.
+  Two consequences that took code, not just intent. **The board filter had to widen** to
+  `leadScore > 0 OR leadProfile.startedAt` — intent decays to zero at 90 days, so a lead
+  researched in July would otherwise drop off the board in October, silently and precisely because
+  someone had invested in it. Verified: a zero-score person appears the moment a profile starts
+  (49 → 50 rows). **The timeline records which fields were filled, never their values** — a
+  timeline is read by the whole team and the email is the one genuinely personal thing here.
+  Scoring stays advisory on the far side of the line: `hot` means worth a look, never "make a
+  record". e2e 13 leads tests passing, including one asserting ingest can never mint a profile.
+  Known gap: a profile cannot be removed once started, only emptied — `startedAt` keeps the person
+  on the board. Worth a delete route if anyone starts one by accident.

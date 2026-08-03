@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ExternalLink, Quote, Users, MapPin, Building2 } from 'lucide-react'
+import { ExternalLink, Quote, Users, MapPin, Building2, IdCard } from 'lucide-react'
 import { Avatar } from '@/components/ui'
 import LeadStatus from '@/components/lead-status'
 
@@ -99,6 +99,24 @@ export default function LeadCard({ lead }: { lead: any }) {
                 ? 'reach unknown'
                 : `${lead.reachTier}${typeof lead.followers === 'number' ? ` · ${lead.followers.toLocaleString()}` : ''}`}
             </span>
+            {/* someone is working this one. Worth a badge because it is the
+                only state on the card a HUMAN created — and because a profiled
+                lead stays on the board after its score decays away, which
+                would otherwise look like a scoring bug. */}
+            {lead.profile?.started && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-violet-300 px-2 py-0.5 text-violet-700 dark:border-violet-800 dark:text-violet-300"
+                title={
+                  lead.profile.hasEmail
+                    ? 'A profile exists and there is an email to reach them'
+                    : 'A profile exists, but no email yet — not reachable'
+                }
+              >
+                <IdCard size={10} />
+                {lead.profile.hasEmail ? 'reachable' : 'profile started'}
+                {lead.profile.company ? ` · ${lead.profile.company}` : ''}
+              </span>
+            )}
             {ctx.ageDays != null && (
               <span className="text-zinc-400" title={`Decay applied: ×${ctx.decayApplied}`}>
                 {ctx.ageDays === 0 ? 'today' : `${ctx.ageDays}d ago`}

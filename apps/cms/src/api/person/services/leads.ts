@@ -237,6 +237,76 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
     return scored
   },
 
+  /**
+   * Create or update the worked profile.
+   *
+   * The profile EXISTING is the pre-qualification — there is no separate flag,
+   * because a flag and a record can disagree and then nobody knows which one
+   * meant it. Every mature CRM draws the same line: a signal record for
+   * everyone (cheap, automatic, ours alone), and a worked record only when a
+   * human decides to work it. Salesforce calls that Convert; Common Room calls
+   * it Send to CRM. Here it is simply "the profile exists".
+   *
+   * Scoring stays advisory on the other side of that line: `hot` means worth a
+   * look, never "make a record". The machine has been wrong about this before —
+   * scored additively it once called 168 of 200 people leads, including one of
+   * our own employees.
+   */
+  async saveLeadProfile(documentId: string, patch: Record<string, any>, actor?: { id: number } | null) {
+    const person: any = await strapi
+      .documents('api::person.person')
+      .findOne({ documentId, populate: { leadProfile: true } as any })
+    if (!person) {
+      const err: any = new Error('person not found')
+      err.status = 404
+      throw err
+    }
+
+    const existing = person.leadProfile ?? null
+    const fields = ['email', 'company', 'companyDomain', 'role', 'intentSummary'] as const
+    const next: Record<string, any> = { ...(existing ?? {}) }
+
+    // Provenance, the same habit as humanCorrected / modelVersion / laneEvidence:
+    // never store a fact without recording where it came from. Today everything
+    // is typed by a person; when suggestions arrive they must not be able to
+    // masquerade as something someone verified.
+    const sources: Record<string, string> = { ...((existing?.sources as any) ?? {}) }
+    for (const f of fields) {
+      if (!(f in patch)) continue
+      const value = typeof patch[f] === 'string' ? patch[f].trim() : patch[f]
+      next[f] = value || null
+      if (value) sources[f] = String(patch.source ?? 'human')
+      else delete sources[f]
+    }
+    next.sources = sources
+    next.researchedBy = actor?.id ?? existing?.researchedBy?.id ?? null
+    next.researchedAt = new Date().toISOString()
+    // startedAt is when someone first decided this person was worth working —
+    // the qualification timestamp, which researchedAt would otherwise overwrite
+    // on every subsequent edit.
+    next.startedAt = existing?.startedAt ?? new Date().toISOString()
+
+    const updated = await strapi.documents('api::person.person').update({
+      documentId,
+      data: { leadProfile: next } as any,
+      populate: { leadProfile: true } as any,
+    })
+
+    await logActivity(strapi, {
+      personDocumentId: documentId,
+      action: 'lead-researched',
+      actorId: actor?.id ?? null,
+      detail: {
+        started: !existing,
+        // WHICH fields were filled, never their values — a timeline is read by
+        // the whole team and an email address is the one thing here that is
+        // genuinely personal data.
+        fields: fields.filter((f) => f in patch && patch[f]),
+      },
+    })
+    return updated
+  },
+
   /** Lifecycle transition, logged with the acting user. */
   async setStatus(documentId: string, status: string, user: any) {
     const allowed = ['new', 'watching', 'contacted', 'qualified', 'not-a-fit']

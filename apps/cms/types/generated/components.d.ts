@@ -1,5 +1,27 @@
 import type { Schema, Struct } from '@strapi/strapi';
 
+export interface SharedLeadProfile extends Struct.ComponentSchema {
+  collectionName: 'components_shared_lead_profiles';
+  info: {
+    description: 'Human-supplied identity for a lead. Scoring says WHO is interesting; this says who they actually are and how to reach them. Its existence IS the qualification \u2014 the component stores nothing until a person decides someone is worth working, so no separate flag can drift out of sync with it.';
+    displayName: 'Lead Profile';
+  };
+  attributes: {
+    company: Schema.Attribute.String;
+    companyDomain: Schema.Attribute.String;
+    email: Schema.Attribute.Email;
+    intentSummary: Schema.Attribute.Text;
+    researchedAt: Schema.Attribute.DateTime;
+    researchedBy: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    role: Schema.Attribute.String;
+    sources: Schema.Attribute.JSON;
+    startedAt: Schema.Attribute.DateTime;
+  };
+}
+
 export interface SharedOutcome extends Struct.ComponentSchema {
   collectionName: 'components_shared_outcomes';
   info: {
@@ -18,6 +40,7 @@ export interface SharedOutcome extends Struct.ComponentSchema {
 declare module '@strapi/strapi' {
   export namespace Public {
     export interface ComponentSchemas {
+      'shared.lead-profile': SharedLeadProfile;
       'shared.outcome': SharedOutcome;
     }
   }

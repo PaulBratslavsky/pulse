@@ -1,0 +1,22 @@
+{
+  "collectionName": "components_shared_lead_profiles",
+  "info": {
+    "displayName": "Lead Profile",
+    "description": "Human-supplied identity for a lead. Scoring says WHO is interesting; this says who they actually are and how to reach them. Its existence IS the qualification — the component stores nothing until a person decides someone is worth working, so no separate flag can drift out of sync with it."
+  },
+  "attributes": {
+    "email": { "type": "email" },
+    "company": { "type": "string" },
+    "companyDomain": { "type": "string" },
+    "role": { "type": "string" },
+    "intentSummary": { "type": "text" },
+    "sources": { "type": "json" },
+    "researchedBy": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "researchedAt": { "type": "datetime" },
+    "startedAt": { "type": "datetime" }
+  }
+}

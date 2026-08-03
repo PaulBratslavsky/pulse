@@ -17,6 +17,7 @@ export type ActivityAction =
   | 'person-status'
   | 'person-scored'
   | 'person-merged'
+  | 'lead-researched'
 
 export async function logActivity(
   strapi: Core.Strapi,

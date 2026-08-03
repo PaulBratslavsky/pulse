@@ -52,6 +52,7 @@
     "owner": { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" },
     "mergedInto": { "type": "relation", "relation": "manyToOne", "target": "api::person.person" },
     "mentions": { "type": "relation", "relation": "oneToMany", "target": "api::mention.mention", "mappedBy": "person" },
-    "socialAccounts": { "type": "relation", "relation": "oneToMany", "target": "api::social-account.social-account", "mappedBy": "person" }
+    "socialAccounts": { "type": "relation", "relation": "oneToMany", "target": "api::social-account.social-account", "mappedBy": "person" },
+    "leadProfile": { "type": "component", "repeatable": false, "component": "shared.lead-profile" }
   }
 }
