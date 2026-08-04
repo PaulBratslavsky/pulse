@@ -205,8 +205,16 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       .findOne({ documentId, populate: { topics: true, channel: true } as any })
     if (!mention) return ctx.notFound('mention not found')
 
-    const draft = await (strapi.service('api::analysis.ai') as any).draft(mention)
-    return { data: { draft } }
+    const result = await (strapi.service('api::analysis.ai') as any).draft(mention)
+    // `draft` stays a plain string for existing callers; the provenance rides
+    // alongside so the UI can say whether the docs server was actually in play.
+    return {
+      data: {
+        draft: result?.text ?? null,
+        grounded: Boolean(result?.grounded),
+        sources: result?.sources ?? 0,
+      },
+    }
   },
 
   /** POST /mentions/:documentId/refine — { text }. Improves a reply the human wrote. */

@@ -212,6 +212,40 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
   },
 
   /**
+   * Renew the access token from the stored refresh token.
+   *
+   * The tool-loading path (api::analysis.mcp-tools) sends a stored bearer token
+   * straight to the server, so it cannot refresh anything — when the token
+   * expires, drafting silently loses its documentation tools while Settings
+   * still shows a green "connected" badge, because status is only ever written
+   * by the Connect button. That is the "it is connected but does not work"
+   * case, and it arrives roughly a day after every connect.
+   *
+   * Connecting is the refresh: the SDK's auth flow uses the refresh token when
+   * one is stored and calls back into DbOAuthProvider.saveTokens. No human is
+   * involved unless the refresh token itself has gone, which is exactly when a
+   * human SHOULD be involved.
+   */
+  async refreshToken(documentId: string): Promise<boolean> {
+    const row: any = await loadRow(strapi, documentId)
+    if (!row?.refreshToken) return false
+    try {
+      // The redirect URL must be NON-EMPTY even though a refresh never uses it.
+      // The SDK reads `!provider.redirectUrl` as "non-interactive flow" and
+      // routes to fetchToken(), which needs an authorization code we do not
+      // have — so an empty string skips the refresh branch entirely and fails
+      // with "Either provider.prepareTokenRequest() or authorizationCode is
+      // required" (auth.js:260). It only has to be the URL we registered with.
+      const callback = `${(process.env.PULSE_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/oauth-callback`
+      const result = await (this as any).connect(documentId, callback)
+      return result?.status === 'connected'
+    } catch (err: any) {
+      strapi.log.warn(`[mcp] token refresh failed for ${row.name}: ${err.message}`)
+      return false
+    }
+  },
+
+  /**
    * Ask the server a real question and show what came back.
    *
    * "connected" only proves the handshake and tools/list worked. It says nothing

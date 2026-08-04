@@ -384,8 +384,17 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       return out;
     },
 
-    /** Docs-grounded draft answer, or null when AI disabled. Never persisted — the human decides. */
-    async draft(mention: any): Promise<string | null> {
+    /**
+     * Docs-grounded draft answer, or null when AI disabled. Never persisted —
+     * the human decides.
+     *
+     * Returns `grounded` alongside the text, the same way refine() does. Without
+     * it "the docs server is connected but the draft does not seem to use it" is
+     * unanswerable: a draft with no links looks identical whether the model
+     * searched and found nothing worth citing, or had no tools at all. `sources`
+     * is how many real doc URLs the draft was allowed to choose from.
+     */
+    async draft(mention: any): Promise<{ text: string; grounded: boolean; sources: number } | null> {
       if (!aiEnabled()) return null;
       const content = String(mention.content);
 
@@ -465,7 +474,10 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
           `[analysis] draft for ${mention.documentId ?? '?'} cited ${audit.removed.length} non-existent docs URL(s), removed: ${audit.removed.join(', ')}`
         );
       }
-      return audit.text;
+      strapi.log.info(
+        `[analysis] drafted ${mention.documentId ?? '?'} — docs tools: ${hasTools ? loaded.servers.join(', ') || 'yes' : 'none'}, ${allowed.length} link(s) offered`
+      );
+      return { text: audit.text, grounded: hasTools, sources: allowed.length };
     },
 
     /**

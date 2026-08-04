@@ -59,9 +59,17 @@ export default function MentionActions({
     mutationFn: () => post(`mentions/${mention.documentId}/claim`),
     onSuccess: () => router.refresh(),
   })
+  // Whether the docs server was actually in play. Without this, a draft with no
+  // links looks identical whether the model searched and found nothing worth
+  // citing or simply had no tools — which is exactly the question "it's
+  // connected but doesn't seem to work" is asking.
+  const [drafting, setDrafting] = useState<{ grounded: boolean; sources: number } | null>(null)
   const genDraft = useMutation({
     mutationFn: () => post(`mentions/${mention.documentId}/draft`),
-    onSuccess: (data) => setDraft(data.data.draft),
+    onSuccess: (data) => {
+      setDraft(data.data.draft)
+      setDrafting({ grounded: Boolean(data.data.grounded), sources: data.data.sources ?? 0 })
+    },
   })
   const refine = useMutation({
     mutationFn: async () => {
@@ -346,6 +354,22 @@ export default function MentionActions({
                 Draft ready{mention.draftedVia ? ` · via ${mention.draftedVia}` : ''}
               </span>
               <span className="text-zinc-400">{draft.length} chars — click to read</span>
+              {drafting && (
+                <span
+                  className={
+                    drafting.grounded
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-amber-700 dark:text-amber-400'
+                  }
+                  title={
+                    drafting.grounded
+                      ? `The model could search the docs while writing this, and was offered ${drafting.sources} real documentation URL(s) to cite.`
+                      : 'No documentation server was connected, so technical claims were written from memory. Connect one in Settings → MCP servers.'
+                  }
+                >
+                  {drafting.grounded ? `docs searched · ${drafting.sources} links offered` : 'no docs server'}
+                </span>
+              )}
               <button
                 onClick={(e) => {
                   e.preventDefault() // don't toggle the accordion

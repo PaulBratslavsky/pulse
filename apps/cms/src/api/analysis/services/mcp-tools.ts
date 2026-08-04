@@ -41,6 +41,16 @@ export const mcpTools = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     for (const row of rows) {
       try {
+        // Renew BEFORE using it, not after a failure: an expired token costs a
+        // silent round trip and a draft written without documentation, and the
+        // expiry is known up front. 60s of slack so a token that dies mid-call
+        // is caught on this side rather than as a 401.
+        const expiresAt = row.tokenExpiresAt ? new Date(row.tokenExpiresAt).getTime() : 0
+        if (expiresAt && expiresAt - Date.now() < 60_000) {
+          strapi.log.info(`[mcp] ${row.name} token expired — refreshing before use`)
+          await (strapi.service('api::mcp-server.mcp-server') as any).refreshToken(row.documentId)
+        }
+
         // findMany omits private fields, so re-read the token explicitly
         const token = await tokenFor(strapi, row.documentId)
         const client = await createMCPClient({
@@ -61,6 +71,20 @@ export const mcpTools = ({ strapi }: { strapi: Core.Strapi }) => ({
         }
       } catch (err: any) {
         strapi.log.warn(`[mcp] ${row.name} unavailable, continuing without it: ${err.message}`)
+        // Tell the truth in Settings. A server whose token died still showed a
+        // green "connected" badge, because status was only ever written by the
+        // Connect button — so the one screen that could have explained the
+        // missing documentation was the one asserting everything was fine.
+        const auth = /401|invalid_token|unauthor/i.test(String(err.message))
+        await strapi.documents('api::mcp-server.mcp-server').update({
+          documentId: row.documentId,
+          data: {
+            status: auth ? 'needs-auth' : 'error',
+            statusDetail: auth
+              ? 'token rejected — click Connect to re-authorize'
+              : String(err.message).slice(0, 500),
+          } as any,
+        }).catch(() => {})
       }
     }
 
