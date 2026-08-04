@@ -52,14 +52,17 @@ export default function LeadProfilePanel({
   documentId,
   profile,
   status,
+  defaultOpen = false,
 }: {
   documentId: string
   profile: LeadProfile | null
   status: string
+  /** arrive from a mention with ?profile=1 and the form is already open */
+  defaultOpen?: boolean
 }) {
   const router = useRouter()
   const started = Boolean(profile?.startedAt)
-  const [open, setOpen] = useState(started)
+  const [open, setOpen] = useState(started || defaultOpen)
   const [form, setForm] = useState({
     email: profile?.email ?? '',
     company: profile?.company ?? '',

@@ -23,7 +23,14 @@ const DETAIL_POPULATE = {
   // detail only, deliberately: one join on one row, so a mention can reach its
   // author. On the LIST this would be 25 extra joins to render a card that
   // shows the handle it already has.
-  person: { fields: ['handle', 'displayName', 'identityKey'] },
+  //
+  // leadProfile comes with it because the moment you would decide to work
+  // someone is while reading their post — so the detail page has to be able to
+  // say whether one exists without a second request.
+  person: {
+    fields: ['displayName', 'status', 'leadScore', 'leadBand'],
+    populate: { leadProfile: true },
+  },
   responses: {
     fields: ['finalText', 'draftText', 'respondedAt', 'notes', 'internal'],
     populate: {

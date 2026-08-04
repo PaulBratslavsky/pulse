@@ -1,4 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
+import Link from 'next/link'
+import { IdCard } from 'lucide-react'
 import { strapiFetch } from '@/lib/strapi'
 import { SentimentBadge, StatusBadge, LaneBadge } from '@/components/badges'
 import MentionActions from '@/components/mention-actions'
@@ -55,6 +57,44 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           <UserChip user={m.owner} label="Claimed by" size="xs" />
           <UserChip user={m.assignee} label="Assigned to" size="xs" muted />
         </div>
+
+        {/* Whether we know who this author actually is — asked here because
+            this is where the question occurs to you. Reading someone say they
+            are shopping for a CMS is the moment you decide they are worth
+            researching, and until now that meant leaving for the Leads page and
+            finding them again. Starting a profile still creates nothing until
+            it is saved; this link just opens the form. */}
+        {m.person?.documentId && (
+          <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+            <IdCard size={12} className="text-zinc-400" />
+            {m.person.leadProfile?.startedAt ? (
+              <>
+                <span className={m.person.leadProfile.email ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}>
+                  {m.person.leadProfile.email ? 'Profile · reachable' : 'Profile · no email yet'}
+                </span>
+                {m.person.leadProfile.company && (
+                  <span className="text-zinc-500">{m.person.leadProfile.company}</span>
+                )}
+                <Link href={`/leads/${m.person.documentId}`} className="text-zinc-500 underline underline-offset-2">
+                  open profile
+                </Link>
+              </>
+            ) : (
+              <>
+                <span className="text-zinc-500">
+                  No profile for @{m.authorHandle ?? 'this author'} — we know what they said, not
+                  who they are.
+                </span>
+                <Link
+                  href={`/leads/${m.person.documentId}?profile=1`}
+                  className="underline underline-offset-2"
+                >
+                  Start a profile →
+                </Link>
+              </>
+            )}
+          </p>
+        )}
 
         <blockquote className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 mb-2 whitespace-pre-wrap break-words leading-relaxed max-h-[32rem] overflow-y-auto">
           {m.content}

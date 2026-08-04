@@ -21,8 +21,19 @@ const BAND_STYLE: Record<string, string> = {
  * running notes. The lead card is a summary — this is the page you actually
  * read before reaching out.
  */
-export default async function PersonPage({ params }: { params: Promise<{ documentId: string }> }) {
+export default async function PersonPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ documentId: string }>
+  searchParams: Promise<{ profile?: string }>
+}) {
   const { documentId } = await params
+  // ?profile=1 arrives from the mention detail page, where someone decided
+  // this author was worth working while reading their post. Land them in the
+  // open form rather than making them find the button again — it still creates
+  // nothing until they save.
+  const { profile: openProfile } = await searchParams
 
   let data: any
   try {
@@ -148,6 +159,7 @@ export default async function PersonPage({ params }: { params: Promise<{ documen
             documentId={p.documentId}
             profile={p.leadProfile ?? null}
             status={p.status}
+            defaultOpen={openProfile === '1'}
           />
 
           <h2 className="mb-3 font-medium">

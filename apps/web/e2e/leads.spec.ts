@@ -450,6 +450,41 @@ test.describe('leads', () => {
     expect(person.data?.leadProfile ?? null, 'suggesting must not create a profile').toBeNull()
   })
 
+  /**
+   * The decision to research someone happens while READING their post, not
+   * while browsing a board. Before this, acting on it meant leaving for Leads
+   * and finding them again — so the mention page now answers "do we know who
+   * this is" and links straight into the form.
+   */
+  test('the mention page says whether we know the author, and starts a profile', async ({
+    page,
+    request,
+  }) => {
+    const handle = `e2e_mprof_${Date.now().toString(36)}`
+    const { documentId } = await injectMention(request, {
+      text: 'Evaluating a headless CMS to replace our Webflow setup this quarter.',
+      author: { handle },
+      authorUrl: `https://x.com/${handle}`,
+    })
+
+    await page.goto(`/mentions/${documentId}`)
+    await expect(page.getByText(new RegExp(`No profile for @${handle}`))).toBeVisible()
+
+    // the link lands in an OPEN form — nothing is created by arriving
+    await page.getByRole('link', { name: 'Start a profile →' }).click()
+    await expect(page).toHaveURL(/\/leads\/[a-z0-9]+\?profile=1/)
+    const email = page.getByPlaceholder('name@company.com')
+    await expect(email).toBeVisible()
+
+    await email.fill('author@northwind.test')
+    await page.getByRole('button', { name: 'Create profile' }).click()
+    await expect(page.getByText(/Reachable/)).toBeVisible({ timeout: 15_000 })
+
+    // ...and the answer follows the person back to the post
+    await page.goto(`/mentions/${documentId}`)
+    await expect(page.getByText('Profile · reachable')).toBeVisible()
+  })
+
   test('status transitions persist and claim the lead', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const leads = await (
