@@ -20,6 +20,12 @@ const TOPICS = [
   { name: 'Bugs', kind: 'bug' },
   { name: 'Deployment', kind: 'feature' },
   { name: 'Competitor comparison', kind: 'competitor' },
+  // Competitor topics are auto-created at intake from Octolens keyword tags,
+  // which the demo seed bypasses — so it has to create one itself, or every
+  // competitor-shaped surface (topic picker, themes, the queue's topic filter)
+  // demos as if we never see competitor discourse. In the real corpus it is
+  // most of the volume.
+  { name: 'Webflow', kind: 'competitor' },
 ]
 
 const SAMPLES: Array<{ text: string; label: 'positive' | 'neutral' | 'negative'; score: number; topics: string[]; platform: string; handle: string }> = [
@@ -33,6 +39,20 @@ const SAMPLES: Array<{ text: string; label: 'positive' | 'neutral' | 'negative';
   { text: 'Anyone else seeing slow cold starts on self-hosted Strapi after 5.50?', label: 'negative', score: -0.4, topics: ['Bugs', 'Deployment'], platform: 'reddit', handle: 'perf_paula' },
   { text: 'Wrote up how we model multi-brand content in Strapi — components + dynamic zones are underrated.', label: 'positive', score: 0.6, topics: ['Docs'], platform: 'linkedin', handle: 'arch_annie' },
   { text: 'Migration from v4 went fine overall, a few plugin gaps but core was smooth.', label: 'neutral', score: 0.2, topics: ['Migrations'], platform: 'reddit', handle: 'steady_steve' },
+  // The conversation map is built from term CO-OCCURRENCE at minWeight 3: a
+  // pair of words has to appear together in three separate posts before it is
+  // an edge. Ten one-off sentences produce a graph with nothing in it, so the
+  // map demoed — and tested — as permanently empty. These posts deliberately
+  // share vocabulary the way a real corpus does, because people discuss the
+  // same few things over and over. That repetition IS the signal the map draws.
+  { text: 'The v5 migration guide is still missing the documentId change — the migration docs need work.', label: 'negative', score: -0.5, topics: ['Migrations', 'Docs'], platform: 'reddit', handle: 'dev_amir' },
+  { text: 'Another migration guide gap: the docs skip lifecycle hooks entirely. Migration docs are thin.', label: 'negative', score: -0.4, topics: ['Migrations', 'Docs'], platform: 'x', handle: 'query_quinn' },
+  { text: 'Our v5 migration is done. The migration docs got us most of the way, the rest was guesswork.', label: 'neutral', score: 0.1, topics: ['Migrations', 'Docs'], platform: 'reddit', handle: 'steady_steve' },
+  { text: 'Webflow pricing went up again. Looking at a headless CMS instead — evaluating options now.', label: 'neutral', score: 0, topics: ['Webflow', 'Competitor comparison'], platform: 'x', handle: 'agency_ada' },
+  { text: 'Moving our marketing site off Webflow. The Webflow pricing model does not scale past a few sites.', label: 'neutral', score: 0, topics: ['Webflow', 'Competitor comparison'], platform: 'reddit', handle: 'agency_ada' },
+  { text: 'Anyone left Webflow for a headless CMS? Webflow pricing is the reason we are looking.', label: 'neutral', score: 0, topics: ['Webflow'], platform: 'reddit', handle: 'cms_curious' },
+  { text: 'Self-hosted deployment is smooth once you get the deployment config right. Deployment docs helped.', label: 'positive', score: 0.5, topics: ['Deployment', 'Docs'], platform: 'x', handle: 'ship_it_sam' },
+  { text: 'Our deployment pipeline builds in 3 minutes now. Deployment on push, no config drift.', label: 'positive', score: 0.6, topics: ['Deployment'], platform: 'bluesky', handle: 'perf_paula' },
 ]
 
 export async function seedDemo(strapi: Core.Strapi) {
@@ -146,6 +166,22 @@ export async function seedDemo(strapi: Core.Strapi) {
           action: 'answered',
           at: new Date(new Date(postedAt).getTime() + 4 * 3600e3).toISOString(),
           detail: { responseDocumentId: response.documentId },
+        } as any,
+      })
+      // Product feedback captured off the back of a real reply. Without at
+      // least one, /feedback renders its empty state and the search box does
+      // not exist — so the page demos as if the feature were missing, and its
+      // test asserted against a box that was never there.
+      await strapi.documents('api::comment.comment').create({
+        data: {
+          mention: mention.documentId,
+          kind: 'feedback',
+          body:
+            i === 0
+              ? 'Migration guide should call out the documentId change explicitly — this is the third person to hit it.'
+              : 'Better Auth and users-permissions should fail with a clear message instead of a boot crash.',
+          author: users[0].id,
+          topics: [topicByName.get(i === 0 ? 'Migrations' : 'Better Auth plugin').documentId],
         } as any,
       })
     }
