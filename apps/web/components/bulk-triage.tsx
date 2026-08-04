@@ -36,6 +36,7 @@ const ACK_REASONS = [
   { value: 'competitor', label: 'competitor' },
   { value: 'not-relevant', label: 'not relevant' },
   { value: 'watching', label: 'watching' },
+  { value: 'deleted', label: 'deleted from the platform' },
   { value: 'own-post', label: 'our own post' },
 ]
 

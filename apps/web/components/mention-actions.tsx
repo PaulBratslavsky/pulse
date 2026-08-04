@@ -232,6 +232,7 @@ export default function MentionActions({
               { value: 'competitor', label: 'competitor (replying would look pushy)' },
               { value: 'not-relevant', label: 'not relevant' },
               { value: 'watching', label: 'watching (no reply needed yet)' },
+              { value: 'deleted', label: 'deleted — the post is gone from the platform' },
               { value: 'own-post', label: 'our own post (kept out of sentiment metrics)' },
             ].map((r) => (
               <label key={r.value} className="text-sm flex items-center gap-1">

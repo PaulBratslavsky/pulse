@@ -22,7 +22,12 @@ import { WorkflowError } from '../../../utils/workflow-error'
  */
 const CLAIM_SOURCES = ['unanswered']
 const ACK_SOURCES = ['unanswered', 'claimed']
-const ACK_REASONS = ['competitor', 'not-relevant', 'watching', 'own-post']
+// 'deleted' = the post is gone from the platform (Reddit's [deleted]/[removed],
+// a pulled tweet). Distinct from 'not-relevant', which is a judgement about the
+// content: this one is a fact about the world, and the difference matters when
+// someone later asks why a thread was closed. Analytics keep it — it was real
+// when it was said, and the sentiment it carried was real too.
+const ACK_REASONS = ['competitor', 'not-relevant', 'watching', 'deleted', 'own-post']
 const TEAMS = ['devrel', 'marketing', 'product']
 const SENTIMENTS = ['positive', 'neutral', 'negative', 'na']
 

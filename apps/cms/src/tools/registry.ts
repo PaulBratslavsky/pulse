@@ -638,10 +638,11 @@ export const PULSE_TOOLS: PulseTool[] = [
       z.object({
         documentId: z.string(),
         reason: z
-          .enum(['competitor', 'not-relevant', 'watching', 'own-post'])
+          .enum(['competitor', 'not-relevant', 'watching', 'deleted', 'own-post'])
           .describe(
             "competitor = replying would look pushy; not-relevant = off-topic; watching = no reply " +
-              "needed yet; own-post = OUR OWN social/marketing account (relevant but not repliable — " +
+              "needed yet; deleted = the post no longer exists on the platform, so there is nothing to reply to; " +
+              "own-post = OUR OWN social/marketing account (relevant but not repliable — " +
               'use this instead of not-relevant, and it keeps our announcements out of the sentiment metrics)'
           ),
         note: z.string().max(500).optional(),

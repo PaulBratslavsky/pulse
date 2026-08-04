@@ -61,6 +61,9 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await page.goto(`/mentions/${documentId}`)
 
     await page.getByRole('button', { name: 'Acknowledge — no reply' }).click()
+    // a post pulled from the platform is a fact, not a judgement about the
+    // content — filing it as "not relevant" would lose that distinction
+    await expect(page.getByRole('radio', { name: /deleted/ })).toBeVisible()
     await page.getByRole('radio', { name: /competitor/ }).check()
     await page.getByPlaceholder(/Why \(optional/).fill('competitor thread — replying would look pushy')
     await page.getByRole('button', { name: 'Acknowledge', exact: true }).click()

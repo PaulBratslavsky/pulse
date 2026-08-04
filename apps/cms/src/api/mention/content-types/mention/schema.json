@@ -148,10 +148,11 @@
         "competitor",
         "not-relevant",
         "watching",
+        "deleted",
         "own-post",
         "spam"
       ],
-      "description": "why it was closed without a reply. 'spam' is written by the mute flow only (system, no actor) \u2014 humans use the spam flag button instead"
+      "description": "why it was closed without a reply. 'spam' is written by the mute flow only (system, no actor) \u2014 humans use the spam flag button instead. 'deleted' means the post no longer exists on the platform, so there is nothing left to reply to; it keeps its analytics value because it was real when it was said"
     },
     "owner": {
       "type": "relation",
