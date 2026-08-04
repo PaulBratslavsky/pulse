@@ -2,13 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Inbox, TrendingUp, Tags, MessagesSquare, Settings, FileBarChart, MessageSquareHeart, Share2, Target } from 'lucide-react'
+import { Inbox, TrendingUp, Tags, MessagesSquare, Settings, FileBarChart, MessageSquareHeart, Share2, Target, Users } from 'lucide-react'
 
 const links = [
   { href: '/', label: 'Queue', Icon: Inbox },
   // directly under Queue: leads are work, not analysis — they belong beside
   // the other thing a person acts on, not down with the reporting surfaces
   { href: '/leads', label: 'Leads', Icon: Target },
+  // beside Leads, not under the reporting surfaces: the board ranks who is
+  // worth a look, this is where you go when you already know who you want
+  { href: '/people', label: 'People', Icon: Users },
   { href: '/trends', label: 'Trends', Icon: TrendingUp },
   { href: '/themes', label: 'Themes', Icon: Tags },
   { href: '/feedback', label: 'Feedback', Icon: MessageSquareHeart },

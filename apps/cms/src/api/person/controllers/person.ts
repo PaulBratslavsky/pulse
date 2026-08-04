@@ -71,6 +71,84 @@ export default factories.createCoreController('api::person.person', ({ strapi })
     return { data: shaped }
   },
 
+  /**
+   * GET /people — the directory.
+   *
+   * Distinct from /people/leads on purpose. The board answers "who is worth
+   * looking at", ordered by a score; this answers "where is the person I am
+   * already thinking of", ordered by recency and searched by name. A directory
+   * sorted by lead score is useless for that, and a board that lists all 480
+   * people is useless for the other.
+   *
+   * Query: q, profile=any|started|reachable|none, status, limit.
+   */
+  async directory(ctx) {
+    const { q, profile, status } = ctx.query as Record<string, string>
+    const limit = Math.min(Number(ctx.query.limit) || 60, 200)
+
+    const filters: any = {
+      mergedInto: { $null: true },
+      // Brands, bots and our own accounts are not people you reach out to, and
+      // they are the highest-frequency authors in the corpus — unfiltered they
+      // would fill the first screen of every search.
+      kind: { $in: ['community', 'unknown'] },
+    }
+    if (status) filters.status = status
+    if (profile === 'started') filters.leadProfile = { startedAt: { $notNull: true } }
+    if (profile === 'reachable') filters.leadProfile = { email: { $notNull: true } }
+    if (profile === 'none') filters.leadProfile = { startedAt: { $null: true } }
+
+    const term = String(q ?? '').trim()
+    if (term) {
+      // handle lives on the ACCOUNT now, so a name search has to reach through
+      // the relation or it silently misses everyone whose display name is null
+      filters.$or = [
+        { displayName: { $containsi: term } },
+        { socialAccounts: { handle: { $containsi: term } } },
+        { leadProfile: { company: { $containsi: term } } },
+        { leadProfile: { email: { $containsi: term } } },
+      ]
+    }
+
+    const people = await strapi.documents('api::person.person').findMany({
+      filters,
+      populate: { owner: true, leadProfile: true, socialAccounts: { populate: { channel: true } } } as any,
+      sort: ['lastSeenAt:desc'] as any,
+      limit,
+    })
+
+    return {
+      data: people.map((p: any) => {
+        const primary = primaryAccount(p.socialAccounts)
+        const reach = widestReach(p.socialAccounts)
+        return {
+          documentId: p.documentId,
+          displayName: p.displayName,
+          handle: primary?.handle ?? null,
+          profileUrl: primary?.profileUrl ?? null,
+          avatarUrl: primary?.avatarUrl ?? null,
+          channel: primary?.channel?.key ?? null,
+          aliases: aliasesOf(p.socialAccounts),
+          mentionCount: p.mentionCount,
+          lastSeenAt: p.lastSeenAt,
+          leadScore: p.leadScore,
+          leadBand: p.leadBand,
+          reachTier: reach.reachTier,
+          status: p.status,
+          owner: p.owner ? { username: p.owner.username } : null,
+          profile: p.leadProfile?.startedAt
+            ? {
+                started: true,
+                hasEmail: Boolean(p.leadProfile.email),
+                company: p.leadProfile.company ?? null,
+                role: p.leadProfile.role ?? null,
+              }
+            : null,
+        }
+      }),
+    }
+  },
+
   /** GET /people/:documentId — one person with their mentions and notes. */
   async detail(ctx) {
     const person: any = await strapi.documents('api::person.person').findOne({

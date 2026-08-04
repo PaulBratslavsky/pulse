@@ -38,6 +38,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::mcp-server.mcp-server.toggle',
   'api::mcp-server.mcp-server.remove',
   'api::person.person.leads',
+  'api::person.person.directory',
   'api::person.person.detail',
   'api::person.person.status',
   'api::person.person.leadsStatus',

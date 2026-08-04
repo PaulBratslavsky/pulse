@@ -488,6 +488,56 @@ test.describe('leads', () => {
     await expect(page.getByText('Profile · reachable')).toBeVisible()
   })
 
+  /**
+   * The directory answers a different question from the board: not "who is
+   * worth looking at" but "where is the person I am already thinking of". So
+   * it is searched by name and shows everyone, including people who score
+   * nothing — most of whom the Leads board deliberately hides.
+   */
+  test('the People directory finds someone by handle and by profile state', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const handle = `e2e_dir_${Date.now().toString(36)}`
+    const { documentId } = await injectMention(request, {
+      text: 'Just a passing comment, nothing about switching anything.',
+      author: { handle },
+      authorUrl: `https://x.com/${handle}`,
+    })
+    const m = await (
+      await request.get(`${PULSE}/mentions/${documentId}`, { headers: { cookie } })
+    ).json()
+    const personId = m.data?.person?.documentId
+    expect(personId).toBeTruthy()
+
+    // findable by handle even though this person scores nothing and would
+    // never appear on the leads board
+    await page.goto('/people')
+    await expect(page.getByRole('heading', { name: 'People' })).toBeVisible()
+    await page.getByLabel('Search people').fill(handle)
+    await page.getByLabel('Search people').press('Enter')
+    await expect(page).toHaveURL(new RegExp(`q=${handle}`))
+    await expect(page.getByText(`@${handle}`).first()).toBeVisible()
+
+    // with no profile, the row offers to start one
+    const row = page.locator('li').filter({ hasText: handle })
+    await expect(row.getByRole('link', { name: 'start a profile' })).toBeVisible()
+
+    // give them one, then the "has a profile" filter should include them...
+    await request.put(`${PULSE}/people/${personId}/lead-profile`, {
+      headers: { cookie },
+      data: { email: 'dir@acme.test', company: 'Acme' },
+    })
+    await page.goto(`/people?q=${handle}&profile=started`)
+    await expect(page.getByText('reachable').first()).toBeVisible()
+    await expect(page.getByText('Acme').first()).toBeVisible()
+
+    // ...and the "no profile" filter must not
+    await page.goto(`/people?q=${handle}&profile=none`)
+    await expect(page.getByText(new RegExp(`Nobody matches`))).toBeVisible()
+  })
+
   test('status transitions persist and claim the lead', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const leads = await (
