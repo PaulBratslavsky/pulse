@@ -718,6 +718,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     authorHandle: Schema.Attribute.Text;
     authorName: Schema.Attribute.String;
     authorProfileUrl: Schema.Attribute.String;
+    awaitsReply: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     channel: Schema.Attribute.Relation<'manyToOne', 'api::channel.channel'>;
     comments: Schema.Attribute.Relation<'oneToMany', 'api::comment.comment'>;
     content: Schema.Attribute.Text & Schema.Attribute.Required;

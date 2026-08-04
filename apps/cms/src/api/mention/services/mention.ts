@@ -2,6 +2,7 @@ import { factories } from '@strapi/strapi'
 import { classify, extractKeywords, strongestTag } from '../../../utils/lane'
 import { LANES } from '../../../classification/criteria'
 import { logActivity } from '../../../utils/activity'
+import { refreshThread } from '../../../utils/thread-state'
 import { WorkflowError } from '../../../utils/workflow-error'
 
 /**
@@ -26,6 +27,12 @@ const TEAMS = ['devrel', 'marketing', 'product']
 const SENTIMENTS = ['positive', 'neutral', 'negative', 'na']
 
 export default factories.createCoreService('api::mention.mention', ({ strapi }) => ({
+  /** Re-exported for the octolens plugin, which builds separately and resolves
+   *  every cross-boundary call at runtime. */
+  async refreshThreadState(threadKey: string) {
+    return refreshThread(strapi, threadKey)
+  },
+
   async requireMention(documentId: string, populate?: any) {
     const mention = await strapi
       .documents('api::mention.mention')

@@ -26,6 +26,7 @@ export default async function QueuePage({
     sort?: string
     q?: string
     lane?: string
+    awaiting?: string
   }>
 }) {
   const params = await searchParams
@@ -45,6 +46,11 @@ export default async function QueuePage({
           // competitor keyword monitoring and never names Strapi
           ...(params.q ? { 'filters[content][$containsi]': params.q } : {}),
           ...(params.draft ? { 'filters[draftText][$notNull]': 'true' } : {}),
+          // Someone answered us and nobody answered them. Derived on write
+          // (utils/thread-state) rather than computed here, because "the last
+          // message in this thread that is not ours" is not expressible as a
+          // filter over a single row.
+          ...(params.awaiting ? { 'filters[awaitsReply][$eq]': 'true' } : {}),
           // spam is stored but never queued; suspected-spam stays visible with a badge
           ...(params.quality
             ? { 'filters[quality][$eq]': params.quality }
@@ -80,6 +86,7 @@ export default async function QueuePage({
     topic?: string
     page?: number
     draft?: string
+    awaiting?: string
     quality?: string
     topics?: string
     sort?: string
@@ -219,6 +226,17 @@ export default async function QueuePage({
         </FilterRow>
 
         <FilterRow label="flags">
+          {/* First, and coloured like an alert: this is the only flag that means
+              a named person is waiting on an answer they asked us for. The rest
+              describe the mention; this one describes a debt. */}
+          <FilterPill
+            href={filterUrl({ awaiting: params.awaiting ? undefined : '1', page: 0 })}
+            active={Boolean(params.awaiting)}
+            activeClassName="border-red-500 bg-red-50 font-medium text-red-800 dark:bg-red-900/30 dark:text-red-300"
+            title="Someone replied after our last answer in the same thread, and nobody has responded to them"
+          >
+            awaiting reply
+          </FilterPill>
           <FilterPill
             href={filterUrl({ draft: params.draft ? undefined : '1', page: 0 })}
             active={Boolean(params.draft)}

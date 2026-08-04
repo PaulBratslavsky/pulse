@@ -760,21 +760,39 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
         url: `https://www.reddit.com/r/nextjs/comments/${post}/some_slug/${id}/`,
       })
 
+    // the follow-up text carries the run id: previous runs leave their own
+    // fixtures behind, and "is it still awaiting" must be asked about THIS
+    // conversation rather than any lookalike from an earlier run
+    const followUp = `Thanks — one more question about hosting cost ${post}?`
     const first = await thread('c1', `e2e_asker_${post}`, 'Which headless CMS would you pick here?')
     // seeded into the team allowlist at boot, so this counts as ours
     await thread('c2', 'codingafterthirty', 'Strapi is worth a look for that shape of project.')
-    await thread('c3', `e2e_asker_${post}`, 'Thanks — one more question about hosting cost?')
+    await thread('c3', `e2e_asker_${post}`, followUp)
 
     await page.goto(`/mentions/${first.documentId}`)
 
     // all three, in posting order, as one conversation
     const convo = page.locator('section').filter({ hasText: 'Conversation' }).first()
     await expect(convo.getByText('3 messages')).toBeVisible()
-    await expect(convo.getByText('Thanks — one more question about hosting cost?')).toBeVisible()
+    await expect(convo.getByText(followUp)).toBeVisible()
     await expect(convo.getByText('us', { exact: true })).toBeVisible()
 
     // the signal worth interrupting for: they spoke after we did
     await expect(page.getByText(/after your last answer/)).toBeVisible()
+
+    // ...and it is findable without opening the right mention by luck, which
+    // is the whole point — the panel only helps someone already looking at it
+    await page.goto('/?awaiting=1')
+    await expect(page.getByText(followUp).first()).toBeVisible()
+
+    // recording a public reply settles the conversation, not just the row
+    await page.goto(`/mentions/${first.documentId}`)
+    await page.getByPlaceholder('What you actually replied…').fill('Answered the hosting question.')
+    await page.getByRole('button', { name: 'Record response' }).click()
+    await expect(page.getByText('Answered the hosting question.')).toBeVisible()
+
+    await page.goto('/?awaiting=1')
+    await expect(page.getByText(followUp)).toBeHidden({ timeout: 15_000 })
   })
 
   test('our own posts are never flagged as spam, and never queued as reply work', async ({

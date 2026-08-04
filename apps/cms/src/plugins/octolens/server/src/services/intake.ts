@@ -244,6 +244,15 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
         at: new Date().toISOString(),
       } as any,
     });
+
+    // A new message re-opens the question of whether its conversation is
+    // waiting on us. Resolved through the app service because this plugin
+    // compiles separately and cannot import app code at build time.
+    if ((mention as any).threadKey) {
+      await (strapi.service('api::mention.mention') as any)
+        .refreshThreadState((mention as any).threadKey)
+        .catch((err: Error) => strapi.log.warn(`[ingest] thread refresh failed: ${err.message}`));
+    }
     if (octolens) {
       await strapi.documents('api::activity.activity').create({
         data: {

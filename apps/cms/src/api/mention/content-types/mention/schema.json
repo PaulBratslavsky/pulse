@@ -247,6 +247,10 @@
     },
     "threadKey": {
       "type": "string"
+    },
+    "awaitsReply": {
+      "type": "boolean",
+      "default": false
     }
   }
 }

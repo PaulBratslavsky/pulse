@@ -7,6 +7,7 @@ import { splitSocialAccounts } from './utils/split-social-accounts'
 import { SEED_TEAM_HANDLES } from './api/person/services/person'
 import { reclaimOurPosts } from './utils/reclaim-our-posts'
 import { backfillThreadKeys } from './utils/backfill-threads'
+import { refreshAllThreads } from './utils/thread-state'
 import { backfillPeople } from './utils/backfill-people'
 
 /** Actions the Authenticated (team member) role gets. Each is its own permission record —
@@ -144,6 +145,10 @@ export default {
     // ---- Group mentions into conversations (idempotent, derived from URLs) ----
     await backfillThreadKeys(strapi).catch((err: Error) => {
       strapi.log.error(`pulse: thread backfill failed: ${err.message}`)
+    })
+    // ...then work out which of those conversations are waiting on us
+    await refreshAllThreads(strapi).catch((err: Error) => {
+      strapi.log.error(`pulse: awaiting-reply refresh failed: ${err.message}`)
     })
 
     // ---- Our own handles: seed the old hardcoded list, then honour it ----

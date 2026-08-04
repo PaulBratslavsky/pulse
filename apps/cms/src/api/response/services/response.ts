@@ -1,5 +1,6 @@
 import { factories } from '@strapi/strapi'
 import { logActivity } from '../../../utils/activity'
+import { refreshThread } from '../../../utils/thread-state'
 import { WorkflowError } from '../../../utils/workflow-error'
 
 const OUTCOMES = ['resolved', 'positive-turn', 'no-reaction', 'escalated']
@@ -17,7 +18,7 @@ export default factories.createCoreService('api::response.response', ({ strapi }
     if (!mention) throw new WorkflowError(400, 'mention not found')
 
     const isInternal = Boolean(internal)
-    return strapi.db.transaction(async () => {
+    const recorded = await strapi.db.transaction(async () => {
       const response = await strapi.documents('api::response.response').create({
         data: {
           mention: mentionDocumentId,
@@ -65,6 +66,17 @@ export default factories.createCoreService('api::response.response', ({ strapi }
       })
       return response
     })
+
+    // A public reply settles the whole conversation, not just this mention:
+    // recording one here must clear "awaiting our reply" immediately, before
+    // Octolens gets round to re-ingesting our own comment. An internal note
+    // changes nothing — nobody outside saw it.
+    if (!isInternal && mention.threadKey) {
+      await refreshThread(strapi, mention.threadKey).catch((err: Error) =>
+        strapi.log.warn(`[threads] refresh after reply failed: ${err.message}`)
+      )
+    }
+    return recorded
   },
 
   async recordOutcome(user: { id: number }, documentId: string, { result, notes }: any) {

@@ -28,6 +28,12 @@ export const SEED_TEAM_HANDLES = [
   { handle: 'codingafterthirty', kind: 'own-team' },
   { handle: 'codingthirty', kind: 'own-team' },
 ]
+
+// Nothing else belongs in that list. It is FROZEN — a record of what used to be
+// hardcoded, applied once to an empty environment so nothing regressed. New
+// teammates go in the admin panel (Settings → Our handles), which is the whole
+// reason this became data. Adding one here would also do nothing for an
+// existing environment: seedOnce is marker-guarded and never runs twice.
 const COMPETITOR_BRAND = new Set([
   'webflow',
   'contentful',
