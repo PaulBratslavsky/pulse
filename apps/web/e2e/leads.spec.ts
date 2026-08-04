@@ -536,6 +536,39 @@ test.describe('leads', () => {
     // ...and the "no profile" filter must not
     await page.goto(`/people?q=${handle}&profile=none`)
     await expect(page.getByText(new RegExp(`Nobody matches`))).toBeVisible()
+
+    // Reach: this author arrived with no follower count, which is the common
+    // case (77% of accounts). It must read as unknown, never as zero or small —
+    // and "audience known" must exclude them rather than rank them last.
+    await page.goto(`/people?q=${handle}`)
+    await expect(page.locator('li').filter({ hasText: handle }).getByText('reach unknown')).toBeVisible()
+    await page.goto(`/people?q=${handle}&audience=known`)
+    await expect(page.getByText(new RegExp(`Nobody matches`))).toBeVisible()
+  })
+
+  test('the directory tags leads, and reach is shown with the account it belongs to', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const board = await (await request.get(`${PULSE}/people?lead=yes`, { headers: { cookie } })).json()
+    const scored = (board.data ?? []).find((p: any) => p.leadScore > 0)
+    test.skip(!scored, 'no scored people in this corpus')
+
+    await page.goto('/people?lead=yes')
+    const row = page.locator('li').filter({ hasText: scored.displayName ?? scored.handle }).first()
+    // hot/warm read as a lead; watch is honestly a maybe, and saying so is more
+    // useful than a band name that means nothing to whoever reads it
+    const expected = ['hot', 'warm'].includes(scored.leadBand) ? 'lead' : 'possible lead'
+    await expect(row.getByText(expected, { exact: false }).first()).toBeVisible()
+
+    // reach names its platform, because a bare number on someone posting from
+    // three places says nothing about where the audience actually is
+    const withReach = (board.data ?? []).find((p: any) => typeof p.followers === 'number' && p.reachOn)
+    if (withReach) {
+      await page.goto(`/people?q=${withReach.handle}`)
+      await expect(page.getByText(new RegExp(`followers on ${withReach.reachOn}`)).first()).toBeVisible()
+    }
   })
 
   test('status transitions persist and claim the lead', async ({ page, request }) => {

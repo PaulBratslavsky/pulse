@@ -97,6 +97,12 @@ export default factories.createCoreController('api::person.person', ({ strapi })
     if (profile === 'started') filters.leadProfile = { startedAt: { $notNull: true } }
     if (profile === 'reachable') filters.leadProfile = { email: { $notNull: true } }
     if (profile === 'none') filters.leadProfile = { startedAt: { $null: true } }
+    // Audience is a FILTER, never a sort. Only 23% of accounts carry a follower
+    // count and 98% of those are on X, so ordering by reach would rank people
+    // by which platform they happen to post on and leave three quarters of them
+    // tied at the bottom — the same trap leadScore refuses for the same reason.
+    if (ctx.query.audience === 'known') filters.socialAccounts = { followers: { $notNull: true } }
+    if (ctx.query.lead === 'yes') filters.leadScore = { $gt: 0 }
 
     const term = String(q ?? '').trim()
     if (term) {
@@ -133,7 +139,16 @@ export default factories.createCoreController('api::person.person', ({ strapi })
           lastSeenAt: p.lastSeenAt,
           leadScore: p.leadScore,
           leadBand: p.leadBand,
+          // which way the intent points, when we know — "leaving" is worth
+          // seeing in a directory as much as "coming toward us"
+          direction: (p.leadContext as any)?.direction ?? 'none',
+          // Reach comes WITH the account it belongs to. A bare "38k" on someone
+          // who posts from three platforms says nothing about where they have
+          // an audience, and `followers: null` must read as "we were never told"
+          // rather than as zero — Reddit reports it for 2 accounts in 187.
           reachTier: reach.reachTier,
+          followers: reach.followers,
+          reachOn: reach.account?.channel?.name ?? reach.account?.channel?.key ?? null,
           status: p.status,
           owner: p.owner ? { username: p.owner.username } : null,
           profile: p.leadProfile?.startedAt
