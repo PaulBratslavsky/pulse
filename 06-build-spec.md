@@ -851,3 +851,23 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   neither do `draft()` or `refine()`. Only the sweep does, because the ceiling was written to stop
   a runaway LOOP, and these are all bounded by a human clicking. Worth revisiting together, not
   one at a time. e2e 14 leads tests passing.
+- **2026-08-03 — CI is green for the first time, and the demo seed is why it wasn't.** With the
+  port fixed the suite finally ran, and seven tests failed in CI while passing locally. Reproduced
+  rather than guessed at — virgin DB, `PULSE_SEED_DEMO=true`, no AI key — and the diagnosis came
+  from running the suite TWICE against that database: the second run passed, because the first had
+  left behind the feedback and mentions the tests needed. **A suite that only passes on a dirty
+  database is not testing what it claims to**, and CI starts virgin every time.
+  Three gaps, each of which also made the product demo badly. No competitor topic, because those
+  are auto-created at intake from Octolens keyword tags and the seed bypasses intake — so the topic
+  picker, themes and the queue's topic filter demoed as if competitor discourse did not exist, when
+  it is most of the real volume. No feedback, so `/feedback` showed its empty state and the search
+  box the test looked for genuinely did not exist. And ten one-off sentences, where the map needs
+  term CO-OCCURRENCE at minWeight 3 — a word pair must appear in three separate posts to be an edge
+  — so the conversation map was permanently blank. The added posts repeat vocabulary deliberately,
+  because that repetition is the signal the map draws.
+  One assertion was lowered on purpose: `graph.spec` demanded >30 concepts and >50 links, which
+  only ever passed against ~1,400 real mentions. A seed built to clear that bar would be dozens of
+  posts written to game a number. The guard that matters is that the map drew something with
+  STRUCTURE, which the cluster/bridge/gap assertions already check. Verified under CI's exact
+  conditions across every project: **105 passed, 12 skipped, 0 failed** (was 7 failed). The dev
+  database was backed up and restored afterwards.
