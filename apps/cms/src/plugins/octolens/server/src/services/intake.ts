@@ -307,6 +307,9 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
         // derived from the permalink because the payload never says — and the
         // answer matters: a reply buried in a thread is a weaker signal than a
         // post someone chose to write
+        // which conversation this belongs to — derived from the permalink,
+        // because the payload carries no parent or thread field
+        threadKey: (strapi.service('api::person.person') as any).threadKeyOf(normalized.url),
         postKind: (strapi.service('api::person.person') as any).postKindOf(normalized.url),
         venue: (strapi.service('api::person.person') as any).venueOf(normalized.url),
         ...(routing

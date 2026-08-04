@@ -32,7 +32,10 @@ const DETAIL_POPULATE = {
     populate: { leadProfile: true },
   },
   responses: {
-    fields: ['finalText', 'draftText', 'respondedAt', 'notes', 'internal'],
+    fields: ['finalText', 'draftText', 'respondedAt', 'notes', 'internal', 'editedAt'],
+    // withdrawn replies stay in the database but leave every read path, the
+    // same soft-delete contract comments use
+    filters: { archived: { $ne: true } },
     populate: {
       respondedBy: { fields: ['username'] },
       outcome: true,

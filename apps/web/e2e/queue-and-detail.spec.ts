@@ -696,6 +696,87 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
    * it is can. This asserts the allowlist does exactly that, with identical
    * text on both sides so nothing else can explain the difference.
    */
+  /**
+   * A response transcribes something that lives on another platform, so it goes
+   * stale in ways a note never does — a typo pasting it back, or an edit made
+   * on the platform afterwards. Correcting it must be possible and must be
+   * visible, because outcome and sentiment were recorded against what was
+   * actually said.
+   */
+  test('a recorded reply can be corrected and withdrawn', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+    await page.goto(`/mentions/${documentId}`)
+
+    await page.getByPlaceholder('What you actually replied…').fill('Frist draft with a typo.')
+    await page.getByRole('button', { name: 'Record response' }).click()
+    await expect(page.getByText('Frist draft with a typo.')).toBeVisible()
+    // nothing claims to be edited until it is
+    await expect(page.getByText('(edited)')).toBeHidden()
+
+    await page.getByRole('button', { name: 'Edit' }).first().click()
+    await page.getByLabel('Recorded reply').fill('First draft, corrected.')
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+
+    await expect(page.getByText('First draft, corrected.')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Frist draft with a typo.')).toBeHidden()
+    // a corrected reply must never be able to pass as the original wording
+    await expect(page.getByText('(edited)')).toBeVisible()
+
+    // withdrawing is two steps and no browser dialog — a native confirm() would
+    // block the page and the extension driving it
+    await page.getByRole('button', { name: 'Withdraw', exact: true }).first().click()
+    // Scoped to the Responses section: the timeline keeps its own "answered"
+    // accordion, which is a separate surface fed by the same data and catches
+    // up on the next load. What this feature owns is the record itself.
+    const responses = page.getByTestId('responses')
+    await page.getByRole('button', { name: 'Withdraw?' }).click()
+    await expect(responses.getByText('First draft, corrected.')).toBeHidden({ timeout: 15_000 })
+
+    // and it is gone from the server, not just from this render
+    await page.reload()
+    await expect(page.getByText('No response recorded yet.')).toBeVisible()
+  })
+
+  /**
+   * Octolens ingests every comment in a thread as its own mention, so an
+   * exchange arrives as N unrelated queue rows. Reading one told you nothing
+   * about what was already said — or that the person you answered has replied
+   * again and is waiting, which is how a Reddit follow-up sat unanswered for
+   * three days while the reply was written by hand on the platform.
+   */
+  test('a mention shows the rest of its conversation, and flags replies after ours', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const post = `1v${Date.now().toString(36)}`
+    const thread = (id: string, handle: string, text: string) =>
+      injectMention(request, {
+        text,
+        author: { handle },
+        platform: 'reddit',
+        // the conversation is derived from the permalink — the payload carries
+        // no parent or thread field
+        url: `https://www.reddit.com/r/nextjs/comments/${post}/some_slug/${id}/`,
+      })
+
+    const first = await thread('c1', `e2e_asker_${post}`, 'Which headless CMS would you pick here?')
+    // seeded into the team allowlist at boot, so this counts as ours
+    await thread('c2', 'codingafterthirty', 'Strapi is worth a look for that shape of project.')
+    await thread('c3', `e2e_asker_${post}`, 'Thanks — one more question about hosting cost?')
+
+    await page.goto(`/mentions/${first.documentId}`)
+
+    // all three, in posting order, as one conversation
+    const convo = page.locator('section').filter({ hasText: 'Conversation' }).first()
+    await expect(convo.getByText('3 messages')).toBeVisible()
+    await expect(convo.getByText('Thanks — one more question about hosting cost?')).toBeVisible()
+    await expect(convo.getByText('us', { exact: true })).toBeVisible()
+
+    // the signal worth interrupting for: they spoke after we did
+    await expect(page.getByText(/after your last answer/)).toBeVisible()
+  })
+
   test('our own posts are never flagged as spam, and never queued as reply work', async ({
     page,
     request,

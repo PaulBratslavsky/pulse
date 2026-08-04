@@ -1,5 +1,5 @@
 import { factories } from '@strapi/strapi'
-import { identityKeyOf, postKindOf, venueOf } from '../../../utils/identity'
+import { identityKeyOf, postKindOf, venueOf, threadKeyOf } from '../../../utils/identity'
 import { logActivity } from '../../../utils/activity'
 
 /** followers → tier. Corpus percentiles: median 550, p75 1,495, p90 ~12k.
@@ -95,6 +95,7 @@ export default factories.createCoreService('api::person.person', ({ strapi }) =>
   // every cross-boundary call has to resolve at runtime.
   postKindOf,
   venueOf,
+  threadKeyOf,
 
   /**
    * ensure(): the single way a person is created outside the admin panel.

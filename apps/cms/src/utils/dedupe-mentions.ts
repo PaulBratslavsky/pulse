@@ -79,6 +79,15 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
   // Backfill enum defaults on pre-existing rows: a schema `default` applies to
   // NEW inserts only, and SQL `col != 'x'` is NULL-safe-FALSE — so a filter like
   // quality != 'spam' silently hides every legacy row. Backfill, don't rely on it.
+  // Same trap, second occurrence: `archived` was added to responses so a reply
+  // recorded by mistake could be withdrawn, and every read path filters
+  // `archived != true`. On rows that predate the column that comparison is NULL
+  // and excludes them — which hid all 96 existing responses the moment the
+  // filter shipped. A schema `default` applies to new inserts only.
+  const archivedBackfill = await knex('responses').whereNull('archived').update({ archived: false })
+  if (archivedBackfill)
+    strapi.log.info(`pulse: backfilled archived=false on ${archivedBackfill} response(s)`)
+
   const backfilled = await knex('mentions').whereNull('quality').update({ quality: 'normal' })
   if (backfilled) strapi.log.info(`pulse: backfilled quality='normal' on ${backfilled} mention(s)`)
 

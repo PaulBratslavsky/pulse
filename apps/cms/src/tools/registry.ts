@@ -209,6 +209,8 @@ export const PULSE_TOOLS: PulseTool[] = [
         ? await strapi.documents('api::response.response').findMany({
             filters: {
               internal: { $ne: true },
+              // never offer a withdrawn reply as a model for a new one
+              archived: { $ne: true },
               mention: { documentId: { $ne: args.documentId }, topics: { documentId: { $in: topicIds } } },
             } as any,
             fields: ['finalText', 'respondedAt'],

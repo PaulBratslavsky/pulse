@@ -89,6 +89,50 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
     }
   },
 
+  /**
+   * GET /mentions/:documentId/thread — the rest of this conversation.
+   *
+   * Octolens ingests every comment in a thread as its own mention, so an
+   * exchange arrives as six unrelated queue rows and nothing says they belong
+   * together — which is how a follow-up addressed to us goes unanswered while
+   * sitting in the queue the whole time. The key is derived from the permalink
+   * (utils/identity.threadKeyOf); nothing is fetched from the platform.
+   *
+   * Returns the siblings in posting order with `isOurs` resolved from the team
+   * handle allowlist, so the caller can say "they replied after you" without
+   * re-deriving who we are.
+   */
+  async thread(ctx) {
+    const mention: any = await strapi
+      .documents('api::mention.mention')
+      .findOne({ documentId: ctx.params.documentId })
+    if (!mention) return ctx.notFound('mention not found')
+    if (!mention.threadKey) return { data: { threadKey: null, mentions: [] } }
+
+    const siblings = await strapi.documents('api::mention.mention').findMany({
+      filters: { threadKey: mention.threadKey } as any,
+      fields: ['content', 'authorHandle', 'postedAt', 'url', 'status', 'lane'] as any,
+      sort: 'postedAt:asc' as any,
+      limit: 100,
+    })
+
+    const team = strapi.service('api::team-handle.team-handle') as any
+    const shaped = await Promise.all(
+      (siblings as any[]).map(async (m) => ({
+        documentId: m.documentId,
+        content: m.content,
+        authorHandle: m.authorHandle,
+        postedAt: m.postedAt,
+        url: m.url,
+        status: m.status,
+        lane: m.lane,
+        isSelf: m.documentId === mention.documentId,
+        isOurs: await team.isOurs(m.authorHandle),
+      }))
+    )
+    return { data: { threadKey: mention.threadKey, mentions: shaped } }
+  },
+
   async correct(ctx) {
     try {
       const { sentimentLabel, sentimentScore, topicIds, newTopics, lane } = ctx.request.body ?? {}

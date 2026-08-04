@@ -373,7 +373,10 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     // public replies in the window: who answered, and how fast
     const responses = await strapi.documents('api::response.response').findMany({
-      filters: { internal: { $ne: true }, respondedAt: { $gte: since } } as any,
+      // archived: a reply withdrawn as mis-recorded must stop counting toward
+      // response time and the leaderboard, or the metrics keep crediting work
+      // that the record itself now says did not happen
+      filters: { internal: { $ne: true }, archived: { $ne: true }, respondedAt: { $gte: since } } as any,
       fields: ['respondedAt'],
       populate: {
         respondedBy: { fields: ['username'] },

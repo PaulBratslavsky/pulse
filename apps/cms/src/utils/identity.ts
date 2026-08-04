@@ -144,3 +144,28 @@ export function venueOf(url?: string | null): string | null {
   const m = /^https?:\/\/(?:[a-z0-9-]+\.)?reddit\.com\/r\/([A-Za-z0-9_]+)/i.exec(url);
   return m ? `r/${m[1]}` : null;
 }
+
+/**
+ * Which conversation a mention belongs to, derived from its permalink.
+ *
+ * Octolens sends no parent, thread or conversation field — checked across the
+ * corpus — so the only way to know that six posts are one exchange is to read
+ * it out of the URL, the same way venueOf and identityKeyOf already do.
+ *
+ * Reddit only, deliberately. A Reddit permalink names the submission every
+ * comment hangs off (`/r/sub/comments/<postId>/<slug>/<commentId>`), so the
+ * grouping is exact. An X reply URL is `/user/status/<the reply's own id>` and
+ * carries nothing about what it replies to, so threading it from the URL would
+ * be guesswork — better to return null and leave those mentions ungrouped than
+ * to invent a conversation that might not exist.
+ *
+ * In the corpus this covers 218 mentions across 115 threads, 39 of which hold
+ * more than one mention.
+ */
+export function threadKeyOf(url?: string | null): string | null {
+  if (!url) return null;
+  const m = /^https?:\/\/(?:[a-z0-9-]+\.)?reddit\.com\/r\/([A-Za-z0-9_]+)\/comments\/([a-z0-9]+)/i.exec(
+    url
+  );
+  return m ? `reddit:${m[1].toLowerCase()}/${m[2].toLowerCase()}` : null;
+}

@@ -1,6 +1,8 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { IdCard } from 'lucide-react'
+import ResponseCard from '@/components/response-card'
+import { ConversationThread } from '@/components/conversation-thread'
 import { strapiFetch } from '@/lib/strapi'
 import { SentimentBadge, StatusBadge, LaneBadge } from '@/components/badges'
 import MentionActions from '@/components/mention-actions'
@@ -22,6 +24,11 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
   const topics = await strapiFetch('/api/topics?pagination[pageSize]=100&sort=name:asc')
   const config = await strapiFetch('/api/insights/config').catch(() => ({ data: { aiEnabled: false } }))
   const me = await strapiFetch('/api/users/me').catch(() => null)
+  // Only asked for when the permalink yielded a conversation — X and LinkedIn
+  // URLs carry nothing to thread on, so most mentions skip this entirely.
+  const thread = m.threadKey
+    ? await strapiFetch(`/api/mentions/${m.documentId}/thread`).catch(() => null)
+    : null
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
@@ -116,6 +123,13 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
 
+        {/* above the actions: it is context for the reply you are about to
+            write, and the "they replied after you" case is the reason to read
+            it before writing anything */}
+        <div className="mt-6">
+          <ConversationThread mentions={thread?.data?.mentions ?? []} venue={m.venue} />
+        </div>
+
         <MentionActions mention={m} allTopics={topics.data ?? []} aiEnabled={config.data.aiEnabled} />
 
         <section className="mt-8">
@@ -123,33 +137,39 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           {(m.responses ?? []).length === 0 && (
             <p className="text-sm text-zinc-500">No response recorded yet.</p>
           )}
-          <ul className="space-y-3">
+          <ul data-testid="responses" className="space-y-3">
             {(m.responses ?? []).map((r: any) => (
-              <li
-                key={r.documentId}
-                className={`rounded-lg border bg-white dark:bg-zinc-900 p-4 ${
-                  r.internal
-                    ? 'border-violet-300 dark:border-violet-800'
-                    : 'border-zinc-200 dark:border-zinc-800'
-                }`}
-              >
-                {r.internal && (
-                  <span className="inline-block mb-2 text-xs rounded px-1.5 py-0.5 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 font-medium">
-                    internal note
-                  </span>
-                )}
-                <p className="text-sm whitespace-pre-wrap">{r.finalText}</p>
-                <p className="text-xs text-zinc-500 mt-2">
-                  by {r.respondedBy?.username ?? '—'} ·{' '}
-                  {r.respondedAt ? new Date(r.respondedAt).toLocaleString() : '—'}
-                  {!r.internal && (
-                    <>
-                      {' '}· outcome: <span className="font-medium">{r.outcome?.result ?? 'not recorded'}</span>
-                    </>
+                <ResponseCard
+                  key={r.documentId}
+                  response={r}
+                  canEdit={Boolean(me?.documentId) && r.respondedBy?.documentId === me?.documentId}
+                  className={`rounded-lg border bg-white dark:bg-zinc-900 p-4 ${
+                    r.internal
+                      ? 'border-violet-300 dark:border-violet-800'
+                      : 'border-zinc-200 dark:border-zinc-800'
+                  }`}
+                >
+                  {r.internal && (
+                    <span className="inline-block mb-2 text-xs rounded px-1.5 py-0.5 bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 font-medium">
+                      internal note
+                    </span>
                   )}
-                </p>
-                {r.notes && <p className="text-xs text-zinc-400 mt-1">notes: {r.notes}</p>}
-              </li>
+                  <p className="text-sm whitespace-pre-wrap">{r.finalText}</p>
+                  <p className="text-xs text-zinc-500 mt-2">
+                    by {r.respondedBy?.username ?? '—'} ·{' '}
+                    {r.respondedAt ? new Date(r.respondedAt).toLocaleString() : '—'}
+                    {/* corrected wording must never pass as the original: the
+                        outcome and sentiment were recorded against what was
+                        actually said */}
+                    {r.editedAt && <span title={new Date(r.editedAt).toLocaleString()}> · (edited)</span>}
+                    {!r.internal && (
+                      <>
+                        {' '}· outcome: <span className="font-medium">{r.outcome?.result ?? 'not recorded'}</span>
+                      </>
+                    )}
+                  </p>
+                  {r.notes && <p className="text-xs text-zinc-400 mt-1">notes: {r.notes}</p>}
+                </ResponseCard>
             ))}
           </ul>
         </section>

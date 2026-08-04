@@ -781,6 +781,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
     suggestedTeam: Schema.Attribute.Enumeration<
       ['devrel', 'marketing', 'product']
     >;
+    threadKey: Schema.Attribute.String;
     topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -945,10 +946,12 @@ export interface ApiResponseResponse extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    archived: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     draftText: Schema.Attribute.Text;
+    editedAt: Schema.Attribute.DateTime;
     finalText: Schema.Attribute.Text & Schema.Attribute.Required;
     internal: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;

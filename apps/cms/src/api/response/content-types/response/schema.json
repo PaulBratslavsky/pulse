@@ -7,7 +7,9 @@
     "displayName": "Response",
     "description": "What was replied to a mention, by whom, and how it landed"
   },
-  "options": { "draftAndPublish": false },
+  "options": {
+    "draftAndPublish": false
+  },
   "attributes": {
     "mention": {
       "type": "relation",
@@ -15,16 +17,39 @@
       "target": "api::mention.mention",
       "inversedBy": "responses"
     },
-    "draftText": { "type": "text" },
-    "finalText": { "type": "text", "required": true },
+    "draftText": {
+      "type": "text"
+    },
+    "finalText": {
+      "type": "text",
+      "required": true
+    },
     "respondedBy": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user"
     },
-    "respondedAt": { "type": "datetime" },
-    "notes": { "type": "text" },
-    "internal": { "type": "boolean", "default": false },
-    "outcome": { "type": "component", "component": "shared.outcome", "repeatable": false }
+    "respondedAt": {
+      "type": "datetime"
+    },
+    "notes": {
+      "type": "text"
+    },
+    "internal": {
+      "type": "boolean",
+      "default": false
+    },
+    "outcome": {
+      "type": "component",
+      "component": "shared.outcome",
+      "repeatable": false
+    },
+    "editedAt": {
+      "type": "datetime"
+    },
+    "archived": {
+      "type": "boolean",
+      "default": false
+    }
   }
 }

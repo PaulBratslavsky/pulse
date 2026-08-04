@@ -19,6 +19,12 @@ export default {
       config: { policies: [] },
     },
     {
+      method: 'GET',
+      path: '/mentions/:documentId/thread',
+      handler: 'mention.thread',
+      config: { policies: [] },
+    },
+    {
       method: 'POST',
       path: '/mentions/:documentId/route',
       handler: 'mention.route',

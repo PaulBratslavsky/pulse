@@ -244,6 +244,9 @@
         "away-from-us"
       ],
       "default": "none"
+    },
+    "threadKey": {
+      "type": "string"
     }
   }
 }

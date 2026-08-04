@@ -6,6 +6,7 @@ import { dedupeSplitPeople } from './utils/dedupe-people'
 import { splitSocialAccounts } from './utils/split-social-accounts'
 import { SEED_TEAM_HANDLES } from './api/person/services/person'
 import { reclaimOurPosts } from './utils/reclaim-our-posts'
+import { backfillThreadKeys } from './utils/backfill-threads'
 import { backfillPeople } from './utils/backfill-people'
 
 /** Actions the Authenticated (team member) role gets. Each is its own permission record —
@@ -21,6 +22,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::comment.comment.update',
   'api::comment.comment.delete',
   'api::mention.mention.route',
+  'api::mention.mention.thread',
   'api::mention.mention.correct',
   'api::mention.mention.replay',
   'api::dead-letter.dead-letter.replay',
@@ -28,6 +30,8 @@ const AUTHENTICATED_ACTIONS = [
   'api::response.response.find',
   'api::response.response.findOne',
   'api::response.response.create',
+  'api::response.response.update',
+  'api::response.response.delete',
   'api::response.response.outcome',
   'api::mention.mention.refine',
   'api::mcp-server.mcp-server.list',
@@ -135,6 +139,11 @@ export default {
     // Non-fatal: an unresolved author costs a leads-list row, not a mention.
     await backfillPeople(strapi).catch((err: Error) => {
       strapi.log.error(`pulse: person backfill failed: ${err.message}`)
+    })
+
+    // ---- Group mentions into conversations (idempotent, derived from URLs) ----
+    await backfillThreadKeys(strapi).catch((err: Error) => {
+      strapi.log.error(`pulse: thread backfill failed: ${err.message}`)
     })
 
     // ---- Our own handles: seed the old hardcoded list, then honour it ----
