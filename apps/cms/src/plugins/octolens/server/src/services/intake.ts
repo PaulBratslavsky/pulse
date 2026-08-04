@@ -172,8 +172,16 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     const muted = await (strapi.service('api::muted-author.muted-author') as any).isMuted(
       normalized.authorHandle
     );
-    const signals = spamSignals(normalized.content);
-    const quality = muted ? 'spam' : signals.length ? 'suspected-spam' : 'normal';
+    // Our own accounts are never spam and never reply work. The spam heuristic
+    // reads promotional language, and a teammate recommending Strapi reads
+    // exactly like that — one of ours was flagged for saying "Next.js + Strapi"
+    // on Reddit. An allowlist is the only thing that can tell the two apart,
+    // because the text genuinely cannot.
+    const ours = await (strapi.service('api::team-handle.team-handle') as any).isOurs(
+      normalized.authorHandle
+    );
+    const signals = ours ? [] : spamSignals(normalized.content);
+    const quality = muted && !ours ? 'spam' : signals.length ? 'suspected-spam' : 'normal';
 
     // Route, don't filter. Octolens tells us which search term fired and how
     // it's tagged (own_brand / competitor / industry_term) — authoritative,
@@ -216,7 +224,7 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     let mention: any;
     try {
-      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens, quality, routing, personId);
+      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens, quality, routing, personId, ours);
     } catch (err: any) {
       // unique-index violation → another writer created it between check and insert
       const winner = await strapi
@@ -265,7 +273,8 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     octolens: { label: string; score: number } | null,
     quality: string = 'normal',
     routing?: { lane: string; laneReason: string; matchedKeywords: any[]; keywordTag: string | null },
-    personId?: string | null
+    personId?: string | null,
+    ours: boolean = false
   ) {
     return strapi.documents('api::mention.mention').create({
       data: {
@@ -277,10 +286,16 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
         receivedAt: new Date().toISOString(),
         channel: channel?.documentId ?? null,
         ...(competitorTopicIds.length ? { topics: competitorTopicIds } : {}),
-        status: quality === 'spam' ? 'acknowledged' : 'unanswered',
+        status: quality === 'spam' || ours ? 'acknowledged' : 'unanswered',
         // 'spam', not 'not-relevant' — these ARE relevant, they're just from a
         // muted author, and the acknowledged pile has to stay readable later
         ...(quality === 'spam' ? { acknowledgeReason: 'spam' } : {}),
+        // Ours: acknowledged on arrival with the reason the product already
+        // uses for this, the one the "Ours" button applies by hand. It leaves
+        // the reply queue (nobody replies to their own post) and drops out of
+        // sentiment metrics, while staying fully searchable — the same
+        // treatment, just without waiting for someone to click it.
+        ...(ours && quality !== 'spam' ? { acknowledgeReason: 'own-post' } : {}),
         quality,
         authorName: normalized.authorName,
         authorProfileUrl: normalized.authorProfileUrl,

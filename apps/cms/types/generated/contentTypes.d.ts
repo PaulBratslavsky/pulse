@@ -1034,6 +1034,45 @@ export interface ApiSocialAccountSocialAccount
   };
 }
 
+export interface ApiTeamHandleTeamHandle extends Struct.CollectionTypeSchema {
+  collectionName: 'team_handles';
+  info: {
+    description: 'A social account belonging to us. Our own posts are not reply work and must never be flagged as spam \u2014 this is the allowlist that says which handles are ours. Managed in the admin panel so adding a teammate is not a deploy.';
+    displayName: 'Team Handle';
+    pluralName: 'team-handles';
+    singularName: 'team-handle';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    addedBy: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    handle: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    kind: Schema.Attribute.Enumeration<['own-team', 'own-brand']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'own-team'>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::team-handle.team-handle'
+    > &
+      Schema.Attribute.Private;
+    note: Schema.Attribute.Text;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiTopicTopic extends Struct.CollectionTypeSchema {
   collectionName: 'topics';
   info: {
@@ -1592,6 +1631,7 @@ declare module '@strapi/strapi' {
       'api::preference.preference': ApiPreferencePreference;
       'api::response.response': ApiResponseResponse;
       'api::social-account.social-account': ApiSocialAccountSocialAccount;
+      'api::team-handle.team-handle': ApiTeamHandleTeamHandle;
       'api::topic.topic': ApiTopicTopic;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

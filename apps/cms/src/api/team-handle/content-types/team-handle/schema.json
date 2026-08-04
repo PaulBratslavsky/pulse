@@ -1,0 +1,26 @@
+{
+  "kind": "collectionType",
+  "collectionName": "team_handles",
+  "info": {
+    "singularName": "team-handle",
+    "pluralName": "team-handles",
+    "displayName": "Team Handle",
+    "description": "A social account belonging to us. Our own posts are not reply work and must never be flagged as spam — this is the allowlist that says which handles are ours. Managed in the admin panel so adding a teammate is not a deploy."
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "handle": { "type": "string", "required": true, "unique": true },
+    "kind": {
+      "type": "enumeration",
+      "enum": ["own-team", "own-brand"],
+      "default": "own-team",
+      "required": true
+    },
+    "note": { "type": "text" },
+    "addedBy": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  }
+}

@@ -689,6 +689,53 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page).toHaveURL(/q=strapi/)
   })
 
+  /**
+   * The spam heuristic reads promotional language, and one of us recommending
+   * Strapi IS promotional language — a real Reddit comment of ours was flagged
+   * for it. No wording change can separate the two; only knowing whose account
+   * it is can. This asserts the allowlist does exactly that, with identical
+   * text on both sides so nothing else can explain the difference.
+   */
+  test('our own posts are never flagged as spam, and never queued as reply work', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const stamp = Date.now()
+    // trips the promo-link-farm heuristic
+    const text = `Nice setup — we shipped ours on https://demo-${stamp}.vercel.app and it went well.`
+
+    const outsider = await injectMention(request, {
+      text,
+      author: { handle: `e2e_outsider_${stamp}` },
+      platform: 'reddit',
+    })
+    // seeded into the allowlist at boot (previously hardcoded in person.ts)
+    const ours = await injectMention(request, {
+      text,
+      author: { handle: 'codingafterthirty' },
+      platform: 'reddit',
+    })
+
+    // through the authenticated proxy: Strapi's own route 403s unauthenticated,
+    // and a null body would read as "no quality set" rather than as a failure
+    const read = async (id: string) =>
+      (
+        await (
+          await request.get(`http://localhost:3000/api/pulse/mentions/${id}`, {
+            headers: { cookie },
+          })
+        ).json()
+      ).data
+
+    const theirs = await read(outsider.documentId)
+    const mine = await read(ours.documentId)
+
+    expect(theirs.quality, 'the same text from a stranger is still suspected').toBe('suspected-spam')
+    expect(mine.quality, 'ours is not spam, whatever it sounds like').toBe('normal')
+    expect(mine.acknowledgeReason, 'and nobody replies to their own post').toBe('own-post')
+  })
+
   test('possible-spam flag marks a mention and can be cleared', async ({ page, request }) => {
     const { documentId } = await injectMention(request)
     await page.goto(`/mentions/${documentId}`)

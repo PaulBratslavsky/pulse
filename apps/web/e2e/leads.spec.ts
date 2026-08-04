@@ -113,7 +113,10 @@ test.describe('leads', () => {
     // A loose /^comment/i regex matched the Comment chip instead and silently
     // switched the kind back rather than posting anything.
     await page.getByRole('button', { name: 'Note (with resources)' }).click()
-    await page.locator('textarea').fill(note)
+    // by placeholder, not `locator('textarea')`: the lead profile panel puts a
+    // second textarea on this page, and a bare tag locator quietly depended on
+    // there only ever being one
+    await page.getByPlaceholder("The team's take, context, decisions…").fill(note)
     await page.getByRole('button', { name: 'Add note', exact: true }).click()
     await expect(page.getByText(note)).toBeVisible({ timeout: 15_000 })
 

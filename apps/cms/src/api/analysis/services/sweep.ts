@@ -160,7 +160,17 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
         // 'spam': that hides a mention from the queue and every metric, so it
         // stays a human decision. A false positive here costs one review; the
         // other way costs silently deleted signal.
-        const flagsSpam = result.quality === 'suspected-spam' && mention.quality === 'normal';
+        // ...and never for one of our own accounts. The classifier reads
+        // promotional language, and a teammate recommending Strapi is
+        // promotional language — the text cannot distinguish them, only the
+        // allowlist can. Checked here as well as at intake because this path
+        // re-judges quality on every re-analysis, so an allowlist consulted
+        // only on arrival would be undone by the next sweep.
+        const ours = await (strapi.service('api::team-handle.team-handle') as any).isOurs(
+          mention.authorHandle
+        );
+        const flagsSpam =
+          !ours && result.quality === 'suspected-spam' && mention.quality === 'normal';
 
         // humanCorrected fields are never overwritten (spec rule)
         const data: any = mention.humanCorrected

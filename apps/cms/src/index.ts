@@ -4,6 +4,8 @@ import { registerAllMcpTools, registerMcpToolPermissions } from './mcp'
 import { dedupeMentionsAndEnforceUnique } from './utils/dedupe-mentions'
 import { dedupeSplitPeople } from './utils/dedupe-people'
 import { splitSocialAccounts } from './utils/split-social-accounts'
+import { SEED_TEAM_HANDLES } from './api/person/services/person'
+import { reclaimOurPosts } from './utils/reclaim-our-posts'
 import { backfillPeople } from './utils/backfill-people'
 
 /** Actions the Authenticated (team member) role gets. Each is its own permission record —
@@ -132,6 +134,16 @@ export default {
     // Non-fatal: an unresolved author costs a leads-list row, not a mention.
     await backfillPeople(strapi).catch((err: Error) => {
       strapi.log.error(`pulse: person backfill failed: ${err.message}`)
+    })
+
+    // ---- Our own handles: seed the old hardcoded list, then honour it ----
+    // Seeded ONCE (a deliberate deletion must stay deleted), then any of our
+    // posts a classifier flagged before the allowlist existed are put right.
+    await (strapi.service('api::team-handle.team-handle') as any)
+      .seedOnce(SEED_TEAM_HANDLES)
+      .catch((err: Error) => strapi.log.error(`pulse: team handle seed failed: ${err.message}`))
+    await reclaimOurPosts(strapi).catch((err: Error) => {
+      strapi.log.error(`pulse: reclaiming our own posts failed: ${err.message}`)
     })
 
     // ---- Move platform identity onto SocialAccount (idempotent, phase A) ----

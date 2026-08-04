@@ -17,7 +17,17 @@ export const reachTierOf = (followers?: number | null): 'unknown' | 'small' | 'm
  * (14 mentions), a muted AI content farm, and the brand accounts @webflow and
  * @strapijs. Without this, every frequency-ranked view surfaces exactly those.
  */
-const OWN_TEAM = new Set(['strapijs', 'codingafterthirty', 'codingthirty'])
+/**
+ * The handles that used to live here as the only source of truth. They are now
+ * SEED data for api::team-handle, which is editable in the admin panel — adding
+ * a teammate was previously a deploy, and the list could not be corrected by
+ * the person watching their own post get flagged.
+ */
+export const SEED_TEAM_HANDLES = [
+  { handle: 'strapijs', kind: 'own-brand' },
+  { handle: 'codingafterthirty', kind: 'own-team' },
+  { handle: 'codingthirty', kind: 'own-team' },
+]
 const COMPETITOR_BRAND = new Set([
   'webflow',
   'contentful',
@@ -28,10 +38,12 @@ const COMPETITOR_BRAND = new Set([
   'ghost',
 ])
 
-export const kindOf = (handle?: string | null, muted = false): string => {
+export const kindOf = (handle?: string | null, muted = false, ours = false): string => {
   const h = (handle ?? '').toLowerCase().replace(/^@+/, '')
   if (!h) return 'unknown'
-  if (OWN_TEAM.has(h)) return 'own-team'
+  // `ours` is resolved by the caller from the allowlist and passed in, so this
+  // stays a pure function over its inputs rather than reaching for the DB.
+  if (ours) return 'own-team'
   if (COMPETITOR_BRAND.has(h)) return 'competitor-brand'
   // A muted author is a bot or content farm by definition — that judgement was
   // already made by a human, and it is the same judgement `kind` encodes. The
@@ -57,6 +69,15 @@ const resolveSurvivor = async (strapi: any, documentId: string, hops = 0): Promi
   const next = person?.mergedInto?.documentId
   if (!next || next === documentId) return documentId
   return resolveSurvivor(strapi, next, hops + 1)
+}
+
+const isOurs = async (strapi: any, handle?: string | null): Promise<boolean> => {
+  if (!handle) return false
+  try {
+    return Boolean(await (strapi.service('api::team-handle.team-handle') as any).isOurs(handle))
+  } catch {
+    return false
+  }
 }
 
 const isMuted = async (strapi: any, handle?: string | null): Promise<boolean> => {
@@ -136,7 +157,11 @@ export default factories.createCoreService('api::person.person', ({ strapi }) =>
       const person = await strapi.documents('api::person.person').create({
         data: {
           displayName: input.authorName ?? null,
-          kind: kindOf(input.authorHandle, await isMuted(strapi, input.authorHandle)),
+          kind: kindOf(
+            input.authorHandle,
+            await isMuted(strapi, input.authorHandle),
+            await isOurs(strapi, input.authorHandle)
+          ),
           firstSeenAt: now,
           lastSeenAt: now,
           mentionCount: 1,
@@ -222,7 +247,8 @@ export default factories.createCoreService('api::person.person', ({ strapi }) =>
     // still a brand.
     const handles: string[] = (person.socialAccounts ?? []).map((a: any) => a.handle).filter(Boolean)
     const muted = await Promise.all(handles.map((h) => isMuted(strapi, h)))
-    const kinds = handles.map((h, i) => kindOf(h, muted[i]))
+    const ours = await Promise.all(handles.map((h) => isOurs(strapi, h)))
+    const kinds = handles.map((h, i) => kindOf(h, muted[i], ours[i]))
     const next = kinds.find((k) => k !== 'community' && k !== 'unknown') ?? kinds[0] ?? 'unknown'
     if (next === person.kind) return person
     return strapi

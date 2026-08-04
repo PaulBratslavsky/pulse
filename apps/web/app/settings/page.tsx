@@ -24,6 +24,7 @@ export default async function SettingsPage() {
     { href: `${STRAPI_URL}/admin`, label: 'Strapi admin panel', note: 'accounts, roles, dead letters' },
     { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::topic.topic`, label: 'Curate topics', note: 'rename / merge machine-created topics' },
     { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::event.event`, label: 'Events', note: 'releases, launches, incidents for trend annotations' },
+    { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::team-handle.team-handle`, label: 'Our handles', note: 'accounts that are ours — never spam, never reply work. Add a teammate here rather than in code' },
     { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::channel.channel`, label: 'Channels', note: 'platform keys the webhook maps to' },
     { href: `${STRAPI_URL}/admin/content-manager/collection-types/api::dead-letter.dead-letter`, label: 'Dead letters', note: 'ingest payloads that failed validation (replayable)' },
   ]
