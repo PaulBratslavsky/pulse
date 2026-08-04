@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Inbox, TrendingUp, Tags, MessagesSquare, Settings, FileBarChart, MessageSquareHeart, Share2, Target, Users } from 'lucide-react'
 
@@ -23,6 +24,17 @@ const links = [
 
 export function NavLinks() {
   const pathname = usePathname()
+  // Clicking "Queue" from a mention should land on the queue you were working,
+  // not a reset one. Empty until mounted so the server and first paint agree.
+  const [queueSearch, setQueueSearch] = useState('')
+  useEffect(() => {
+    try {
+      setQueueSearch(sessionStorage.getItem('pulse-queue-view') ?? '')
+    } catch {
+      /* private mode — the link just stays plain */
+    }
+  }, [pathname])
+
   return (
     <nav className="flex flex-col gap-2">
       {links.map(({ href, label, Icon }) => {
@@ -30,7 +42,7 @@ export function NavLinks() {
         return (
           <Link
             key={href}
-            href={href}
+            href={href === '/' ? `/${queueSearch}` : href}
             className={
               isActive
                 ? 'flex items-center gap-3 rounded-lg px-4 py-3 bg-gradient-to-r from-[#4945FF] to-[#7B79FF] text-white font-semibold shadow-sm'

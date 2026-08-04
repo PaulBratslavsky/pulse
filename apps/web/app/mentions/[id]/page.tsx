@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { IdCard } from 'lucide-react'
 import ResponseCard from '@/components/response-card'
 import { ConversationThread } from '@/components/conversation-thread'
+import { BackToQueue } from '@/components/queue-view-memory'
 import { strapiFetch } from '@/lib/strapi'
 import { SentimentBadge, StatusBadge, LaneBadge } from '@/components/badges'
 import MentionActions from '@/components/mention-actions'
@@ -33,6 +34,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
       <div>
+        <BackToQueue />
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <SentimentBadge label={m.sentimentLabel} />
           <StatusBadge status={m.status} />

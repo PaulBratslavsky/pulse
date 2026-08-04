@@ -4,6 +4,7 @@ import { strapiFetch, qs } from '@/lib/strapi'
 import { MessageSquare } from 'lucide-react'
 import { SentimentBadge, StatusBadge, StalenessFlag, PostedDate, LaneBadge } from '@/components/badges'
 import { UserChip, FilterPill, EmptyState, FilterRow } from '@/components/ui'
+import { RememberQueueView } from '@/components/queue-view-memory'
 import { commentCount } from '@/lib/types'
 import ClaimButton from '@/components/claim-button'
 import MuteAuthorButton from '@/components/mute-author-button'
@@ -120,8 +121,24 @@ export default async function QueuePage({
   }
   const pageUrl = (p: number) => filterUrl({ page: p })
 
+  // the query as the browser has it, so returning here restores this exact view
+  const currentSearch = qs({
+    ...(params.status ? { status: params.status } : {}),
+    ...(params.sentiment ? { sentiment: params.sentiment } : {}),
+    ...(params.topic ? { topic: params.topic } : {}),
+    ...(params.topics ? { topics: params.topics } : {}),
+    ...(params.draft ? { draft: params.draft } : {}),
+    ...(params.awaiting ? { awaiting: params.awaiting } : {}),
+    ...(params.quality ? { quality: params.quality } : {}),
+    ...(params.lane ? { lane: params.lane } : {}),
+    ...(params.sort ? { sort: params.sort } : {}),
+    ...(params.q ? { q: params.q } : {}),
+    ...(page > 1 ? { page: String(page) } : {}),
+  })
+
   return (
     <div>
+      <RememberQueueView search={currentSearch} />
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
           {/* count is the whole filtered set, not this page — "how much is

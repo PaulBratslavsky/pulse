@@ -33,6 +33,28 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('resolved', { exact: true }).first()).toBeVisible()
   })
 
+  /**
+   * Triage is open-read-return, dozens of times. Every route back to the queue
+   * used to drop the filters — the nav link is a bare "/" and a mention page had
+   * no way back at all — so four filters had to be re-picked after each mention.
+   */
+  test('the queue you were working survives a trip into a mention', async ({ page, request }) => {
+    const { documentId } = await injectMention(request)
+
+    await page.goto('/?lane=lead&sentiment=negative')
+    await expect(page).toHaveURL(/lane=lead/)
+
+    await page.goto(`/mentions/${documentId}`)
+    await page.getByRole('link', { name: /Back to your filtered queue/ }).click()
+    await expect(page).toHaveURL(/lane=lead/)
+    await expect(page).toHaveURL(/sentiment=negative/)
+
+    // ...and the nav link lands there too, rather than resetting
+    await page.goto(`/mentions/${documentId}`)
+    await page.getByRole('link', { name: 'Queue', exact: true }).click()
+    await expect(page).toHaveURL(/lane=lead/)
+  })
+
   test('correction controls set human-corrected label', async ({ page, request }) => {
     const { documentId } = await injectMention(request)
     await page.goto(`/mentions/${documentId}`)
