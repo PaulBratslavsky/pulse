@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import Providers from './providers'
+import { EnvironmentBanner } from '@/components/environment-banner'
 import { strapiFetch } from '@/lib/strapi'
 import { TopNav } from '@/components/navigation/top-nav'
 import { LeftSidebar } from '@/components/navigation/left-sidebar'
@@ -52,6 +53,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         />
       </head>
       <body className="min-h-full bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+        <EnvironmentBanner />
         <Providers>
           {me ? (
             <>
