@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { strapiFetch, qs } from '@/lib/strapi'
+import { strapiFetch, qs, fetchAllTopics } from '@/lib/strapi'
 import { MessageSquare } from 'lucide-react'
 import { SentimentBadge, StatusBadge, StalenessFlag, PostedDate, LaneBadge } from '@/components/badges'
 import { UserChip, FilterPill, EmptyState, FilterRow } from '@/components/ui'
@@ -76,9 +76,7 @@ export default async function QueuePage({
     if (err.status === 401 || err.status === 403) redirect('/sign-in')
     throw err
   }
-  const topicsRes = await strapiFetch('/api/topics?pagination[pageSize]=100&sort=name:asc').catch(() => ({
-    data: [],
-  }))
+  const topicsRes = { data: await fetchAllTopics().catch(() => []) }
   const mentions = data.data ?? []
   const pagination = data.meta?.pagination ?? { page: 1, pageCount: 1, total: mentions.length }
   const filterUrl = (over: {

@@ -33,3 +33,27 @@ export const qs = (params: Record<string, string | number | undefined>) =>
     .filter(([, v]) => v !== undefined && v !== '')
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join('&')
+
+/**
+ * Every topic, not the first hundred.
+ *
+ * Both callers asked for `pageSize=100` and treated the answer as the whole
+ * vocabulary. `maxLimit: 100` in the CMS config makes that the ceiling, so the
+ * moment the 101st topic was created the picker silently stopped seeing the
+ * tail of the alphabet — and a picker that cannot find "Webflow" offers to
+ * CREATE it, forking the vocabulary it exists to protect. Silent, and worse the
+ * longer it runs.
+ *
+ * Pages to exhaustion, with a stop so a bad pageCount cannot spin forever.
+ */
+export async function fetchAllTopics(): Promise<{ documentId: string; name: string }[]> {
+  const out: any[] = []
+  for (let page = 1; page <= 20; page++) {
+    const res: any = await strapiFetch(
+      `/api/topics?pagination[pageSize]=100&pagination[page]=${page}&sort=name:asc`
+    )
+    out.push(...(res?.data ?? []))
+    if (page >= (res?.meta?.pagination?.pageCount ?? 1)) break
+  }
+  return out
+}

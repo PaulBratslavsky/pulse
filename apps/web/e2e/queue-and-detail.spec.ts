@@ -42,7 +42,12 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     const { documentId } = await injectMention(request)
 
     await page.goto('/?lane=lead&sentiment=negative')
-    await expect(page).toHaveURL(/lane=lead/)
+    // the view is remembered by an effect after hydration, so a URL match is
+    // not enough to leave on — waiting on the URL raced the write and the
+    // mention page then honestly reported no queue to go back to
+    await expect
+      .poll(() => page.evaluate(() => sessionStorage.getItem('pulse-queue-view')))
+      .toContain('lane=lead')
 
     await page.goto(`/mentions/${documentId}`)
     await page.getByRole('link', { name: /Back to your filtered queue/ }).click()

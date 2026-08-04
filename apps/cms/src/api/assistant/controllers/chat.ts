@@ -12,8 +12,10 @@ export const chat = ({ strapi }: { strapi: Core.Strapi }) => ({
     }
     const { messages } = ctx.request.body ?? {};
     if (!Array.isArray(messages) || !messages.length) return ctx.badRequest('messages[] required');
-    const question = String(messages[messages.length - 1]?.content ?? '').slice(0, 2000);
-    const result = await (strapi.service('api::assistant.answer') as any).answer(question);
+    // The WHOLE conversation, not just the last line. This used to take
+    // messages[messages.length - 1], so the UI rendered a conversation the
+    // server could not remember and every follow-up started from nothing.
+    const result = await (strapi.service('api::assistant.answer') as any).answer(messages);
     ctx.body = { data: result };
   },
 });

@@ -4,7 +4,7 @@ import { IdCard } from 'lucide-react'
 import ResponseCard from '@/components/response-card'
 import { ConversationThread } from '@/components/conversation-thread'
 import { BackToQueue } from '@/components/queue-view-memory'
-import { strapiFetch } from '@/lib/strapi'
+import { strapiFetch, fetchAllTopics } from '@/lib/strapi'
 import { SentimentBadge, StatusBadge, LaneBadge } from '@/components/badges'
 import MentionActions from '@/components/mention-actions'
 import { UserChip } from '@/components/ui'
@@ -22,7 +22,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
   const m = data.data
   if (!m) notFound()
 
-  const topics = await strapiFetch('/api/topics?pagination[pageSize]=100&sort=name:asc')
+  const topics = { data: await fetchAllTopics() }
   const config = await strapiFetch('/api/insights/config').catch(() => ({ data: { aiEnabled: false } }))
   const me = await strapiFetch('/api/users/me').catch(() => null)
   // Only asked for when the permalink yielded a conversation — X and LinkedIn
