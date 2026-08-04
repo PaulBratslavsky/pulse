@@ -844,19 +844,11 @@ export interface ApiPersonPerson extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
-    avatarUrl: Schema.Attribute.String;
-    channel: Schema.Attribute.Relation<'manyToOne', 'api::channel.channel'>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     displayName: Schema.Attribute.String;
     firstSeenAt: Schema.Attribute.DateTime;
-    followers: Schema.Attribute.Integer;
-    followersObservedAt: Schema.Attribute.DateTime;
-    handle: Schema.Attribute.String;
-    identityKey: Schema.Attribute.String & Schema.Attribute.Unique;
-    identityProvisional: Schema.Attribute.Boolean &
-      Schema.Attribute.DefaultTo<false>;
     kind: Schema.Attribute.Enumeration<
       [
         'unknown',
@@ -890,13 +882,7 @@ export interface ApiPersonPerson extends Struct.CollectionTypeSchema {
       'manyToOne',
       'plugin::users-permissions.user'
     >;
-    profileUrl: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
-    reachTier: Schema.Attribute.Enumeration<
-      ['unknown', 'small', 'mid', 'large']
-    > &
-      Schema.Attribute.Required &
-      Schema.Attribute.DefaultTo<'unknown'>;
     socialAccounts: Schema.Attribute.Relation<
       'oneToMany',
       'api::social-account.social-account'

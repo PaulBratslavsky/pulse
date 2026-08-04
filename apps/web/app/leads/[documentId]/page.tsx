@@ -290,13 +290,19 @@ export default async function PersonPage({
                   <dd>{ctx.postKind}</dd>
                 </div>
               )}
+              {/* the keys, plural: identity moved onto accounts, so a person
+                  has one per presence rather than one that had to be chosen */}
               <div className="flex items-baseline justify-between gap-2">
-                <dt className="text-xs text-zinc-500">Identity</dt>
-                <dd
-                  className="truncate text-right text-xs"
-                  title={`${p.identityKey}${p.identityProvisional ? ' (provisional — no profile URL)' : ''}`}
-                >
-                  {p.identityKey}
+                <dt className="text-xs text-zinc-500">
+                  {(p.aliases ?? []).length === 1 ? 'Identity' : 'Identities'}
+                </dt>
+                <dd className="truncate text-right text-xs">
+                  {(p.aliases ?? [])
+                    .map(
+                      (a: { identityKey: string; provisional: boolean }) =>
+                        `${a.identityKey}${a.provisional ? ' (no profile URL)' : ''}`
+                    )
+                    .join(', ') || '—'}
                 </dd>
               </div>
             </dl>

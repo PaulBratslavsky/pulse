@@ -871,3 +871,27 @@ turning AI on changes nothing for the backlog without an explicit re-queue.
   STRUCTURE, which the cluster/bridge/gap assertions already check. Verified under CI's exact
   conditions across every project: **105 passed, 12 skipped, 0 failed** (was 7 failed). The dev
   database was backed up and restored afterwards.
+- **2026-08-04 — Phase B: the identity columns are gone from Person, behind a guard that fires.**
+  `identityKey`, `identityProvisional`, `handle`, `profileUrl`, `avatarUrl`, `channel`, `followers`,
+  `followersObservedAt` and `reachTier` are removed. `people` now holds only what describes a human.
+  The guard is the point. `database/migrations/…guard-identity-moved.js` refuses the boot if any
+  person still has an `identity_key` with no matching `social_accounts` row — checked against what
+  actually LANDED rather than against a count, because a partial copy is the dangerous case and
+  totals can match while the wrong rows moved. It works because user migrations run BEFORE schema
+  sync (`@strapi/database/dist/schema/index.js:76` — `sync()` calls `migrations.up()`, then
+  `syncSchema()`), so it executes while the columns still exist. Anything in `bootstrap()` would run
+  after the drop, with nothing left to verify.
+  **Tested by making it fail, which is the only test that means anything for a guard.** Removed one
+  `social_accounts` row to orphan a person, booted: the migration threw with the count and the
+  recovery steps, `identity_key` survived, and Strapi never started. Then restored and ran it for
+  real: columns dropped, 586 people and 610 accounts intact, e2e 64 passing.
+  Worth recording how the first attempt at that test lied. The dev server auto-restarts on file
+  changes, so it ran the migration the moment the file was WRITTEN — while the copy was still
+  complete. It passed, umzug recorded it, and the deliberately-broken boot afterwards skipped it
+  entirely and dropped the columns. Exactly the run-once property documented in the migration's own
+  header, tripped over anyway. Clearing `strapi_migrations` is part of testing a migration locally.
+  Prod was confirmed to be running the migrated code before this shipped, by probing routes rather
+  than trusting the logs: an unknown path returns 404 while `/api/people` and `/api/team-handles`
+  return 403, so those routes exist. The absent `social accounts split out` line is explained by all
+  three boot passes being silent when they do zero work — they logged on the first boot after that
+  deploy, not on the ones we looked at.

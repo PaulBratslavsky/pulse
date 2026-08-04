@@ -7,52 +7,98 @@
     "displayName": "Person",
     "description": "An author, resolved across mentions. The spine for lead tracking: identity, reach, lifecycle and owner."
   },
-  "options": { "draftAndPublish": false },
+  "options": {
+    "draftAndPublish": false
+  },
   "attributes": {
-    "identityKey": { "type": "string", "unique": true },
-    "identityProvisional": { "type": "boolean", "default": false },
-    "handle": { "type": "string" },
-    "displayName": { "type": "string" },
-    "profileUrl": { "type": "string" },
-    "avatarUrl": { "type": "string" },
-    "channel": { "type": "relation", "relation": "manyToOne", "target": "api::channel.channel" },
-    "followers": { "type": "integer" },
-    "followersObservedAt": { "type": "datetime" },
+    "displayName": {
+      "type": "string"
+    },
     "kind": {
       "type": "enumeration",
-      "enum": ["unknown", "community", "own-team", "competitor-brand", "vendor-bot", "publication"],
+      "enum": [
+        "unknown",
+        "community",
+        "own-team",
+        "competitor-brand",
+        "vendor-bot",
+        "publication"
+      ],
       "default": "unknown",
       "required": true
     },
-    "firstSeenAt": { "type": "datetime" },
-    "lastSeenAt": { "type": "datetime" },
-    "mentionCount": { "type": "integer", "default": 0 },
-    "leadScore": { "type": "integer", "default": 0 },
+    "firstSeenAt": {
+      "type": "datetime"
+    },
+    "lastSeenAt": {
+      "type": "datetime"
+    },
+    "mentionCount": {
+      "type": "integer",
+      "default": 0
+    },
+    "leadScore": {
+      "type": "integer",
+      "default": 0
+    },
     "leadBand": {
       "type": "enumeration",
-      "enum": ["none", "watch", "warm", "hot"],
+      "enum": [
+        "none",
+        "watch",
+        "warm",
+        "hot"
+      ],
       "default": "none",
       "required": true
     },
-    "leadContext": { "type": "json" },
-    "reachTier": {
-      "type": "enumeration",
-      "enum": ["unknown", "small", "mid", "large"],
-      "default": "unknown",
-      "required": true
+    "leadContext": {
+      "type": "json"
     },
-    "leadScoredAt": { "type": "datetime" },
+    "leadScoredAt": {
+      "type": "datetime"
+    },
     "status": {
       "type": "enumeration",
-      "enum": ["new", "watching", "contacted", "qualified", "not-a-fit"],
+      "enum": [
+        "new",
+        "watching",
+        "contacted",
+        "qualified",
+        "not-a-fit"
+      ],
       "default": "new",
       "required": true
     },
-    "statusChangedAt": { "type": "datetime" },
-    "owner": { "type": "relation", "relation": "manyToOne", "target": "plugin::users-permissions.user" },
-    "mergedInto": { "type": "relation", "relation": "manyToOne", "target": "api::person.person" },
-    "mentions": { "type": "relation", "relation": "oneToMany", "target": "api::mention.mention", "mappedBy": "person" },
-    "socialAccounts": { "type": "relation", "relation": "oneToMany", "target": "api::social-account.social-account", "mappedBy": "person" },
-    "leadProfile": { "type": "component", "repeatable": false, "component": "shared.lead-profile" }
+    "statusChangedAt": {
+      "type": "datetime"
+    },
+    "owner": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "mergedInto": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::person.person"
+    },
+    "mentions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::mention.mention",
+      "mappedBy": "person"
+    },
+    "socialAccounts": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::social-account.social-account",
+      "mappedBy": "person"
+    },
+    "leadProfile": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.lead-profile"
+    }
   }
 }
