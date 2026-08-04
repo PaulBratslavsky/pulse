@@ -12,6 +12,13 @@ const FILTERS = [
   { key: 'none', label: 'no profile' },
 ] as const
 
+/** Buckets over the follower count, matching reachTierOf on the backend. */
+const TIERS = [
+  { key: 'small', label: 'under 500', hint: 'Fewer than 500 followers on their widest account' },
+  { key: 'mid', label: '500 – 5k', hint: '500 to 5,000 followers on their widest account' },
+  { key: 'large', label: '5k+', hint: 'Over 5,000 followers on their widest account' },
+] as const
+
 /**
  * The people directory.
  *
@@ -24,7 +31,7 @@ const FILTERS = [
 export default async function PeoplePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; profile?: string; status?: string; lead?: string; audience?: string }>
+  searchParams: Promise<{ q?: string; profile?: string; status?: string; lead?: string; audience?: string; tier?: string }>
 }) {
   const params = await searchParams
   const query = new URLSearchParams()
@@ -33,6 +40,7 @@ export default async function PeoplePage({
   if (params.status) query.set('status', params.status)
   if (params.lead) query.set('lead', params.lead)
   if (params.audience) query.set('audience', params.audience)
+  if (params.tier) query.set('tier', params.tier)
 
   let data: any
   try {
@@ -111,6 +119,24 @@ export default async function PeoplePage({
         >
           audience known
         </Link>
+        {/* Tier buckets the follower count we DO have: small <500, mid <5k,
+            large 5k+. They describe the quarter of accounts that report one —
+            mostly X — so they narrow within "known" rather than partitioning
+            everyone, and picking one implies audience known. */}
+        {TIERS.map((t) => (
+          <Link
+            key={t.key}
+            href={href({ tier: params.tier === t.key ? '' : t.key, audience: '' })}
+            className={`rounded-full border px-3 py-1 ${
+              params.tier === t.key
+                ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                : 'border-zinc-300 dark:border-zinc-700'
+            }`}
+            title={t.hint}
+          >
+            {t.label}
+          </Link>
+        ))}
       </div>
 
       {people.length === 0 ? (

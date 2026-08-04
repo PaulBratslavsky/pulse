@@ -571,6 +571,30 @@ test.describe('leads', () => {
     }
   })
 
+  /**
+   * A tier is derived from someone's WIDEST account, but the database filter
+   * matches ANY of their accounts — so without the post-filter, a person with
+   * 40k on X and 200 on dev.to would appear under "under 500". This asserts the
+   * two agree, which is the only part of the tier filter that can silently rot.
+   */
+  test('tier filters return only people whose widest account is in that tier', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    for (const tier of ['small', 'mid', 'large']) {
+      const res = await (
+        await request.get(`${PULSE}/people?tier=${tier}&limit=200`, { headers: { cookie } })
+      ).json()
+      const rows = res.data ?? []
+      const wrong = rows.filter((r: any) => r.reachTier !== tier)
+      expect(wrong, `${tier} returned someone whose widest account is not ${tier}`).toHaveLength(0)
+      // and every row in a tier must actually carry a count — a tier is a
+      // statement about a number we have, not about silence
+      expect(rows.every((r: any) => typeof r.followers === 'number')).toBe(true)
+    }
+  })
+
   test('status transitions persist and claim the lead', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const leads = await (

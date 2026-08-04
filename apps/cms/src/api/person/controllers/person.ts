@@ -104,6 +104,15 @@ export default factories.createCoreController('api::person.person', ({ strapi })
     if (ctx.query.audience === 'known') filters.socialAccounts = { followers: { $notNull: true } }
     if (ctx.query.lead === 'yes') filters.leadScore = { $gt: 0 }
 
+    // Tier is derived from the WIDEST account (widestReach), but a relation
+    // filter matches ANY related row — so `socialAccounts.reachTier = small`
+    // would also return someone with 40k on X and 200 on dev.to. The DB filter
+    // is therefore only a narrowing superset, and the exact answer is settled
+    // below against the derived tier. Over-fetch so the post-filter still has
+    // a full page to slice.
+    const tier = String(ctx.query.tier ?? '')
+    if (tier) filters.socialAccounts = { reachTier: tier }
+
     const term = String(q ?? '').trim()
     if (term) {
       // handle lives on the ACCOUNT now, so a name search has to reach through
@@ -120,11 +129,10 @@ export default factories.createCoreController('api::person.person', ({ strapi })
       filters,
       populate: { owner: true, leadProfile: true, socialAccounts: { populate: { channel: true } } } as any,
       sort: ['lastSeenAt:desc'] as any,
-      limit,
+      limit: tier ? Math.min(limit * 4, 400) : limit,
     })
 
-    return {
-      data: people.map((p: any) => {
+    const rows = people.map((p: any) => {
         const primary = primaryAccount(p.socialAccounts)
         const reach = widestReach(p.socialAccounts)
         return {
@@ -160,8 +168,10 @@ export default factories.createCoreController('api::person.person', ({ strapi })
               }
             : null,
         }
-      }),
-    }
+    })
+
+    // the exact tier answer, against the derived (widest) value
+    return { data: (tier ? rows.filter((r: any) => r.reachTier === tier) : rows).slice(0, limit) }
   },
 
   /** GET /people/:documentId — one person with their mentions and notes. */
