@@ -237,4 +237,53 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
     const refined = await (strapi.service('api::analysis.ai') as any).refine(mention, text)
     return { data: { refined: refined?.text ?? null, grounded: Boolean(refined?.grounded) } }
   },
+
+  /**
+   * POST /mentions/:documentId/draft-chat — { text, messages }.
+   * Talk about the reply you are writing, with the docs server in the room.
+   * Returns a prose answer and, only when one was asked for, a proposed
+   * revision the human applies themselves.
+   */
+  async draftChat(ctx) {
+    if (!(strapi.service('api::analysis.ai') as any).enabled()) {
+      ctx.status = 503
+      ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable this.' } }
+      return
+    }
+    // Checked BEFORE spending, not after: this is the one AI path a person can
+    // fire ten times a minute, so it is the one that must respect the ceiling
+    // the sweep already respects.
+    const budget = await (strapi.service('api::analysis.budget') as any).status()
+    if (budget.exceeded) {
+      ctx.status = 429
+      ctx.body = {
+        data: null,
+        error: {
+          status: 429,
+          message: `Today's AI budget is spent (${budget.spent}/${budget.budget} tokens). Drafting resumes tomorrow — the reply box still works.`,
+        },
+      }
+      return
+    }
+
+    const text = String(ctx.request.body?.text ?? '')
+    const messages = ctx.request.body?.messages
+    if (!Array.isArray(messages) || !messages.length) return ctx.badRequest('messages[] required')
+    if (text.length > 8000) return ctx.badRequest('reply is too long (8000 chars max)')
+
+    const mention = await strapi
+      .documents('api::mention.mention')
+      .findOne({ documentId: ctx.params.documentId, populate: { channel: true } as any })
+    if (!mention) return ctx.notFound('mention not found')
+
+    const result = await (strapi.service('api::analysis.ai') as any).chatRefine(mention, text, messages)
+    return {
+      data: {
+        reply: result?.reply ?? null,
+        revision: result?.revision ?? null,
+        grounded: Boolean(result?.grounded),
+        sources: result?.sources ?? 0,
+      },
+    }
+  },
 }))

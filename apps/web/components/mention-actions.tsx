@@ -12,6 +12,7 @@ import { TopicPicker } from '@/components/topic-picker'
 import MuteAuthorButton from '@/components/mute-author-button'
 import SpamFlagButton from '@/components/spam-flag-button'
 import OwnPostButton from '@/components/own-post-button'
+import { ReplyChat } from '@/components/reply-chat'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 
@@ -33,6 +34,10 @@ export default function MentionActions({
   // what the human wrote before a refine, so their words are never lost to an
   // edit they did not like
   const [beforeRefine, setBeforeRefine] = useState<string | null>(null)
+  // which path replaced it: the notice below is about what was VERIFIED, and
+  // "refined and checked against the docs" is a false statement about an edit
+  // that came from the chat panel
+  const [editedVia, setEditedVia] = useState<'refine' | 'chat'>('refine')
   const [notes, setNotes] = useState('')
   const [showCorrect, setShowCorrect] = useState(false)
   const [corrLabel, setCorrLabel] = useState(mention.sentimentLabel ?? 'neutral')
@@ -78,6 +83,7 @@ export default function MentionActions({
     },
     onSuccess: (res) => {
       if (!res?.refined) return
+      setEditedVia('refine')
       setBeforeRefine(finalText)
       setFinalText(res.refined)
     },
@@ -430,7 +436,7 @@ export default function MentionActions({
               }}
               className="text-xs text-zinc-500 underline underline-offset-2"
             >
-              undo refine
+              undo — restore what I wrote
             </button>
           )}
         </div>
@@ -438,7 +444,7 @@ export default function MentionActions({
             connected a refine pass once preserved "MongoDB works fine" — Strapi
             supports no NoSQL database at all — so "refined" must never be read
             as "verified". */}
-        {beforeRefine !== null && (
+        {beforeRefine !== null && editedVia === 'refine' && (
           <p className="text-xs text-zinc-500">
             {refine.data?.grounded ? (
               <>Refined and checked against the docs. Read it before posting.</>
@@ -449,6 +455,19 @@ export default function MentionActions({
               </>
             )}
           </p>
+        )}
+        {/* Conversational editing, sharing the SAME undo slot as Refine: however
+            your words got replaced, one click brings them back. */}
+        {aiEnabled && (
+          <ReplyChat
+            documentId={mention.documentId}
+            currentText={finalText}
+            onApply={(text) => {
+              setEditedVia('chat')
+              setBeforeRefine(finalText)
+              setFinalText(text)
+            }}
+          />
         )}
         {respond.isError && <p className="text-sm text-red-600">{String(respond.error)}</p>}
         {refine.isError && <p className="text-sm text-red-600">{String(refine.error)}</p>}

@@ -78,4 +78,52 @@ test.describe('refine', () => {
     await page.getByPlaceholder('What you actually replied…').fill('some reply text')
     await expect(refine).toBeEnabled()
   })
+
+  test('the reply chat rejects an empty conversation and an oversized reply', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const q = await request.get(`${PULSE}/mentions?pagination[pageSize]=1`, { headers: { cookie } })
+    const id = (await q.json()).data?.[0]?.documentId
+    test.skip(!id, 'no mentions in this corpus')
+
+    for (const data of [
+      { text: 'hi', messages: [] },
+      { text: 'x'.repeat(8001), messages: [{ role: 'user', content: 'shorter' }] },
+    ]) {
+      const res = await request.post(`${PULSE}/mentions/${id}/draft-chat`, {
+        headers: { cookie },
+        data,
+        failOnStatusCode: false,
+      })
+      // 429 is a legitimate answer here too: the budget gate runs before the
+      // model, which is the whole point of it being a gate
+      expect([400, 429, 503]).toContain(res.status())
+    }
+  })
+
+  test('the reply chat opens in the reply box and never edits without a click', async ({
+    page,
+    request,
+  }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const q = await request.get(`${PULSE}/mentions?pagination[pageSize]=1`, { headers: { cookie } })
+    const id = (await q.json()).data?.[0]?.documentId
+    test.skip(!id, 'no mentions in this corpus')
+
+    await page.goto(`/mentions/${id}`)
+    const opener = page.getByRole('button', { name: 'Ask about this reply' })
+    if ((await opener.count()) === 0) return // AI disabled in this environment
+
+    const box = page.getByPlaceholder('What you actually replied…')
+    await box.fill('my own words')
+    await opener.click()
+    await expect(page.getByTestId('reply-chat')).toBeVisible()
+
+    // the contract this feature rests on: opening it, and typing a question,
+    // touches nothing the human wrote
+    await page.getByLabel('Ask about this reply').fill('is this accurate?')
+    await expect(box).toHaveValue('my own words')
+  })
 })

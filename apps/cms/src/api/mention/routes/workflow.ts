@@ -60,5 +60,11 @@ export default {
       handler: 'mention.refine',
       config: { policies: [] },
     },
+    {
+      method: 'POST',
+      path: '/mentions/:documentId/draft-chat',
+      handler: 'mention.draftChat',
+      config: { policies: [] },
+    },
   ],
 }

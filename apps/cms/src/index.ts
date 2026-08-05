@@ -35,6 +35,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::response.response.delete',
   'api::response.response.outcome',
   'api::mention.mention.refine',
+  'api::mention.mention.draftChat',
   'api::mcp-server.mcp-server.list',
   'api::mcp-server.mcp-server.register',
   'api::mcp-server.mcp-server.connect',

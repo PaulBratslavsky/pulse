@@ -1,5 +1,5 @@
 import type { Core } from '@strapi/strapi';
-import { generateObject, generateText, stepCountIs } from 'ai';
+import { generateObject, generateText, stepCountIs, tool } from 'ai';
 import { z } from 'zod';
 import { model, modelVersion } from './provider';
 import { laneRubric, QUALITY_RUBRIC, laneById } from '../../../classification/criteria';
@@ -571,6 +571,152 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       // `grounded` is reported so the UI can say plainly whether the technical
       // claims were checked against the docs or merely rephrased.
       return { text: audit.text.trim(), grounded: hasTools };
+    },
+
+    /**
+     * Refine a reply by TALKING about it.
+     *
+     * refine() above is one-shot and mute: you press it and something happens to
+     * your words. You cannot say "shorter", you cannot say "they're on v4, does
+     * this still apply?", and you cannot ask the docs a question without leaving
+     * the reply box — which is where the answer was actually needed. So people
+     * asked kapa in another window and pasted, and the reply lost the mention.
+     *
+     * The design decision that matters: an answer is not an edit. The model
+     * replies in prose like any assistant, and when it wants to change YOUR text
+     * it must call `propose_revision` — a tool, not a side effect. So:
+     *
+     *   - "does v5 still need the plugin?" is answered, and the draft is untouched
+     *   - "cut the second paragraph" comes back as a proposal you apply or ignore
+     *
+     * Nothing here writes to the mention or the textarea. The caller applies a
+     * revision on a human click and keeps the previous text for undo, the same
+     * contract refine() has, because the failure this feature invites is the
+     * model quietly replacing someone's judgement over several friendly turns.
+     */
+    async chatRefine(
+      mention: any,
+      replyText: string,
+      history: { role: 'user' | 'assistant'; content: string }[]
+    ): Promise<{
+      reply: string;
+      revision: string | null;
+      grounded: boolean;
+      sources: number;
+    } | null> {
+      if (!aiEnabled()) return null;
+      const turns = (Array.isArray(history) ? history : [])
+        .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && String(m.content ?? '').trim())
+        .slice(-12)
+        .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+      if (!turns.length) return null;
+
+      const current = String(replyText ?? '').trim();
+      const content = String(mention.content ?? '');
+
+      const loaded = await (strapi.service('api::analysis.mcp-tools') as any).load();
+      const hasTools = Object.keys(loaded.tools).length > 0;
+
+      // Same allow-list as draft()/refine(): the model never authors a URL, it
+      // picks from pages we have confirmed exist.
+      let allowed: string[] = [];
+      try {
+        allowed = await shortlistDocsUrls(`${content} ${current} ${turns.map((t) => t.content).join(' ')}`, 12);
+      } catch {
+        /* no links rather than invented ones */
+      }
+
+      // Captured from the tool call rather than parsed out of prose — the model
+      // cannot half-propose, and a turn with no call is unambiguously a turn
+      // that changed nothing.
+      // an object, not a bare `let`: TypeScript cannot see the assignment
+      // happen inside the tool callback and narrows the variable to never
+      const captured: { text: string | null } = { text: null };
+
+      const tools: Record<string, any> = {
+        ...loaded.tools,
+        propose_revision: tool({
+          description:
+            'Propose a replacement for the reply the human is writing. Call this ONLY when they asked for a ' +
+            'change to the reply itself. Pass the COMPLETE new reply, not a fragment or a description of the edit.',
+          inputSchema: z.object({
+            text: z.string().describe('The complete revised reply, ready to post.'),
+            what_changed: z.string().describe('One short line: what you changed and why.'),
+          }) as any,
+          execute: async ({ text, what_changed }: any) => {
+            captured.text = String(text ?? '');
+            return { ok: true, note: what_changed };
+          },
+        }),
+      };
+
+      let text: string;
+      let usage: any;
+      try {
+        ({ text, usage } = await generateText({
+          model: model(),
+          system:
+            'You are helping a Strapi DevRel team member write ONE reply to ONE social media mention. ' +
+            'You are talking with them about that reply — answer their questions directly and briefly. ' +
+            'Their reply is theirs: preserve their meaning, decisions and voice. ' +
+            'When they ask for a CHANGE to the reply, call propose_revision with the complete new text. ' +
+            'When they ask a QUESTION, just answer it — do not call propose_revision, and do not rewrite anything. ' +
+            'Never strengthen, endorse or elaborate a technical claim you cannot verify; ' +
+            'if you are unsure of a claim, say so rather than repeating it. ' +
+            (hasTools
+              ? 'You have documentation tools — check technical claims against them before making or keeping one. '
+              : 'You have NO documentation tools, so say plainly when something needs checking rather than asserting it. ') +
+            (allowed.length
+              ? `If a documentation link genuinely helps, use ONLY these real pages, copied exactly:\n${allowed
+                  .map((u) => `  ${u}`)
+                  .join('\n')}\nDo not invent or modify a URL.`
+              : 'Do NOT put any documentation URL in a revision.'),
+          messages: [
+            {
+              role: 'user',
+              content:
+                `The mention being replied to (@${mention.authorHandle ?? 'user'} on ${mention.source ?? 'social'}):\n"${content}"\n\n` +
+                (current
+                  ? `Their reply so far:\n---\n${current}\n---`
+                  : 'They have not written anything yet.'),
+            },
+            { role: 'assistant', content: 'Understood — what would you like to change or know?' },
+            ...turns,
+          ],
+          tools,
+          stopWhen: stepCountIs(6),
+          abortSignal: AbortSignal.timeout(120_000),
+        }));
+      } finally {
+        await loaded.close();
+      }
+      await charge(usage);
+
+      // A proposal is the text most likely to be posted verbatim, so it gets the
+      // same link audit as a draft — this is exactly where chat-authored drafts
+      // used to slip a dead URL through.
+      let revision: string | null = null;
+      if (captured.text && captured.text.trim()) {
+        const audit = await stripDeadDocsLinks(captured.text);
+        if (audit.removed.length) {
+          strapi.log.warn(
+            `[analysis] chat revision cited ${audit.removed.length} non-existent docs URL(s), removed: ${audit.removed.join(', ')}`
+          );
+        }
+        revision = audit.text.trim();
+        // An unchanged "revision" is noise in the UI and an Apply button that
+        // does nothing.
+        if (revision === current) revision = null;
+      }
+
+      return {
+        reply:
+          text?.trim() ||
+          (revision ? 'Updated the reply — see the proposed change below.' : 'I did not get anywhere with that — try asking more specifically.'),
+        revision,
+        grounded: hasTools,
+        sources: allowed.length,
+      };
     },
   };
 };
