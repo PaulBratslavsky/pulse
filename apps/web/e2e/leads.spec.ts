@@ -436,8 +436,10 @@ test.describe('leads', () => {
       failOnStatusCode: false,
     })
     // keyless (CI) disables the feature outright rather than degrading it —
-    // the same contract as drafts and chat
+    // the same contract as drafts and chat. 429 is the day's token budget being
+    // spent, which is the gate working, not the feature breaking.
     test.skip(res.status() === 503, 'AI disabled — suggestions are off, by design')
+    test.skip(res.status() === 429, "daily AI budget spent — the gate refused before spending")
     expect(res.ok()).toBeTruthy()
 
     const suggestions = (await res.json()).data ?? []

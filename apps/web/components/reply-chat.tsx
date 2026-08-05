@@ -71,9 +71,10 @@ export function ReplyChat({ documentId }: { documentId: string }) {
 
 
   return (
+    // opaque background on purpose: at 50% the timeline behind it bled through
     <div
       data-testid="reply-chat"
-      className="rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/50"
+      className="rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900"
     >
       <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
         <MessagesSquare size={13} className="text-zinc-400" />

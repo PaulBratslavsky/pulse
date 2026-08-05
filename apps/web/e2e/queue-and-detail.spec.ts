@@ -160,6 +160,19 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText(`#${topicName}`).first()).toBeVisible()
   })
 
+  test('an empty awaiting-reply queue says what it cannot see', async ({ page }) => {
+    // The dangerous reading of an empty result here is "nobody is waiting on
+    // us". It only ever means "nobody is waiting in a Reddit thread" — X and
+    // LinkedIn URLs carry no conversation id, so a reply there is invisible.
+    await page.goto('/?awaiting=1')
+    await expect(page.getByText('Reddit threads only')).toBeVisible()
+
+    const count = Number((await page.getByTestId('queue-count').textContent())?.trim())
+    if (count === 0) {
+      await expect(page.getByText(/cannot cover X or LinkedIn/)).toBeVisible()
+    }
+  })
+
   test('the queue groups a conversation into one row, and can be expanded', async ({ page }) => {
     await page.goto('/?lane=all')
     const count = page.getByTestId('queue-count')

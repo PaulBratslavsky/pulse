@@ -285,12 +285,15 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable this.' } }
       return
     }
-    if (await budgetSpent(strapi, ctx, 'Refining resumes tomorrow — your reply is unchanged and still recordable.')) return
-
+    // Input validation BEFORE the budget check: a malformed request is a 400
+    // whether or not there are tokens left, and answering it 429 would make the
+    // client's bug look like ours. The gate only guards actual spending.
     const text = String(ctx.request.body?.text ?? '').trim()
     if (!text) return ctx.badRequest('text is required')
     // an editor pass over a novel is a runaway bill, not a feature
     if (text.length > 8000) return ctx.badRequest('reply is too long to refine (8000 chars max)')
+
+    if (await budgetSpent(strapi, ctx, 'Refining resumes tomorrow — your reply is unchanged and still recordable.')) return
 
     const mention = await strapi
       .documents('api::mention.mention')
@@ -313,13 +316,13 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable this.' } }
       return
     }
-    // Checked BEFORE spending, not after — see utils/ai-gate.
-    if (await budgetSpent(strapi, ctx, 'Assistance resumes tomorrow — the reply box still works.')) return
-
     const text = String(ctx.request.body?.text ?? '')
     const messages = ctx.request.body?.messages
     if (!Array.isArray(messages) || !messages.length) return ctx.badRequest('messages[] required')
     if (text.length > 8000) return ctx.badRequest('reply is too long (8000 chars max)')
+
+    // Checked before spending, and after validating — see utils/ai-gate.
+    if (await budgetSpent(strapi, ctx, 'Assistance resumes tomorrow — the reply box still works.')) return
 
     const mention = await strapi
       .documents('api::mention.mention')

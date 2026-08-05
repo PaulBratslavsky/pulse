@@ -16,6 +16,17 @@ import type { Core } from '@strapi/strapi'
  * one conversation to answer, not three queue rows; marking each would turn a
  * busy thread into a false backlog.
  *
+ * **Reddit only, and not by choice.** A mention is only eligible for this if it
+ * carries a threadKey, and threadKeyOf (utils/identity) can only derive one from
+ * a Reddit permalink — it names the subreddit and the post. An X or LinkedIn URL
+ * is just /status/<id>: nothing in it says which conversation the post belongs
+ * to, and the Octolens payload carries no conversation or parent id either (I
+ * checked a real X mention in prod: id, url, body, author, keywords, sentiment,
+ * followers — no parent). So this is not a regex that could be widened; without
+ * the platform APIs the data does not exist. Anything user-facing that depends
+ * on awaitsReply must say which platforms it can actually see, or an empty
+ * result reads as "nobody is waiting" when it means "I cannot tell".
+ *
  * "We have spoken" means the later of two things, because they have different
  * lag: a mention from one of our own handles (ground truth, but Octolens takes
  * time to ingest it) and a response recorded in Pulse (immediate, and the thing

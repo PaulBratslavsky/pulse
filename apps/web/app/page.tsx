@@ -285,10 +285,13 @@ export default async function QueuePage({
             href={filterUrl({ awaiting: params.awaiting ? undefined : '1', page: 0 })}
             active={Boolean(params.awaiting)}
             activeClassName="border-red-500 bg-red-50 font-medium text-red-800 dark:bg-red-900/30 dark:text-red-300"
-            title="Someone replied after our last answer in the same thread, and nobody has responded to them"
+            title="Someone replied after our last answer in the same thread, and nobody has responded to them. Reddit only — X and LinkedIn URLs carry no conversation id, so replies there cannot be detected."
           >
             awaiting reply
           </FilterPill>
+          {params.awaiting && (
+            <span className="text-xs text-zinc-500">Reddit threads only</span>
+          )}
           <FilterPill
             href={filterUrl({ draft: params.draft ? undefined : '1', page: 0 })}
             active={Boolean(params.draft)}
@@ -331,12 +334,27 @@ export default async function QueuePage({
         </FilterRow>
       </div>
       {mentions.length === 0 ? (
-        <EmptyState title="Queue is clear 🎉">
-          <p className="text-sm text-zinc-500 max-w-md mx-auto">
-            Pulse collects data from launch onward — new mentions land here automatically as the
-            webhook delivers them. If you just set up, point Octolens at{' '}
-            <code className="text-xs">/api/octolens/ingest</code> and give it a minute.
-          </p>
+        <EmptyState title={params.awaiting ? 'Nothing waiting — on Reddit' : 'Queue is clear 🎉'}>
+          {params.awaiting ? (
+            // An empty result here must not read as "nobody is waiting on us".
+            // Pulse can only see a follow-up when it can tell two mentions
+            // belong to the same conversation, and only a Reddit permalink says
+            // so — an X or LinkedIn URL carries no conversation id, and the
+            // Octolens payload does not either. So this filter is Reddit-only,
+            // and saying so is the difference between "clear" and "blind".
+            <p className="mx-auto max-w-md text-sm text-zinc-500">
+              Nobody is waiting on us in a Reddit thread. This flag cannot cover X or LinkedIn:
+              their URLs carry nothing that says which conversation a post belongs to, so Pulse
+              cannot tell a reply from a first post there. Someone may be waiting on those
+              platforms and this filter would not show it.
+            </p>
+          ) : (
+            <p className="mx-auto max-w-md text-sm text-zinc-500">
+              Pulse collects data from launch onward — new mentions land here automatically as the
+              webhook delivers them. If you just set up, point Octolens at{' '}
+              <code className="text-xs">/api/octolens/ingest</code> and give it a minute.
+            </p>
+          )}
         </EmptyState>
       ) : (
         <SelectionProvider
@@ -373,7 +391,7 @@ export default async function QueuePage({
                 {m.awaitsReply && (
                   <span
                     className="inline-block rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900/40 dark:text-violet-300"
-                    title="They replied after our last answer and nobody has responded"
+                    title="They replied after our last answer and nobody has responded. Detected from Reddit thread structure — X and LinkedIn carry no conversation id, so this can never appear there."
                   >
                     waiting on us
                   </span>

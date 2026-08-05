@@ -185,13 +185,12 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <aside className="space-y-6">
-        {config.data.aiEnabled && (
-          // Sticky: you scroll the mention and the responses while writing, and
-          // an assistant that scrolls out of view is one you stop using.
-          <div className="lg:sticky lg:top-20">
-            <ReplyChat documentId={m.documentId} />
-          </div>
-        )}
+        {/* In normal flow, NOT sticky. Sticking it to the viewport floated it
+            over the timeline's comment box below — and with a translucent
+            panel background the two rendered on top of each other. A sidebar
+            that overlaps its own neighbour is worse than one you have to
+            scroll to. */}
+        {config.data.aiEnabled && <ReplyChat documentId={m.documentId} />}
         <Timeline mention={m} meDocumentId={me?.documentId ?? null} />
       </aside>
       </div>
