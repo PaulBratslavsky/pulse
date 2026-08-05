@@ -64,9 +64,52 @@ function inlineToPlainText(line: string): string {
 }
 
 export function toPlainText(markdown: string): string {
-  return markdown
-    .split('\n')
-    .map((line) => inlineToPlainText(line).trimEnd())
-    .join('\n')
-    .trim()
+  const out: string[] = []
+  let inFence = false
+
+  for (const raw of markdown.split('\n')) {
+    // The fence lines go; the code between them stays exactly as typed.
+    // Running the inline pass over code would eat the characters it quotes.
+    if (/^\s*(```|~~~)/.test(raw)) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) {
+      out.push(raw.trimEnd())
+      continue
+    }
+
+    let line = raw
+
+    // A rule is decoration, and decoration is what we are here to remove.
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) continue
+
+    // A table's separator row is pure syntax — no content to keep.
+    if (/^\s*\|?[\s:|-]*-[\s:|-]*\|[\s:|-]*$/.test(line)) continue
+
+    line = line.replace(/^\s*#{1,6}\s+/, '')
+    line = line.replace(/^(\s*)(?:>\s?)+/, '$1')
+
+    // A row becomes one line of cells. The grid cannot survive a paste into a
+    // platform with no monospace, so joining beats pretending.
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      out.push(
+        line
+          .trim()
+          .replace(/^\||\|$/g, '')
+          .split('|')
+          .map((cell) => inlineToPlainText(cell).trim())
+          .filter(Boolean)
+          .join(' — ')
+      )
+      continue
+    }
+
+    line = line.replace(/^(\s*)[-*+]\s+/, '$1• ')
+
+    out.push(inlineToPlainText(line).trimEnd())
+  }
+
+  // Three blank lines is a rendering artefact, not a pause anyone wrote.
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim()
 }

@@ -41,3 +41,56 @@ test('inline: empty and whitespace-only input do not throw', () => {
   expect(toPlainText('')).toBe('')
   expect(toPlainText('   \n  \n ')).toBe('')
 })
+
+const BLOCK: Array<[name: string, input: string, expected: string]> = [
+  ['heading loses its hashes', '## Why this matters', 'Why this matters'],
+  ['dash bullet becomes a dot', '- Reusable components', '• Reusable components'],
+  ['star bullet becomes a dot', '* Dynamic zones', '• Dynamic zones'],
+  ['plus bullet becomes a dot', '+ Draft and publish', '• Draft and publish'],
+  ['nested bullet keeps its indent', '- Components\n  - Nested one', '• Components\n  • Nested one'],
+  ['ordered list is left as written', '1. First\n2. Second', '1. First\n2. Second'],
+  ['blockquote loses its angle', '> quoted claim', 'quoted claim'],
+  ['horizontal rule is dropped', 'before\n\n---\n\nafter', 'before\n\nafter'],
+  [
+    'fenced code keeps its body and loses its fence',
+    'run it:\n\n```bash\nnpm run develop\n```',
+    'run it:\n\nnpm run develop',
+  ],
+  [
+    'code inside a fence is not treated as markdown',
+    '```js\nconst a = b * c * d\n```',
+    'const a = b * c * d',
+  ],
+  [
+    'table flattens to one line per row',
+    '| Field | Type |\n| --- | --- |\n| title | string |',
+    'Field — Type\ntitle — string',
+  ],
+  ['three blank lines collapse to one gap', 'a\n\n\n\nb', 'a\n\nb'],
+  [
+    'the screenshot draft, end to end',
+    "✅ **Structured, reusable content** — Strapi's [Content-Type Builder](https://docs.strapi.io/ctb) lets you define `schema`-driven structures:\n\n- Reusable components\n- Dynamic zones",
+    "✅ Structured, reusable content — Strapi's Content-Type Builder (https://docs.strapi.io/ctb) lets you define schema-driven structures:\n\n• Reusable components\n• Dynamic zones",
+  ],
+]
+
+for (const [name, input, expected] of BLOCK) {
+  test(`block: ${name}`, () => {
+    expect(toPlainText(input)).toBe(expected)
+  })
+}
+
+/**
+ * The property the disabled "already plain text" button rests on. Without it
+ * that label is a guess.
+ *
+ * Escaped markers are excluded and that is not an oversight: `\*x\*` becomes
+ * `*x*`, and nothing downstream can tell that asterisk from a marker. An
+ * escape exists to make a character look like itself.
+ */
+for (const [name, input] of [...INLINE, ...BLOCK].filter(([, i]) => !i.includes('\\'))) {
+  test(`idempotent: ${name}`, () => {
+    const once = toPlainText(input)
+    expect(toPlainText(once)).toBe(once)
+  })
+}
