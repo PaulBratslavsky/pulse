@@ -11,6 +11,7 @@ import { UserChip } from '@/components/ui'
 import Timeline from '@/components/timeline'
 import { ReplyDraftProvider } from '@/components/reply-draft-context'
 import { ReplyChat } from '@/components/reply-chat'
+import { DraftPanel } from '@/components/draft-panel'
 
 export default async function MentionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -33,15 +34,28 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
     ? await strapiFetch(`/api/mentions/${m.documentId}/thread`).catch(() => null)
     : null
 
+  const twoCol = 'grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start'
+
   return (
-    // The provider wraps BOTH columns: the reply text and the conversation about
-    // it are edited from the left and the right, so they belong to neither.
-    // 380px rather than 320 — the assistant has to be able to show a proposed
-    // reply without it reading as a ransom note.
-    <ReplyDraftProvider>
-      <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
-      <div>
+    /**
+     * Stacked full-width SECTIONS, each with its own internal layout — not two
+     * long columns.
+     *
+     * Two columns sorted by kind rather than by task: everything reply-ish on
+     * the left, everything meta on the right. So the reply box ended up at the
+     * bottom left and the assistant that edits it at the top right, as far
+     * apart as the page allows, and the timeline sat beside a mention it has
+     * nothing to do with. Each band here holds things that are about the same
+     * thing, side by side, and reads top to bottom in the order the work
+     * happens: read it → answer it → what happened.
+     */
+    <ReplyDraftProvider initialDraft={m.draftText ?? ''}>
+      <div className="space-y-8">
         <BackToQueue />
+
+        {/* 1 — the mention, with the rest of its conversation beside it */}
+        <section className={thread?.data?.mentions?.length > 1 ? twoCol : ''}>
+        <div>
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <SentimentBadge label={m.sentimentLabel} />
           <StatusBadge status={m.status} />
@@ -132,16 +146,33 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
 
-        {/* above the actions: it is context for the reply you are about to
-            write, and the "they replied after you" case is the reason to read
-            it before writing anything */}
-        <div className="mt-6">
-          <ConversationThread mentions={thread?.data?.mentions ?? []} venue={m.venue} />
         </div>
 
-        <MentionActions mention={m} allTopics={topics.data ?? []} aiEnabled={config.data.aiEnabled} />
+          {/* beside the mention, not above the reply: it is context for what you
+              are reading, and the "they replied after you" case is the reason
+              to read it before writing anything */}
+          <ConversationThread mentions={thread?.data?.mentions ?? []} venue={m.venue} />
+        </section>
 
-        <section className="mt-8">
+        {/* 2 — answering it: the reply box and the assistant that edits the
+            same words, side by side */}
+        <section className={config.data.aiEnabled ? twoCol : ''}>
+          <MentionActions mention={m} allTopics={topics.data ?? []} aiEnabled={config.data.aiEnabled} />
+          {/* The generated draft and the conversation about it are one job:
+              write something, ask whether it is right, revise it. Grouped here,
+              beside the reply box rather than inside it — a suggestion sitting
+              in the reply card read as a reply already written. */}
+          {config.data.aiEnabled && (
+            <div className="space-y-4">
+              <DraftPanel documentId={m.documentId} />
+              <ReplyChat documentId={m.documentId} />
+            </div>
+          )}
+        </section>
+
+        {/* 3 — what happened: what was sent, beside the record of it */}
+        <section className={twoCol}>
+        <div>
           <h2 className="font-medium mb-3">Responses</h2>
           {(m.responses ?? []).length === 0 && (
             <p className="text-sm text-zinc-500">No response recorded yet.</p>
@@ -181,18 +212,10 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
                 </ResponseCard>
             ))}
           </ul>
-        </section>
-      </div>
+        </div>
 
-      <aside className="space-y-6">
-        {/* In normal flow, NOT sticky. Sticking it to the viewport floated it
-            over the timeline's comment box below — and with a translucent
-            panel background the two rendered on top of each other. A sidebar
-            that overlaps its own neighbour is worse than one you have to
-            scroll to. */}
-        {config.data.aiEnabled && <ReplyChat documentId={m.documentId} />}
-        <Timeline mention={m} meDocumentId={me?.documentId ?? null} />
-      </aside>
+          <Timeline mention={m} meDocumentId={me?.documentId ?? null} />
+        </section>
       </div>
     </ReplyDraftProvider>
   )

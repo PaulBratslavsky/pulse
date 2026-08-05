@@ -23,6 +23,8 @@ type Via = 'refine' | 'chat'
 
 export type ChatTurn = { role: 'user' | 'assistant'; content: string; revision?: string | null }
 
+export type Drafting = { grounded: boolean; sources: number; sourceUrls: string[] }
+
 type ReplyDraft = {
   text: string
   setText: (t: string) => void
@@ -33,12 +35,26 @@ type ReplyDraft = {
   via: Via
   chat: ChatTurn[]
   setChat: React.Dispatch<React.SetStateAction<ChatTurn[]>>
+  /** the machine-written suggestion, which is NOT the reply until a human says so */
+  draft: string
+  setDraft: (t: string) => void
+  /** whether the docs server was in play, and which pages it was allowed to cite */
+  drafting: Drafting | null
+  setDrafting: (d: Drafting | null) => void
 }
 
 const Ctx = createContext<ReplyDraft | null>(null)
 
-export function ReplyDraftProvider({ children }: { children: React.ReactNode }) {
+export function ReplyDraftProvider({
+  children,
+  initialDraft = '',
+}: {
+  children: React.ReactNode
+  initialDraft?: string
+}) {
   const [text, setTextState] = useState('')
+  const [draft, setDraft] = useState(initialDraft)
+  const [drafting, setDrafting] = useState<Drafting | null>(null)
   const [previous, setPrevious] = useState<string | null>(null)
   const [via, setVia] = useState<Via>('refine')
   const [chat, setChat] = useState<ChatTurn[]>([])
@@ -68,8 +84,8 @@ export function ReplyDraftProvider({ children }: { children: React.ReactNode }) 
   }, [previous, setText])
 
   const value = useMemo(
-    () => ({ text, setText, replace, undo, previous, via, chat, setChat }),
-    [text, setText, replace, undo, previous, via, chat]
+    () => ({ text, setText, replace, undo, previous, via, chat, setChat, draft, setDraft, drafting, setDrafting }),
+    [text, setText, replace, undo, previous, via, chat, draft, drafting]
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

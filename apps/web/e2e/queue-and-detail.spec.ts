@@ -634,11 +634,11 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     page,
     request,
   }) => {
-    // 1. fresh mention (no draft): empty box, no accordion at all
+    // 1. fresh mention (no draft): empty box, and the panel says so plainly
     const { documentId } = await injectMention(request)
     await page.goto(`/mentions/${documentId}`)
     await expect(page.getByPlaceholder('What you actually replied…')).toHaveValue('')
-    await expect(page.getByText(/Draft ready/)).not.toBeVisible()
+    await expect(page.getByRole('button', { name: 'Use this draft' })).toHaveCount(0)
 
     // 2. a mention that DOES have a draft (drafts are written by agents via
     //    pulse-save-draft, so use the queue's has-draft filter to find one)
@@ -649,8 +649,8 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
 
     const reply = page.getByPlaceholder('What you actually replied…')
     await expect(reply).toHaveValue('') // still empty — the draft is a suggestion
-    const accordion = page.getByText(/Draft ready/)
-    await expect(accordion).toBeVisible()
+    // it lives in the draft panel beside the reply box, collapsed
+    await expect(page.getByText(/chars — click to read/)).toBeVisible()
 
     // clicking "Use this draft" copies it into the reply box
     await page.getByRole('button', { name: 'Use this draft' }).click()

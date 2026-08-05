@@ -26,10 +26,6 @@ export default function MentionActions({
   aiEnabled: boolean
 }) {
   const router = useRouter()
-  // a draft saved via MCP/chat (pulse-save-draft) is a SUGGESTION shown in a
-  // collapsed accordion — the reply box starts empty so "what I actually sent"
-  // is never confused with "what was suggested"
-  const [draft, setDraft] = useState<string>(mention.draftText ?? '')
   // The reply text, its undo slot and the chat transcript live on the page, not
   // here: the assistant in the sidebar edits the same words this textarea does.
   const {
@@ -40,6 +36,7 @@ export default function MentionActions({
     previous,
     via,
     chat,
+    draft,
   } = useReplyDraft()
   const [notes, setNotes] = useState('')
   const [showCorrect, setShowCorrect] = useState(false)
@@ -66,27 +63,6 @@ export default function MentionActions({
   const claim = useMutation({
     mutationFn: () => post(`mentions/${mention.documentId}/claim`),
     onSuccess: () => router.refresh(),
-  })
-  // Whether the docs server was actually in play. Without this, a draft with no
-  // links looks identical whether the model searched and found nothing worth
-  // citing or simply had no tools — which is exactly the question "it's
-  // connected but doesn't seem to work" is asking.
-  const [drafting, setDrafting] = useState<{
-    grounded: boolean
-    sources: number
-    sourceUrls: string[]
-  } | null>(null)
-  const [showSources, setShowSources] = useState(false)
-  const genDraft = useMutation({
-    mutationFn: () => post(`mentions/${mention.documentId}/draft`),
-    onSuccess: (data) => {
-      setDraft(data.data.draft)
-      setDrafting({
-        grounded: Boolean(data.data.grounded),
-        sources: data.data.sources ?? 0,
-        sourceUrls: data.data.sourceUrls ?? [],
-      })
-    },
   })
   const refine = useMutation({
     mutationFn: async () => {
@@ -183,15 +159,6 @@ export default function MentionActions({
             {claim.isPending ? 'Claiming…' : 'Claim'}
           </button>
         )}
-        {aiEnabled && (
-          <button
-            onClick={() => genDraft.mutate()}
-            disabled={genDraft.isPending}
-            className="text-sm rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5"
-          >
-            {genDraft.isPending ? 'Drafting…' : '✨ Generate docs-grounded draft'}
-          </button>
-        )}
         <button
           onClick={() => setShowCorrect((v) => !v)}
           className="text-sm rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5"
@@ -207,7 +174,6 @@ export default function MentionActions({
           </button>
         )}
         <MutationError m={claim} className="text-xs" />
-        <MutationError m={genDraft} className="text-xs" />
         <MutationError m={outcome} className="text-xs" />
       </div>
 
@@ -381,72 +347,6 @@ export default function MentionActions({
           Record your reply (post it on the platform first — Pulse tracks it). For internal-only
           commentary, add a note in the timeline instead.
         </p>
-        {draft && (
-          <details className="group rounded border border-dashed border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800">
-            <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-zinc-500 [&::-webkit-details-marker]:hidden">
-              <ChevronRight size={12} className="shrink-0 transition-transform group-open:rotate-90" />
-              <span className="font-medium">
-                Draft ready{mention.draftedVia ? ` · via ${mention.draftedVia}` : ''}
-              </span>
-              <span className="text-zinc-400">{draft.length} chars — click to read</span>
-              {drafting &&
-                (drafting.grounded ? (
-                  // Clickable, because "12 links offered" is a claim the reader
-                  // cannot check. These are the pages the sitemap confirmed
-                  // exist and the model was allowed to cite — showing them is
-                  // the difference between provenance and a reassuring badge.
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault() // don't toggle the draft accordion
-                      setShowSources((v) => !v)
-                    }}
-                    className="text-emerald-700 underline underline-offset-2 dark:text-emerald-400"
-                  >
-                    docs searched · {drafting.sources} links offered
-                  </button>
-                ) : (
-                  <span
-                    className="text-amber-700 dark:text-amber-400"
-                    title="No documentation server was connected, so technical claims were written from memory. Connect one in Settings → MCP servers."
-                  >
-                    no docs server
-                  </span>
-                ))}
-              <button
-                onClick={(e) => {
-                  e.preventDefault() // don't toggle the accordion
-                  setFinalText(draft)
-                }}
-                className="ml-auto rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium hover:bg-white dark:border-zinc-600 dark:hover:bg-zinc-900"
-              >
-                Use this draft
-              </button>
-            </summary>
-            {showSources && drafting?.sourceUrls?.length ? (
-              <div className="mt-3 rounded border border-emerald-200 bg-emerald-50 p-2 dark:border-emerald-900 dark:bg-emerald-950/30">
-                <p className="mb-1.5 text-[11px] text-emerald-900 dark:text-emerald-300">
-                  Real documentation pages the model was allowed to cite — offered, not necessarily
-                  used. Check the draft for which ones it took.
-                </p>
-                <ul className="space-y-0.5">
-                  {drafting.sourceUrls.map((u) => (
-                    <li key={u}>
-                      <a
-                        href={u}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] text-emerald-800 underline underline-offset-2 dark:text-emerald-400"
-                      >
-                        {u.replace(/^https?:\/\//, '')}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{draft}</p>
-          </details>
-        )}
         <textarea
           value={finalText}
           onChange={(e) => setFinalText(e.target.value)}
