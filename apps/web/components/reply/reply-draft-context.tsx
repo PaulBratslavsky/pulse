@@ -19,7 +19,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
  *
  * Everything else on this screen is server state and belongs in a fetch.
  */
-type Via = 'refine' | 'chat'
+type Via = 'refine' | 'chat' | 'plaintext'
 
 export type ChatTurn = { role: 'user' | 'assistant'; content: string; revision?: string | null }
 

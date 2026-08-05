@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
-import { Sparkles } from 'lucide-react'
+import { Check, Copy, Sparkles } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
+import { toPlainText } from '@/lib/plain-text'
 import { Spinner } from '@/components/ui'
 import { useReplyDraft } from '@/components/reply/reply-draft-context'
 
@@ -32,6 +33,19 @@ export function ReplyBox({ mention, aiEnabled }: { mention: any; aiEnabled: bool
     draft,
   } = useReplyDraft()
   const [notes, setNotes] = useState('')
+
+  // Two views of one reply. The textarea is what you record; the plain view is
+  // what X and LinkedIn will actually show, since neither renders markdown.
+  const [tab, setTab] = useState<'write' | 'plain'>('write')
+  const [copied, setCopied] = useState(false)
+  const plain = useMemo(() => toPlainText(finalText), [finalText])
+  const nothingToStrip = plain === finalText.trim()
+
+  useEffect(() => {
+    if (!copied) return
+    const t = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(t)
+  }, [copied])
 
   const respond = useMutation({
     mutationFn: () =>
@@ -85,13 +99,87 @@ export function ReplyBox({ mention, aiEnabled }: { mention: any; aiEnabled: bool
         Record your reply (post it on the platform first — Pulse tracks it). For internal-only
         commentary, add a note in the timeline instead.
       </p>
-      <textarea
-        value={finalText}
-        onChange={(e) => setFinalText(e.target.value)}
-        placeholder="What you actually replied…"
-        rows={6}
-        className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-      />
+      <div>
+        <div role="tablist" aria-label="Reply format" className="mb-2 flex gap-1">
+          {(
+            [
+              ['write', 'Write'],
+              ['plain', 'Plain text'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              id={`reply-tab-${id}`}
+              aria-selected={tab === id}
+              aria-controls={`reply-panel-${id}`}
+              onClick={() => setTab(id)}
+              className={
+                tab === id
+                  ? 'rounded-md bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-zinc-800'
+                  : 'rounded-md px-2.5 py-1 text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'write' ? (
+          <textarea
+            id="reply-panel-write"
+            role="tabpanel"
+            aria-labelledby="reply-tab-write"
+            value={finalText}
+            onChange={(e) => setFinalText(e.target.value)}
+            placeholder="What you actually replied…"
+            rows={6}
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        ) : (
+          <div id="reply-panel-plain" role="tabpanel" aria-labelledby="reply-tab-plain">
+            {/* Same rows={6} height as the textarea, so switching tabs does not
+                jump the buttons out from under the pointer. */}
+            <div className="min-h-[8.5rem] w-full overflow-y-auto rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm break-words whitespace-pre-wrap dark:border-zinc-700 dark:bg-zinc-950">
+              {plain || (
+                <span className="text-zinc-500">Nothing to show yet — write a reply first.</span>
+              )}
+            </div>
+            <p className="mt-1.5 text-xs text-zinc-500">
+              What X, LinkedIn or Reddit will actually show. None of them render markdown.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(plain)
+                  setCopied(true)
+                }}
+                disabled={!plain}
+                className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-xs disabled:opacity-50 dark:border-zinc-700"
+              >
+                {copied ? <Check size={12} /> : <Copy size={12} />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+              {/* Converting rewrites the reply on purpose: the response Pulse
+                  records has to be the text that actually went out, not a
+                  formatted version that never existed on the platform. */}
+              <button
+                onClick={() => {
+                  replace(plain, 'plaintext')
+                  setTab('write')
+                }}
+                disabled={!plain || nothingToStrip}
+                className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium disabled:opacity-50 dark:border-zinc-700"
+              >
+                Use this as my reply
+              </button>
+              {nothingToStrip && plain && (
+                <span className="text-xs text-zinc-500">already plain text</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
       <input
         value={notes}
         onChange={(e) => setNotes(e.target.value)}

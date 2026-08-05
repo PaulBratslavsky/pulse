@@ -940,3 +940,44 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.locator('a', { hasText: 'reply' }).first()).toBeVisible()
   })
 })
+
+test('the plain text tab strips markdown, converts the reply, and undoes', async ({
+  page,
+  request,
+}) => {
+  const { documentId } = await injectMention(request)
+  await page.goto(`/mentions/${documentId}`)
+
+  const box = page.getByPlaceholder('What you actually replied…')
+  await box.fill('**Bold claim** — see [the docs](https://docs.strapi.io/ctb)\n\n- one\n- two')
+
+  await page.getByRole('tab', { name: 'Plain text' }).click()
+
+  // What you would paste into LinkedIn: no markers, url still reachable.
+  const pane = page.getByRole('tabpanel', { name: 'Plain text' })
+  await expect(pane).toContainText('Bold claim — see the docs (https://docs.strapi.io/ctb)')
+  await expect(pane).toContainText('• one')
+  await expect(pane).not.toContainText('**')
+
+  // Converting rewrites the reply, because the response Pulse records has to
+  // be the text that actually went out.
+  await page.getByRole('button', { name: 'Use this as my reply' }).click()
+  await page.getByRole('tab', { name: 'Write' }).click()
+  await expect(box).toHaveValue(/Bold claim — see the docs/)
+  await expect(box).not.toHaveValue(/\*\*/)
+
+  // And the existing one-slot undo covers it.
+  await page.getByRole('button', { name: /restore what I wrote/i }).click()
+  await expect(box).toHaveValue(/\*\*Bold claim\*\*/)
+})
+
+test('the plain text tab says so when there is nothing to strip', async ({ page, request }) => {
+  const { documentId } = await injectMention(request)
+  await page.goto(`/mentions/${documentId}`)
+
+  await page.getByPlaceholder('What you actually replied…').fill('Thanks — fixed in 5.4.2.')
+  await page.getByRole('tab', { name: 'Plain text' }).click()
+
+  await expect(page.getByRole('button', { name: 'Use this as my reply' })).toBeDisabled()
+  await expect(page.getByText('already plain text')).toBeVisible()
+})
