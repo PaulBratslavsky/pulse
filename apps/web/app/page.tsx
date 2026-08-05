@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { strapiFetch, qs, fetchAllTopics } from '@/lib/strapi'
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, MessagesSquare } from 'lucide-react'
 import { SentimentBadge, StatusBadge, StalenessFlag, PostedDate, LaneBadge } from '@/components/badges'
 import { UserChip, FilterPill, EmptyState, FilterRow } from '@/components/ui'
 import { RememberQueueView } from '@/components/queue-view-memory'
@@ -28,6 +28,7 @@ export default async function QueuePage({
     q?: string
     lane?: string
     awaiting?: string
+    every?: string
   }>
 }) {
   const params = await searchParams
@@ -68,6 +69,11 @@ export default async function QueuePage({
                   'filters[lane][$in][1]': 'lead',
                 }),
           sort: params.sort === 'newest' ? 'postedAt:desc' : 'postedAt:asc',
+          // One row per conversation by default. Octolens ingests every comment
+          // in a thread as its own mention, so a single Reddit exchange arrives
+          // as N rows that look like N separate jobs — and the one actually
+          // waiting on us is indistinguishable from the ones already handled.
+          ...(params.every ? {} : { group: 'thread' }),
           'pagination[page]': page,
           'pagination[pageSize]': 25,
         })
@@ -78,6 +84,10 @@ export default async function QueuePage({
   }
   const topicsRes = { data: await fetchAllTopics().catch(() => []) }
   const mentions = data.data ?? []
+  // The server says whether it actually grouped: it falls back to a flat list
+  // when the filtered set is too large to group honestly, and the label must
+  // not claim otherwise.
+  const grouped = data.meta?.grouped === true
   const pagination = data.meta?.pagination ?? { page: 1, pageCount: 1, total: mentions.length }
   const filterUrl = (over: {
     status?: string
@@ -91,6 +101,7 @@ export default async function QueuePage({
     sort?: string
     q?: string
     lane?: string
+    every?: string
   }) => {
     const q = new URLSearchParams()
     // 'key' in over — NOT !== undefined — so passing an explicit undefined
@@ -105,6 +116,7 @@ export default async function QueuePage({
     const noTopics = 'topics' in over ? over.topics : params.topics
     const sort = 'sort' in over ? over.sort : params.sort
     const qText = 'q' in over ? over.q : params.q
+    const every = 'every' in over ? over.every : params.every
     if (sentiment) q.set('sentiment', sentiment)
     if (topic) q.set('topic', topic)
     if (draft) q.set('draft', draft)
@@ -113,6 +125,7 @@ export default async function QueuePage({
     if (sort) q.set('sort', sort)
     if (qText) q.set('q', qText)
     if (lane) q.set('lane', lane)
+    if (every) q.set('every', every)
     if (over.page && over.page > 1) q.set('page', String(over.page))
     const qs = q.toString()
     return qs ? `/?${qs}` : '/'
@@ -131,6 +144,7 @@ export default async function QueuePage({
     ...(params.lane ? { lane: params.lane } : {}),
     ...(params.sort ? { sort: params.sort } : {}),
     ...(params.q ? { q: params.q } : {}),
+    ...(params.every ? { every: params.every } : {}),
     ...(page > 1 ? { page: String(page) } : {}),
   })
 
@@ -148,16 +162,18 @@ export default async function QueuePage({
               data-testid="queue-count"
               className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-sm font-medium tabular-nums text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
               title={
-                params.status
-                  ? `${pagination.total} ${params.status} mentions`
-                  : `${pagination.total} mentions still open (unanswered or claimed)`
+                grouped
+                  ? `${pagination.total} conversations — a thread of six messages is one row here`
+                  : params.status
+                    ? `${pagination.total} ${params.status} mentions`
+                    : `${pagination.total} mentions still open (unanswered or claimed)`
               }
             >
               {pagination.total}
             </span>
           </h1>
           <p className="text-sm text-zinc-500">
-            {params.status ? `${params.status} mentions` : 'Unanswered and claimed mentions'}
+            {grouped ? 'Conversations' : params.status ? `${params.status} mentions` : 'Unanswered and claimed mentions'}
             {params.sort === 'newest' ? ', newest first.' : ', oldest first.'}
           </p>
         </div>
@@ -229,6 +245,27 @@ export default async function QueuePage({
             title="Competitor and industry discourse — kept for trends and themes, not reply work"
           >
             monitor
+          </FilterPill>
+        </FilterRow>
+
+        {/* Grouping is a view, not a filter — it changes what a ROW is, not
+            which mentions qualify. Kept visible rather than tucked away,
+            because a queue that quietly shows fewer rows than there are
+            mentions has to say so. */}
+        <FilterRow label="show">
+          <FilterPill
+            href={filterUrl({ every: undefined, page: 0 })}
+            active={!params.every}
+            title="One row per conversation: a thread of six messages is one job, not six"
+          >
+            conversations
+          </FilterPill>
+          <FilterPill
+            href={filterUrl({ every: '1', page: 0 })}
+            active={Boolean(params.every)}
+            title="One row per message, including every reply in a thread"
+          >
+            every message
           </FilterPill>
         </FilterRow>
 
@@ -321,6 +358,26 @@ export default async function QueuePage({
                   postedAt={m.postedAt ?? m.receivedAt}
                   awaitingReply={['unanswered', 'claimed'].includes(m.status)}
                 />
+                {m.threadSize > 1 && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-900/40 dark:text-sky-300"
+                    title={`This row stands for a conversation of ${m.threadSize} messages. Opening it shows the whole thread.`}
+                  >
+                    <MessagesSquare size={11} />
+                    {m.threadSize} in thread
+                  </span>
+                )}
+                {/* The reason grouping exists: someone answered us and nobody
+                    answered them. Without this, the message waiting on a reply
+                    looks exactly like the five above it that are done. */}
+                {m.awaitsReply && (
+                  <span
+                    className="inline-block rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900/40 dark:text-violet-300"
+                    title="They replied after our last answer and nobody has responded"
+                  >
+                    waiting on us
+                  </span>
+                )}
                 {m.quality === 'suspected-spam' && (
                   <span
                     className="inline-block rounded px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"

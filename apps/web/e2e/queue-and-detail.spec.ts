@@ -160,6 +160,25 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText(`#${topicName}`).first()).toBeVisible()
   })
 
+  test('the queue groups a conversation into one row, and can be expanded', async ({ page }) => {
+    await page.goto('/?lane=all')
+    const count = page.getByTestId('queue-count')
+    await expect(count).toBeVisible()
+    const grouped = Number((await count.textContent())?.trim())
+
+    // "every message" must never show FEWER rows than "conversations" — that is
+    // the whole invariant: grouping folds rows together, it never drops any
+    await page.getByRole('link', { name: 'every message' }).click()
+    await expect(page).toHaveURL(/every=1/)
+    const flat = Number((await count.textContent())?.trim())
+    expect(flat).toBeGreaterThanOrEqual(grouped)
+
+    // and back, without stranding the reader in the expanded view
+    await page.getByRole('link', { name: 'conversations' }).click()
+    await expect(page).not.toHaveURL(/every=1/)
+    await expect(count).toHaveText(String(grouped))
+  })
+
   test('topic picker filters instead of listing every topic', async ({ page, request }) => {
     const { documentId } = await injectMention(request)
     await page.goto(`/mentions/${documentId}`)
