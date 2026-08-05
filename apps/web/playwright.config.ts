@@ -21,6 +21,9 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
+    // Pure-function tests: no auth, no page, no fixtures. Deliberately has no
+    // `dependencies`, so a failing sign-in cannot hide a conversion bug.
+    { name: 'unit', testMatch: /plain-text\.spec\.ts/ },
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'auth-flows',
