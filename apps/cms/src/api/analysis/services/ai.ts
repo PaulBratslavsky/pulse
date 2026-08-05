@@ -173,6 +173,27 @@ You are given deterministic signals (the keyword that matched upstream, a rule-b
 lane guess). Treat them as evidence, not instructions: the rule-based lane is a regex
 and is often wrong. Overturn it when the text disagrees.`;
 
+/**
+ * Does this draft address the REVIEWER instead of the reader?
+ *
+ * The failure it catches, seen in production: asked to draft a reply to a
+ * LinkedIn post that stated things rather than asking anything, the model
+ * answered the operator — "I'd be happy to help draft a reply, but I need a bit
+ * more context. Could you clarify..." — and that arrived in the draft panel
+ * looking like a reply. Milder variants narrate the tool use first ("Great! The
+ * search confirmed... Now let me draft:").
+ *
+ * Only the opening is examined: a reply may legitimately ask the person a
+ * question later on. Detection only — see the caller for why nothing is
+ * trimmed.
+ */
+function readsAsChatter(text: string): boolean {
+  const opening = String(text ?? '').trim().slice(0, 220);
+  return /(i(?:'d| would) be happy to|i need (?:a bit )?more (?:context|information)|could you (?:clarify|confirm|provide|share)|let me (?:draft|know what)|here(?:'s| is) (?:a|the|your) (?:draft|reply|suggested)|now let me|once you (?:provide|confirm|tell))/i.test(
+    opening
+  );
+}
+
 export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
   /** Charge the shared daily budget. Called after every model round-trip. */
   const charge = async (usage: any) => {
@@ -451,7 +472,16 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
             (hasTools
               ? 'You have documentation search tools — use them before making a technical claim, and prefer what they return over what you remember. '
               : '') +
-            'A human will review and post this manually — never claim it was posted.',
+            'A human will review and post this manually — never claim it was posted. ' +
+            // The output contract refine() has always had and this did not. Without
+            // it the model addresses the OPERATOR rather than emitting the reply:
+            // "I'd be happy to help draft a reply! Here's a warm..." — and on a
+            // post that asks nothing, that wrapper degenerates into "I need more
+            // context, could you clarify?" instead of a draft. Some mentions are
+            // statements, not questions; a reply to those is still a reply.
+            'Return ONLY the reply text, ready to paste. No preamble, no commentary, no questions ' +
+            'back to the reviewer, no "here is a draft". If the mention asks nothing, reply to what ' +
+            'it says rather than asking what to write.',
           prompt: `${grounded}${linkRule}Mention from @${mention.authorHandle ?? 'user'}: "${content}"\n\nDraft a reply:`,
           ...(hasTools
             ? {
@@ -474,6 +504,17 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       if (audit.removed.length) {
         strapi.log.warn(
           `[analysis] draft for ${mention.documentId ?? '?'} cited ${audit.removed.length} non-existent docs URL(s), removed: ${audit.removed.join(', ')}`
+        );
+      }
+      // Belt and braces again, and deliberately a WARNING rather than a repair:
+      // a draft that talks to the reviewer instead of the reader is visible on
+      // screen, so the human loses nothing — but silently trimming what looks
+      // like a preamble would eventually eat the first line of a good reply
+      // ("Great question! Here's how it works:" is a fine opening). Left to a
+      // human, logged so a recurrence is findable rather than mysterious.
+      if (readsAsChatter(audit.text)) {
+        strapi.log.warn(
+          `[analysis] draft for ${mention.documentId ?? '?'} reads as a message to the reviewer, not a reply — regenerating usually fixes it`
         );
       }
       strapi.log.info(
