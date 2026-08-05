@@ -113,17 +113,20 @@ test.describe('refine', () => {
     test.skip(!id, 'no mentions in this corpus')
 
     await page.goto(`/mentions/${id}`)
-    const opener = page.getByRole('button', { name: 'Ask about this reply' })
-    if ((await opener.count()) === 0) return // AI disabled in this environment
+    const panel = page.getByTestId('reply-chat')
+    if ((await panel.count()) === 0) return // AI disabled in this environment
+    await expect(panel).toBeVisible() // it lives in the sidebar, nothing to open
 
     const box = page.getByPlaceholder('What you actually replied…')
     await box.fill('my own words')
-    await opener.click()
-    await expect(page.getByTestId('reply-chat')).toBeVisible()
 
-    // the contract this feature rests on: opening it, and typing a question,
-    // touches nothing the human wrote
+    // the contract this feature rests on: typing a question touches nothing
+    // the human wrote
     await page.getByLabel('Ask about this reply').fill('is this accurate?')
     await expect(box).toHaveValue('my own words')
+
+    // and until there IS a conversation, Refine is still plain Refine — the
+    // label has to say when it becomes a different action
+    await expect(page.getByRole('button', { name: 'Refine', exact: true })).toBeVisible()
   })
 })

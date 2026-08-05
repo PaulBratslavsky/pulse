@@ -394,7 +394,9 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
      * searched and found nothing worth citing, or had no tools at all. `sources`
      * is how many real doc URLs the draft was allowed to choose from.
      */
-    async draft(mention: any): Promise<{ text: string; grounded: boolean; sources: number } | null> {
+    async draft(
+      mention: any
+    ): Promise<{ text: string; grounded: boolean; sources: number; sourceUrls: string[] } | null> {
       if (!aiEnabled()) return null;
       const content = String(mention.content);
 
@@ -477,7 +479,10 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       strapi.log.info(
         `[analysis] drafted ${mention.documentId ?? '?'} — docs tools: ${hasTools ? loaded.servers.join(', ') || 'yes' : 'none'}, ${allowed.length} link(s) offered`
       );
-      return { text: audit.text, grounded: hasTools, sources: allowed.length };
+      // The URLs themselves, not just how many. "12 links offered" is a claim a
+      // reader cannot check, and the whole point of the sitemap allow-list is
+      // that these are pages we verified exist — so show them.
+      return { text: audit.text, grounded: hasTools, sources: allowed.length, sourceUrls: allowed };
     },
 
     /**

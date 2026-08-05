@@ -2,13 +2,12 @@
 
 import { useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { MessagesSquare, Send, Check, X } from 'lucide-react'
+import { MessagesSquare, Send, Check } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
+import { useReplyDraft } from '@/components/reply-draft-context'
 import { Spinner } from '@/components/ui'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
-
-type Turn = { role: 'user' | 'assistant'; content: string; revision?: string | null }
 
 /**
  * Talk about the reply you are writing.
@@ -24,17 +23,10 @@ type Turn = { role: 'user' | 'assistant'; content: string; revision?: string | n
  * with an Apply button, because the risk of a friendly multi-turn assistant is
  * that it replaces your judgement with its own one small agreement at a time.
  */
-export function ReplyChat({
-  documentId,
-  currentText,
-  onApply,
-}: {
-  documentId: string
-  currentText: string
-  onApply: (text: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [turns, setTurns] = useState<Turn[]>([])
+export function ReplyChat({ documentId }: { documentId: string }) {
+  // Reads the live textarea and writes back through the same undo slot the
+  // Refine button uses; the transcript is shared so Refine can use it too.
+  const { text: currentText, replace, chat: turns, setChat: setTurns } = useReplyDraft()
   const [input, setInput] = useState('')
   const [applied, setApplied] = useState<number[]>([])
   const listRef = useRef<HTMLDivElement>(null)
@@ -77,46 +69,27 @@ export function ReplyChat({
     if (q && !ask.isPending) ask.mutate(q)
   }
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 text-xs text-zinc-500 underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-300"
-      >
-        <MessagesSquare size={13} />
-        Ask about this reply
-      </button>
-    )
-  }
 
   return (
     <div
       data-testid="reply-chat"
       className="rounded-md border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/50"
     >
-      <div className="mb-2 flex items-center justify-between">
-        <h4 className="flex items-center gap-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
-          <MessagesSquare size={13} className="text-zinc-400" />
-          Ask about this reply
-        </h4>
-        <button
-          onClick={() => setOpen(false)}
-          aria-label="Close"
-          className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-        >
-          <X size={14} />
-        </button>
-      </div>
+      <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+        <MessagesSquare size={13} className="text-zinc-400" />
+        Ask about this reply
+      </h4>
 
       {turns.length === 0 && (
         <p className="mb-2 text-xs text-zinc-500">
-          It can see the mention and what you have written. Ask a question and nothing changes; ask
-          for an edit and you get a proposal to apply.
+          It can see the mention and what you have written, and it can search the Strapi docs. Ask
+          a question and nothing changes; ask for an edit and you get a proposal to apply. Once
+          you have talked here, <strong>Refine</strong> uses this conversation too.
         </p>
       )}
 
       {turns.length > 0 && (
-        <div ref={listRef} className="mb-2 max-h-72 space-y-2 overflow-y-auto">
+        <div ref={listRef} className="mb-2 max-h-[55vh] space-y-2 overflow-y-auto">
           {turns.map((t, i) => (
             <div key={i}>
               <div
@@ -141,7 +114,7 @@ export function ReplyChat({
                   </p>
                   <button
                     onClick={() => {
-                      onApply(t.revision!)
+                      replace(t.revision!, 'chat')
                       setApplied((a) => [...a, i])
                     }}
                     className="inline-flex items-center gap-1 rounded-md bg-violet-600 px-2.5 py-1 text-[11px] font-medium text-white"

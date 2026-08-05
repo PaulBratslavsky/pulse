@@ -9,10 +9,10 @@ import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
 import { MutationError } from '@/components/mutation-error'
 import { Spinner } from '@/components/ui'
 import { TopicPicker } from '@/components/topic-picker'
+import { useReplyDraft } from '@/components/reply-draft-context'
 import MuteAuthorButton from '@/components/mute-author-button'
 import SpamFlagButton from '@/components/spam-flag-button'
 import OwnPostButton from '@/components/own-post-button'
-import { ReplyChat } from '@/components/reply-chat'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 
@@ -30,14 +30,17 @@ export default function MentionActions({
   // collapsed accordion — the reply box starts empty so "what I actually sent"
   // is never confused with "what was suggested"
   const [draft, setDraft] = useState<string>(mention.draftText ?? '')
-  const [finalText, setFinalText] = useState('')
-  // what the human wrote before a refine, so their words are never lost to an
-  // edit they did not like
-  const [beforeRefine, setBeforeRefine] = useState<string | null>(null)
-  // which path replaced it: the notice below is about what was VERIFIED, and
-  // "refined and checked against the docs" is a false statement about an edit
-  // that came from the chat panel
-  const [editedVia, setEditedVia] = useState<'refine' | 'chat'>('refine')
+  // The reply text, its undo slot and the chat transcript live on the page, not
+  // here: the assistant in the sidebar edits the same words this textarea does.
+  const {
+    text: finalText,
+    setText: setFinalText,
+    replace,
+    undo,
+    previous,
+    via,
+    chat,
+  } = useReplyDraft()
   const [notes, setNotes] = useState('')
   const [showCorrect, setShowCorrect] = useState(false)
   const [corrLabel, setCorrLabel] = useState(mention.sentimentLabel ?? 'neutral')
@@ -68,24 +71,50 @@ export default function MentionActions({
   // links looks identical whether the model searched and found nothing worth
   // citing or simply had no tools — which is exactly the question "it's
   // connected but doesn't seem to work" is asking.
-  const [drafting, setDrafting] = useState<{ grounded: boolean; sources: number } | null>(null)
+  const [drafting, setDrafting] = useState<{
+    grounded: boolean
+    sources: number
+    sourceUrls: string[]
+  } | null>(null)
+  const [showSources, setShowSources] = useState(false)
   const genDraft = useMutation({
     mutationFn: () => post(`mentions/${mention.documentId}/draft`),
     onSuccess: (data) => {
       setDraft(data.data.draft)
-      setDrafting({ grounded: Boolean(data.data.grounded), sources: data.data.sources ?? 0 })
+      setDrafting({
+        grounded: Boolean(data.data.grounded),
+        sources: data.data.sources ?? 0,
+        sourceUrls: data.data.sourceUrls ?? [],
+      })
     },
   })
   const refine = useMutation({
     mutationFn: async () => {
+      // If you have been talking to the assistant, refine uses that
+      // conversation. Establishing a fact in the sidebar and then pressing a
+      // button that cannot see it is the gap this closes: you asked, it
+      // checked the docs, and the edit should know what it found.
+      if (chat.length) {
+        const res: any = await post(`mentions/${mention.documentId}/draft-chat`, {
+          text: finalText,
+          messages: [
+            ...chat.map((t) => ({ role: t.role, content: t.content })),
+            {
+              role: 'user',
+              content:
+                'Now rewrite my reply, incorporating what we established above. Keep my meaning ' +
+                'and my voice, and add nothing we did not verify.',
+            },
+          ],
+        })
+        return { refined: res?.data?.revision ?? null, grounded: Boolean(res?.data?.grounded) }
+      }
       const res: any = await post(`mentions/${mention.documentId}/refine`, { text: finalText })
       return res?.data as { refined: string | null; grounded: boolean }
     },
     onSuccess: (res) => {
       if (!res?.refined) return
-      setEditedVia('refine')
-      setBeforeRefine(finalText)
-      setFinalText(res.refined)
+      replace(res.refined, chat.length ? 'chat' : 'refine')
     },
   })
 
@@ -360,22 +389,29 @@ export default function MentionActions({
                 Draft ready{mention.draftedVia ? ` · via ${mention.draftedVia}` : ''}
               </span>
               <span className="text-zinc-400">{draft.length} chars — click to read</span>
-              {drafting && (
-                <span
-                  className={
-                    drafting.grounded
-                      ? 'text-emerald-700 dark:text-emerald-400'
-                      : 'text-amber-700 dark:text-amber-400'
-                  }
-                  title={
-                    drafting.grounded
-                      ? `The model could search the docs while writing this, and was offered ${drafting.sources} real documentation URL(s) to cite.`
-                      : 'No documentation server was connected, so technical claims were written from memory. Connect one in Settings → MCP servers.'
-                  }
-                >
-                  {drafting.grounded ? `docs searched · ${drafting.sources} links offered` : 'no docs server'}
-                </span>
-              )}
+              {drafting &&
+                (drafting.grounded ? (
+                  // Clickable, because "12 links offered" is a claim the reader
+                  // cannot check. These are the pages the sitemap confirmed
+                  // exist and the model was allowed to cite — showing them is
+                  // the difference between provenance and a reassuring badge.
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault() // don't toggle the draft accordion
+                      setShowSources((v) => !v)
+                    }}
+                    className="text-emerald-700 underline underline-offset-2 dark:text-emerald-400"
+                  >
+                    docs searched · {drafting.sources} links offered
+                  </button>
+                ) : (
+                  <span
+                    className="text-amber-700 dark:text-amber-400"
+                    title="No documentation server was connected, so technical claims were written from memory. Connect one in Settings → MCP servers."
+                  >
+                    no docs server
+                  </span>
+                ))}
               <button
                 onClick={(e) => {
                   e.preventDefault() // don't toggle the accordion
@@ -386,6 +422,28 @@ export default function MentionActions({
                 Use this draft
               </button>
             </summary>
+            {showSources && drafting?.sourceUrls?.length ? (
+              <div className="mt-3 rounded border border-emerald-200 bg-emerald-50 p-2 dark:border-emerald-900 dark:bg-emerald-950/30">
+                <p className="mb-1.5 text-[11px] text-emerald-900 dark:text-emerald-300">
+                  Real documentation pages the model was allowed to cite — offered, not necessarily
+                  used. Check the draft for which ones it took.
+                </p>
+                <ul className="space-y-0.5">
+                  {drafting.sourceUrls.map((u) => (
+                    <li key={u}>
+                      <a
+                        href={u}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-emerald-800 underline underline-offset-2 dark:text-emerald-400"
+                      >
+                        {u.replace(/^https?:\/\//, '')}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{draft}</p>
           </details>
         )}
@@ -420,22 +478,20 @@ export default function MentionActions({
             <button
               onClick={() => refine.mutate()}
               disabled={refine.isPending || !finalText.trim()}
-              title="Improve what you wrote: check technical claims against the docs and tighten the wording. Your original stays one click away."
+              title={
+                chat.length
+                  ? 'Rewrite your reply using what you and the assistant established in the sidebar. Your original stays one click away.'
+                  : 'Improve what you wrote: check technical claims against the docs and tighten the wording. Your original stays one click away.'
+              }
               className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700"
             >
               {refine.isPending ? <Spinner size={12} /> : <Sparkles size={13} />}
-              {refine.isPending ? 'Refining…' : 'Refine'}
+              {refine.isPending ? 'Refining…' : chat.length ? 'Refine with chat' : 'Refine'}
             </button>
           )}
 
-          {beforeRefine !== null && (
-            <button
-              onClick={() => {
-                setFinalText(beforeRefine)
-                setBeforeRefine(null)
-              }}
-              className="text-xs text-zinc-500 underline underline-offset-2"
-            >
+          {previous !== null && (
+            <button onClick={undo} className="text-xs text-zinc-500 underline underline-offset-2">
               undo — restore what I wrote
             </button>
           )}
@@ -444,7 +500,7 @@ export default function MentionActions({
             connected a refine pass once preserved "MongoDB works fine" — Strapi
             supports no NoSQL database at all — so "refined" must never be read
             as "verified". */}
-        {beforeRefine !== null && editedVia === 'refine' && (
+        {previous !== null && via === 'refine' && (
           <p className="text-xs text-zinc-500">
             {refine.data?.grounded ? (
               <>Refined and checked against the docs. Read it before posting.</>
@@ -455,19 +511,6 @@ export default function MentionActions({
               </>
             )}
           </p>
-        )}
-        {/* Conversational editing, sharing the SAME undo slot as Refine: however
-            your words got replaced, one click brings them back. */}
-        {aiEnabled && (
-          <ReplyChat
-            documentId={mention.documentId}
-            currentText={finalText}
-            onApply={(text) => {
-              setEditedVia('chat')
-              setBeforeRefine(finalText)
-              setFinalText(text)
-            }}
-          />
         )}
         {respond.isError && <p className="text-sm text-red-600">{String(respond.error)}</p>}
         {refine.isError && <p className="text-sm text-red-600">{String(refine.error)}</p>}

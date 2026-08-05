@@ -9,6 +9,8 @@ import { SentimentBadge, StatusBadge, LaneBadge } from '@/components/badges'
 import MentionActions from '@/components/mention-actions'
 import { UserChip } from '@/components/ui'
 import Timeline from '@/components/timeline'
+import { ReplyDraftProvider } from '@/components/reply-draft-context'
+import { ReplyChat } from '@/components/reply-chat'
 
 export default async function MentionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -32,7 +34,12 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
     : null
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+    // The provider wraps BOTH columns: the reply text and the conversation about
+    // it are edited from the left and the right, so they belong to neither.
+    // 380px rather than 320 — the assistant has to be able to show a proposed
+    // reply without it reading as a ransom note.
+    <ReplyDraftProvider>
+      <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
       <div>
         <BackToQueue />
         <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -177,9 +184,17 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
         </section>
       </div>
 
-      <aside>
+      <aside className="space-y-6">
+        {config.data.aiEnabled && (
+          // Sticky: you scroll the mention and the responses while writing, and
+          // an assistant that scrolls out of view is one you stop using.
+          <div className="lg:sticky lg:top-20">
+            <ReplyChat documentId={m.documentId} />
+          </div>
+        )}
         <Timeline mention={m} meDocumentId={me?.documentId ?? null} />
       </aside>
-    </div>
+      </div>
+    </ReplyDraftProvider>
   )
 }

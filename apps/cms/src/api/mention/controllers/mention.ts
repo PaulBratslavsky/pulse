@@ -1,6 +1,7 @@
 import { factories } from '@strapi/strapi'
 import { sendWorkflowError } from '../../../utils/workflow-error'
 import { budgetSpent } from '../../../utils/ai-gate'
+import { collapseThreads } from '../../../utils/collapse-threads'
 
 /**
  * Thin controllers: input off the ctx → workflow service (guards, transactions,
@@ -29,13 +30,69 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
    *  Internal high-trust tool: return Document Service results with user fields
    *  explicitly whitelisted to id/username instead. */
   async find(ctx) {
+    // Taken off the query BEFORE validation: `strictParams` rejects any key it
+    // does not recognise (a 400 reading "Invalid key group"), and this one is
+    // ours rather than a filter for the Document Service.
+    const groupByThread = ctx.query.group === 'thread'
+    if ('group' in ctx.query) delete (ctx.query as any).group
+
     // factory types mark these helpers optional — they exist at runtime
     await this.validateQuery!(ctx)
     const sanitizedQuery = await this.sanitizeQuery!(ctx)
+
+    // One row per conversation. Opt-in per request rather than a mode on the
+    // server, so every other caller (MCP tools, bulk triage, exports) keeps
+    // seeing individual mentions, which is what they mean.
+    if (groupByThread) {
+      const page = Math.max(1, Number((sanitizedQuery as any).pagination?.page) || 1)
+      const pageSize = Math.min(
+        100,
+        Math.max(1, Number((sanitizedQuery as any).pagination?.pageSize) || 25)
+      )
+      const collapsed = await collapseThreads(strapi, sanitizedQuery, page, pageSize)
+
+      if (!collapsed.tooLarge) {
+        const { results } = collapsed.documentIds.length
+          ? await (strapi.service('api::mention.mention') as any).find({
+              ...sanitizedQuery,
+              filters: { documentId: { $in: collapsed.documentIds } },
+              pagination: { page: 1, pageSize: collapsed.documentIds.length, withCount: false },
+            })
+          : { results: [] }
+
+        // Re-imposed, because an $in query returns its own order and the whole
+        // point of the first pass was to establish this one.
+        const byId = new Map((results as any[]).map((m) => [m.documentId, m]))
+        const ordered = collapsed.documentIds.map((id) => byId.get(id)).filter(Boolean)
+
+        return {
+          data: ordered.map((m: any) => ({
+            ...shapeMention(m),
+            // how many messages this row stands for; absent when it stands for
+            // only itself
+            threadSize: collapsed.sizes[m.documentId] ?? 1,
+          })),
+          meta: {
+            pagination: {
+              page,
+              pageSize,
+              total: collapsed.total,
+              pageCount: Math.max(1, Math.ceil(collapsed.total / pageSize)),
+            },
+            grouped: true,
+          },
+        }
+      }
+      // too large to group honestly — fall through to the flat list and SAY so,
+      // rather than returning a partial grouping that looks complete
+      strapi.log.warn('[queue] filtered set too large to group by conversation — returning flat list')
+      ctx.set('x-pulse-grouping', 'skipped')
+    }
+
     const { results, pagination } = await (strapi
       .service('api::mention.mention') as any)
       .find(sanitizedQuery)
-    return { data: (results as any[]).map(shapeMention), meta: { pagination } }
+    return { data: (results as any[]).map(shapeMention), meta: { pagination, grouped: false } }
   },
 
   async findOne(ctx) {
@@ -216,6 +273,7 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
         draft: result?.text ?? null,
         grounded: Boolean(result?.grounded),
         sources: result?.sources ?? 0,
+        sourceUrls: result?.sourceUrls ?? [],
       },
     }
   },
