@@ -70,6 +70,13 @@ draft is `✅` in the output.
 plain text returns it unchanged, which is what lets the UI tell you honestly
 that there is nothing to strip.
 
+One documented exception: escaped markers. `\*literal\*` becomes `*literal*` on
+the first pass, and a second pass cannot tell that asterisk from a marker. This
+is inherent to any lossy strip — an escape exists precisely to make a character
+look like itself — and the fix would be to not unescape, which is worse output.
+The unit tests assert idempotence over every case except this one, with the
+reason recorded at the assertion.
+
 ## The tab strip
 
 Two tabs on the reply box: **Write** / **Plain text**.
@@ -122,7 +129,9 @@ about to read it anyway.
 ## Testing
 
 **`e2e/plain-text.spec.ts`**, in a new Playwright project with no `setup`
-dependency, so it needs no running server:
+dependency — no auth, no browser page, milliseconds to run. (The config's shared
+`webServer` still applies to any Playwright invocation; the saving is the sign-in
+round-trip and the page load, not the dev server.)
 
 1. A table of conversion cases, one row per rule above.
 2. Idempotence over every case: `toPlainText(toPlainText(x)) === toPlainText(x)`.
