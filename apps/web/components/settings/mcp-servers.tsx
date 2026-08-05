@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { Plug, Trash2, RefreshCw, FlaskConical } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
-import { MutationError } from '@/components/mutation-error'
+import { MutationError } from '@/components/ui/mutation-error'
 import { Spinner } from '@/components/ui'
 
 type Server = {

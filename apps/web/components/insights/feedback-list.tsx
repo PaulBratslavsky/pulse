@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ExternalLink, Search } from 'lucide-react'
-import { SentimentBadge } from '@/components/badges'
+import { SentimentBadge } from '@/components/ui/badges'
 import { Avatar } from '@/components/ui'
 
 /**

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { Ban } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
-import { MutationError } from '@/components/mutation-error'
+import { MutationError } from '@/components/ui/mutation-error'
 
 const REASONS = [
   { value: 'ai-spam', label: 'AI-generated spam' },

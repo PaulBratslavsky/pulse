@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { LogOut } from 'lucide-react'
-import SearchBox from '@/components/search-box'
+import SearchBox from '@/components/ui/search-box'
 import { Avatar } from '@/components/ui'
-import ThemeToggle from '@/components/theme-toggle'
+import ThemeToggle from '@/components/ui/theme-toggle'
 import { MobileNav } from './mobile-nav'
 import { logoutUserAction } from '@/data/actions/auth'
 

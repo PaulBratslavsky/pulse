@@ -3,11 +3,11 @@ import { redirect, notFound } from 'next/navigation'
 import { ArrowLeft, ExternalLink, Quote, Users } from 'lucide-react'
 import { strapiFetch } from '@/lib/strapi'
 import { Avatar, Disclosure } from '@/components/ui'
-import { SentimentBadge, LaneBadge } from '@/components/badges'
+import { SentimentBadge, LaneBadge } from '@/components/ui/badges'
 import Timeline from '@/components/timeline'
-import LeadStatus from '@/components/lead-status'
-import PersonMerge from '@/components/person-merge'
-import LeadProfilePanel from '@/components/lead-profile'
+import LeadStatus from '@/components/leads/lead-status'
+import PersonMerge from '@/components/leads/person-merge'
+import LeadProfilePanel from '@/components/leads/lead-profile'
 
 const BAND_STYLE: Record<string, string> = {
   hot: 'border-red-400 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300',

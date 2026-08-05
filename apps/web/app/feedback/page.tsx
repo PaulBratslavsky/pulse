@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { MessageSquareHeart } from 'lucide-react'
 import { strapiFetch } from '@/lib/strapi'
 import { FilterPill, EmptyState } from '@/components/ui'
-import FeedbackList from '@/components/feedback-list'
+import FeedbackList from '@/components/insights/feedback-list'
 
 /**
  * Product feedback — the "what should we build" surface.

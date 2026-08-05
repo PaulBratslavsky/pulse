@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { pulseFetch } from '@/lib/pulse-client'
-import { MutationError } from '@/components/mutation-error'
+import { MutationError } from '@/components/ui/mutation-error'
 import { KIND_META, type Kind } from './kind-meta'
 import { LinkListEditor } from './link-list-editor'
 

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, MessageSquare, Eye, ListChecks } from 'lucide-react'
 import { strapiFetch, qs } from '@/lib/strapi'
-import { SentimentBadge } from '@/components/badges'
+import { SentimentBadge } from '@/components/ui/badges'
 import { Avatar } from '@/components/ui'
 
 /** Celebration stats as icon chips: a 330px rail can't carry a sentence like

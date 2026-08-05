@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { MessagesSquare, Send, Check } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
-import { useReplyDraft } from '@/components/reply-draft-context'
+import { useReplyDraft } from '@/components/reply/reply-draft-context'
 import { Spinner } from '@/components/ui'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)

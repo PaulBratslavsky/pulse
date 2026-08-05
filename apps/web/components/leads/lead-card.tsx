@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ExternalLink, Quote, Users, MapPin, Building2, IdCard } from 'lucide-react'
 import { Avatar } from '@/components/ui'
-import LeadStatus from '@/components/lead-status'
+import LeadStatus from '@/components/leads/lead-status'
 
 const BAND_STYLE: Record<string, string> = {
   hot: 'border-red-400 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300',

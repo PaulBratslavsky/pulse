@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { strapiFetch, qs } from '@/lib/strapi'
-import ThemeList from '@/components/theme-list'
+import ThemeList from '@/components/insights/theme-list'
 
 /**
  * Themes — the topic vocabulary ranked by volume × negativity.

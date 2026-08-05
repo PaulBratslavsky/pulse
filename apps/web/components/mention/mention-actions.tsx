@@ -6,12 +6,12 @@ import { useMutation } from '@tanstack/react-query'
 
 import { ChevronRight, X, Sparkles } from 'lucide-react'
 import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
-import { MutationError } from '@/components/mutation-error'
+import { MutationError } from '@/components/ui/mutation-error'
 import { Spinner } from '@/components/ui'
-import { TopicPicker } from '@/components/topic-picker'
-import MuteAuthorButton from '@/components/mute-author-button'
-import SpamFlagButton from '@/components/spam-flag-button'
-import OwnPostButton from '@/components/own-post-button'
+import { TopicPicker } from '@/components/mention/topic-picker'
+import MuteAuthorButton from '@/components/mention/mute-author-button'
+import SpamFlagButton from '@/components/mention/spam-flag-button'
+import OwnPostButton from '@/components/mention/own-post-button'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 

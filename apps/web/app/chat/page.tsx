@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { strapiFetch } from '@/lib/strapi'
-import ChatUI from '@/components/chat-ui'
+import ChatUI from '@/components/chat/chat-ui'
 
 export default async function ChatPage() {
   let config: any

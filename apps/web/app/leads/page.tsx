@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { Target } from 'lucide-react'
 import { strapiFetch } from '@/lib/strapi'
 import { FilterPill, EmptyState, FilterRow } from '@/components/ui'
-import LeadCard from '@/components/lead-card'
+import LeadCard from '@/components/leads/lead-card'
 
 const BANDS = [
   { key: '', label: 'All' },

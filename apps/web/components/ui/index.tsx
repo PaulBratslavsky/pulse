@@ -1,7 +1,7 @@
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import type { UserRef } from '@/lib/types'
-import { AvatarImage } from '@/components/avatar-image'
+import { AvatarImage } from '@/components/ui/avatar-image'
 
 /** Shared UI atoms (review 2026-07-28: gradient avatar ×4, claimed-chip ×3,
  *  empty-state card ×6, filter pill ×4 were inlined copies). */

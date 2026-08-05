@@ -6,7 +6,7 @@ import { useMutation } from '@tanstack/react-query'
 import { Sparkles } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
 import { Spinner } from '@/components/ui'
-import { useReplyDraft } from '@/components/reply-draft-context'
+import { useReplyDraft } from '@/components/reply/reply-draft-context'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 

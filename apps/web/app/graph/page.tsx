@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { Share2 } from 'lucide-react'
 import { strapiFetch, qs } from '@/lib/strapi'
 import { FilterPill, EmptyState } from '@/components/ui'
-import GraphView from '@/components/graph-view'
+import GraphView from '@/components/insights/graph-view'
 
 /**
  * Conversation map — the corpus as a network rather than a queue.

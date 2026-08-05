@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { pulseFetch, PulseApiError } from '@/lib/pulse-client'
-import { MutationError } from '@/components/mutation-error'
+import { MutationError } from '@/components/ui/mutation-error'
 import { Spinner } from '@/components/ui'
 
 export default function ClaimButton({ documentId }: { documentId: string }) {

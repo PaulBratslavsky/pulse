@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { strapiFetch, qs } from '@/lib/strapi'
-import EventForm from '@/components/event-form'
-import TrendChart from '@/components/trend-chart'
+import EventForm from '@/components/insights/event-form'
+import TrendChart from '@/components/insights/trend-chart'
 
 export default async function TrendsPage({
   searchParams,

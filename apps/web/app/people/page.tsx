@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { ExternalLink, IdCard, Users } from 'lucide-react'
 import { strapiFetch } from '@/lib/strapi'
 import { Avatar, EmptyState } from '@/components/ui'
-import PeopleSearch from '@/components/people-search'
+import PeopleSearch from '@/components/leads/people-search'
 
 const FILTERS = [
   { key: '', label: 'everyone' },

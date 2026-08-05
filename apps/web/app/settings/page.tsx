@@ -1,9 +1,9 @@
 import { strapiFetch } from '@/lib/strapi'
-import MutedAuthors from '@/components/muted-authors'
-import ClassificationPanel from '@/components/classification-panel'
-import LeaderboardOptOut from '@/components/leaderboard-optout'
-import McpServers from '@/components/mcp-servers'
-import LeadScoring from '@/components/lead-scoring'
+import MutedAuthors from '@/components/settings/muted-authors'
+import ClassificationPanel from '@/components/settings/classification-panel'
+import LeaderboardOptOut from '@/components/settings/leaderboard-optout'
+import McpServers from '@/components/settings/mcp-servers'
+import LeadScoring from '@/components/settings/lead-scoring'
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 
