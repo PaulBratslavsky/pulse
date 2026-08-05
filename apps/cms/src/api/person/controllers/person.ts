@@ -1,5 +1,6 @@
 import { factories } from '@strapi/strapi'
 import { primaryAccount, widestReach, aliasesOf } from '../../../utils/accounts'
+import { budgetSpent } from '../../../utils/ai-gate'
 
 export default factories.createCoreController('api::person.person', ({ strapi }) => ({
   /** GET /people/leads — the leads board, ordered by score. */
@@ -270,6 +271,8 @@ export default factories.createCoreController('api::person.person', ({ strapi })
     if (!aiService.enabled()) {
       return ctx.serviceUnavailable('AI is disabled — set AI_API_KEY to use suggestions')
     }
+    if (await budgetSpent(strapi, ctx, 'Suggestions resume tomorrow — the profile is still editable by hand.')) return
+
     const suggestions = await aiService.suggestIdentity(person.mentions ?? [])
     return { data: suggestions ?? [] }
   },

@@ -1,5 +1,6 @@
 import { factories } from '@strapi/strapi'
 import { sendWorkflowError } from '../../../utils/workflow-error'
+import { budgetSpent } from '../../../utils/ai-gate'
 
 /**
  * Thin controllers: input off the ctx → workflow service (guards, transactions,
@@ -199,6 +200,8 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable drafts.' } }
       return
     }
+    if (await budgetSpent(strapi, ctx, 'Drafting resumes tomorrow — you can still write and record a reply.')) return
+
     const { documentId } = ctx.params
     const mention = await strapi
       .documents('api::mention.mention')
@@ -224,6 +227,8 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable this.' } }
       return
     }
+    if (await budgetSpent(strapi, ctx, 'Refining resumes tomorrow — your reply is unchanged and still recordable.')) return
+
     const text = String(ctx.request.body?.text ?? '').trim()
     if (!text) return ctx.badRequest('text is required')
     // an editor pass over a novel is a runaway bill, not a feature
@@ -250,21 +255,8 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       ctx.body = { data: null, error: { status: 503, message: 'AI features are disabled — set AI_API_KEY on the backend to enable this.' } }
       return
     }
-    // Checked BEFORE spending, not after: this is the one AI path a person can
-    // fire ten times a minute, so it is the one that must respect the ceiling
-    // the sweep already respects.
-    const budget = await (strapi.service('api::analysis.budget') as any).status()
-    if (budget.exceeded) {
-      ctx.status = 429
-      ctx.body = {
-        data: null,
-        error: {
-          status: 429,
-          message: `Today's AI budget is spent (${budget.spent}/${budget.budget} tokens). Drafting resumes tomorrow — the reply box still works.`,
-        },
-      }
-      return
-    }
+    // Checked BEFORE spending, not after — see utils/ai-gate.
+    if (await budgetSpent(strapi, ctx, 'Assistance resumes tomorrow — the reply box still works.')) return
 
     const text = String(ctx.request.body?.text ?? '')
     const messages = ctx.request.body?.messages
