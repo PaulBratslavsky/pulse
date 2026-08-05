@@ -12,6 +12,7 @@ import Timeline from '@/components/timeline'
 import { ReplyDraftProvider } from '@/components/reply-draft-context'
 import { ReplyChat } from '@/components/reply-chat'
 import { DraftPanel } from '@/components/draft-panel'
+import { ReplyBox } from '@/components/reply-box'
 
 export default async function MentionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -35,6 +36,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
     : null
 
   const twoCol = 'grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start'
+  const heading = 'mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-400'
 
   return (
     /**
@@ -146,34 +148,42 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
 
+          {/* the mention's OWN controls — claim, correct, acknowledge,
+              moderation. They belong to what you are reading, not to the reply
+              you are writing; loose above the reply card they read as a toolbar
+              for a box they have nothing to do with. */}
+          <MentionActions mention={m} allTopics={topics.data ?? []} aiEnabled={config.data.aiEnabled} />
         </div>
 
-          {/* beside the mention, not above the reply: it is context for what you
-              are reading, and the "they replied after you" case is the reason
-              to read it before writing anything */}
+          {/* beside the mention: context for what you are reading, and the
+              "they replied after you" case is the reason to read it first */}
           <ConversationThread mentions={thread?.data?.mentions ?? []} venue={m.venue} />
         </section>
 
-        {/* 2 — answering it: the reply box and the assistant that edits the
-            same words, side by side */}
-        <section className={config.data.aiEnabled ? twoCol : ''}>
-          <MentionActions mention={m} allTopics={topics.data ?? []} aiEnabled={config.data.aiEnabled} />
-          {/* The generated draft and the conversation about it are one job:
-              write something, ask whether it is right, revise it. Grouped here,
-              beside the reply box rather than inside it — a suggestion sitting
-              in the reply card read as a reply already written. */}
-          {config.data.aiEnabled && (
-            <div className="space-y-4">
-              <DraftPanel documentId={m.documentId} />
-              <ReplyChat documentId={m.documentId} />
-            </div>
-          )}
+        {/* 2 — answering it */}
+        <section className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
+          <h2 className={heading}>Your reply</h2>
+          <div className={config.data.aiEnabled ? twoCol : ''}>
+            <ReplyBox mention={m} aiEnabled={config.data.aiEnabled} />
+            {/* The generated draft and the conversation about it are one job:
+                write something, ask whether it is right, revise it. Beside the
+                reply box rather than inside it — a suggestion sitting in the
+                reply card read as a reply already written. */}
+            {config.data.aiEnabled && (
+              <div className="space-y-4">
+                <DraftPanel documentId={m.documentId} />
+                <ReplyChat documentId={m.documentId} />
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* 3 — what happened: what was sent, beside the record of it */}
-        <section className={twoCol}>
+        {/* 3 — what happened */}
+        <section className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
+          <h2 className={heading}>What happened</h2>
+          <div className={twoCol}>
         <div>
-          <h2 className="font-medium mb-3">Responses</h2>
+          <h3 className="mb-3 text-sm font-medium text-zinc-500">Responses</h3>
           {(m.responses ?? []).length === 0 && (
             <p className="text-sm text-zinc-500">No response recorded yet.</p>
           )}
@@ -214,7 +224,8 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
           </ul>
         </div>
 
-          <Timeline mention={m} meDocumentId={me?.documentId ?? null} />
+            <Timeline mention={m} meDocumentId={me?.documentId ?? null} />
+          </div>
         </section>
       </div>
     </ReplyDraftProvider>

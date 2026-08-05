@@ -33,9 +33,17 @@ export default async function QueuePage({
 }) {
   const params = await searchParams
   const page = Math.max(1, Number(params.page) || 1)
-  let data: any
-  try {
-    data = await strapiFetch(
+
+  /**
+   * `group` is a param only the newer CMS understands, and `strictParams` makes
+   * an older one reject the whole request with a 400 rather than ignore it. The
+   * frontend deploys in a minute and the CMS takes several, so there is always a
+   * window where this queue talks to a backend that predates it — and without
+   * this the queue is a 500 for the length of that window. Falls back to the
+   * flat list, which is a worse view, not a broken page.
+   */
+  const fetchQueue = async (grouped: boolean) =>
+    strapiFetch(
       '/api/mentions' +
         qs({
           'filters[status][$in][0]': params.status ?? 'unanswered',
@@ -73,14 +81,24 @@ export default async function QueuePage({
           // in a thread as its own mention, so a single Reddit exchange arrives
           // as N rows that look like N separate jobs — and the one actually
           // waiting on us is indistinguishable from the ones already handled.
-          ...(params.every ? {} : { group: 'thread' }),
+          ...(grouped ? { group: 'thread' } : {}),
           'pagination[page]': page,
           'pagination[pageSize]': 25,
         })
     )
+
+  let data: any
+  const wantGrouped = !params.every
+  try {
+    data = await fetchQueue(wantGrouped)
   } catch (err: any) {
     if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    throw err
+    if (!wantGrouped) throw err
+    // only the grouping could have caused this — retry without it
+    data = await fetchQueue(false).catch((e) => {
+      if (e.status === 401 || e.status === 403) redirect('/sign-in')
+      throw e
+    })
   }
   const topicsRes = { data: await fetchAllTopics().catch(() => []) }
   const mentions = data.data ?? []
