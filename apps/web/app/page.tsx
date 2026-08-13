@@ -1,4 +1,4 @@
-import { fetchAllTopics } from '@/lib/strapi'
+import { loaders } from '@/lib/loaders'
 import { fetchQueue } from '@/lib/queue/fetch'
 import { makeFilterUrl } from '@/lib/queue/filter-url'
 import { buildCurrentSearch } from '@/lib/queue/current-search'
@@ -20,7 +20,9 @@ export default async function QueuePage({
   const page = Math.max(1, Number(params.page) || 1)
 
   const data = await fetchQueue(params, page)
-  const topics = await fetchAllTopics().catch(() => [])
+  // A filter list, not the page's subject: a topics outage degrades the bulk
+  // topic picker rather than taking the queue down with it.
+  const topics = await loaders.getAllTopics()
 
   const mentions = data.data ?? []
   // The server says whether it actually grouped: it falls back to a flat list
@@ -53,7 +55,11 @@ export default async function QueuePage({
       ) : (
         <SelectionProvider
           allIds={mentions.map((m) => m.documentId)}
-          topics={topics.map((t) => ({ documentId: t.documentId, name: t.name }))}
+          // a topic with no documentId cannot be assigned to anything, so it
+          // has no business being offered in the picker
+          topics={topics.flatMap((t) =>
+            t.documentId ? [{ documentId: t.documentId, name: t.name }] : []
+          )}
         >
           <div className="mb-2">
             <SelectionHint count={mentions.length} />
