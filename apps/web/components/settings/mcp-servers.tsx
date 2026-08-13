@@ -8,7 +8,7 @@ import { pulseFetch } from '@/lib/pulse-client'
 import { MutationError } from '@/components/ui/mutation-error'
 import { Spinner } from '@/components/ui'
 
-type Server = {
+export type Server = {
   documentId: string
   name: string
   url: string

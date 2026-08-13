@@ -9,6 +9,7 @@ import type {
   TInsightsConfig,
   TLeaderboard,
   TLeadsStatus,
+  TMcpServer,
   TMention,
   TMutedAuthor,
   TPerson,
@@ -130,7 +131,7 @@ const getMyPreferences = () => get<TPreferences>('/api/preferences/me')
 
 const getAnalysisStatus = () => get<TAnalysisStatus>('/api/analysis/status')
 
-const getMcpServers = () => get<unknown[]>('/api/mcp-servers')
+const getMcpServers = () => get<TMcpServer[]>('/api/mcp-servers')
 
 // ── Topics ──────────────────────────────────────────────────────────────────
 

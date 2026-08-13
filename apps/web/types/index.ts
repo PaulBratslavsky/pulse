@@ -1,4 +1,5 @@
 import type { GraphEdge, GraphNode } from '@/components/insights/graph-view'
+import type { Server } from '@/components/settings/mcp-servers'
 
 /**
  * Wire types for the Pulse API.
@@ -69,7 +70,8 @@ export type TTrendsPayload = { series: TTrendPoint[]; events: TTrendEvent[] }
 export type TLooseRecord = Record<string, unknown>
 
 export type TThemesPayload = { windowDays: number; themes: TLooseRecord[] }
-export type TLeaderboard = { leaders: TLooseRecord[] }
+/** `team` is the totals row — one count per work type, keyed by its stat name. */
+export type TLeaderboard = { leaders: TLooseRecord[]; team?: Record<string, number> }
 
 /**
  * The conversation map. Node and edge shapes are GraphView's own exported
@@ -117,6 +119,9 @@ export type TLeadsStatus = {
 }
 
 export type TMutedAuthor = { documentId: string; handle: string } & TLooseRecord
+
+/** The settings panel that renders these is the source of truth for the shape. */
+export type TMcpServer = Server
 
 /** The lead board and the person page read these; the rest varies by endpoint. */
 export type TPerson = {

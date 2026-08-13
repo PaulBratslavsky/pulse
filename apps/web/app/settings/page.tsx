@@ -1,4 +1,4 @@
-import { strapiFetch } from '@/lib/strapi'
+import { loaders } from '@/lib/loaders'
 import MutedAuthors from '@/components/settings/muted-authors'
 import ClassificationPanel from '@/components/settings/classification-panel'
 import LeaderboardOptOut from '@/components/settings/leaderboard-optout'
@@ -8,17 +8,33 @@ import LeadScoring from '@/components/settings/lead-scoring'
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 
 export default async function SettingsPage() {
-  const [muted, prefs, classification, mcp, leads] = await Promise.all([
-    strapiFetch('/api/muted-authors?sort=updatedAt:desc&pagination[pageSize]=100').catch(() => ({ data: [] })),
-    strapiFetch('/api/preferences/me').catch(() => ({ data: { hideFromLeaderboard: false } })),
-    strapiFetch('/api/analysis/status').catch(() => ({
-      data: { enabled: false, provider: '', model: '', counts: { missing: 0, fallbackOnly: 0 }, budget: { spent: 0, budget: 0, exceeded: false } },
-    })),
-    strapiFetch('/api/mcp-servers').catch(() => ({ data: [] })),
-    strapiFetch('/api/people/leads-status').catch(() => ({
-      data: { scored: 0, hot: 0, warm: 0, lastScoredAt: null, staleCount: 0 },
-    })),
+  // Every panel here degrades independently: one endpoint being down should
+  // cost you that panel, not the whole settings page.
+  const [mutedRes, prefsRes, classificationRes, mcpRes, leadsRes] = await Promise.all([
+    loaders.getMutedAuthors(),
+    loaders.getMyPreferences(),
+    loaders.getAnalysisStatus(),
+    loaders.getMcpServers(),
+    loaders.getLeadsStatus(),
   ])
+
+  const muted = mutedRes.data ?? []
+  const prefs = prefsRes.data ?? { hideFromLeaderboard: false }
+  const classification = classificationRes.data ?? {
+    enabled: false,
+    provider: '',
+    model: '',
+    counts: { missing: 0, fallbackOnly: 0 },
+    budget: { spent: 0, budget: 0, exceeded: false },
+  }
+  const mcp = mcpRes.data ?? []
+  const leads = leadsRes.data ?? {
+    scored: 0,
+    hot: 0,
+    warm: 0,
+    lastScoredAt: null,
+    staleCount: 0,
+  }
 
   const links = [
     { href: `${STRAPI_URL}/admin`, label: 'Strapi admin panel', note: 'accounts, roles, dead letters' },
@@ -41,29 +57,29 @@ export default async function SettingsPage() {
           Muting is a narrower, author-specific action. Keeping them in separate
           cards stops "Rescan history" reading as "re-run analysis". */}
       <div className="mb-4">
-        <ClassificationPanel status={classification.data} />
+        <ClassificationPanel status={classification} />
       </div>
 
       {/* directly under classification: both describe what the model can do,
           and connecting the docs server is the single biggest quality lever on
           drafted replies */}
       <div className="mb-4">
-        <McpServers servers={mcp.data ?? []} />
+        <McpServers servers={mcp} />
       </div>
 
       {/* after classification, because it consumes what classification produces:
           lanes in, per-person intent scores out. Its own card so a free action
           never sits inside the one that shows a token budget. */}
       <div className="mb-4">
-        <LeadScoring status={leads.data} />
+        <LeadScoring status={leads} />
       </div>
 
       <div className="mb-4">
-        <MutedAuthors muted={muted.data ?? []} />
+        <MutedAuthors muted={muted} />
       </div>
 
       <div className="mb-8">
-        <LeaderboardOptOut hidden={Boolean(prefs.data?.hideFromLeaderboard)} />
+        <LeaderboardOptOut hidden={Boolean(prefs.hideFromLeaderboard)} />
       </div>
 
       <h2 className="font-medium mb-3">Admin panel</h2>

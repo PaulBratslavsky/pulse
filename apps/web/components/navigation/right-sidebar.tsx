@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ArrowRight, MessageSquare, Eye, ListChecks } from 'lucide-react'
-import { strapiFetch, qs } from '@/lib/strapi'
+import { loaders } from '@/lib/loaders'
 import { SentimentBadge } from '@/components/ui/badges'
 import { Avatar } from '@/components/ui'
 
@@ -39,34 +39,21 @@ function StatCell({ row, stat }: { row: any; stat: (typeof WORK)[number] }) {
 
 /** DevFlow-style right rail: needs-attention mentions + top topics. */
 export async function RightSidebar() {
-  let attention: any[] = []
-  let themes: any[] = []
-  let leaders: any[] = []
-  let team: any = {}
-  try {
-    const [mentions, themesRes, boardRes] = await Promise.all([
-      strapiFetch(
-        '/api/mentions' +
-          qs({
-            'filters[status][$eq]': 'unanswered',
-            // the queue excludes confirmed spam; this rail forgot to, so muted
-            // authors kept surfacing under "Needs attention" — the one place
-            // that asserts something needs a human
-            'filters[quality][$ne]': 'spam',
-            sort: 'postedAt:asc',
-            'pagination[pageSize]': 5,
-          })
-      ),
-      strapiFetch('/api/insights/themes?window=30'),
-      strapiFetch('/api/insights/leaderboard?days=7').catch(() => ({ data: { leaders: [] } })),
-    ])
-    attention = mentions.data ?? []
-    themes = (themesRes.data?.themes ?? []).slice(0, 6)
-    leaders = (boardRes.data?.leaders ?? []).slice(0, 8)
-    team = boardRes.data?.team ?? team
-  } catch {
-    return null
-  }
+  const [mentionsRes, themesRes, boardRes] = await Promise.all([
+    loaders.getUnansweredPreview(),
+    loaders.getThemes({ window: 30 }),
+    loaders.getLeaderboard(7),
+  ])
+
+  // The rail is supplementary. If what it exists to show cannot be loaded it
+  // disappears rather than taking the shell down — the same as the old bare
+  // `catch { return null }`, now without needing an exception to get here.
+  if (!mentionsRes.success || !themesRes.success) return null
+
+  const attention = mentionsRes.data ?? []
+  const themes = (themesRes.data?.themes ?? []).slice(0, 6)
+  const leaders = (boardRes.data?.leaders ?? []).slice(0, 8)
+  const team = boardRes.data?.team ?? {}
 
   return (
     <aside className="sticky right-0 top-16 flex h-[calc(100dvh-4rem)] w-[330px] flex-col gap-8 overflow-y-auto bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 p-6 pt-10 max-xl:hidden">
