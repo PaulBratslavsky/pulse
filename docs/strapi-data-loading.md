@@ -243,15 +243,23 @@ Useful v5 operators: `$eq`, `$eqi` (case-insensitive), `$containsi`, `$null` /
   render, so a `catch` that does not rethrow turns a redirect into a blank page.
 - Log a token, a cookie, or a full request header in an error path.
 
-## 6. Migrating an existing throwing client
+## 6. The migration off the throwing client — done
 
-Pulse's `lib/strapi.ts` throws on failure today, and roughly a dozen pages have
-`catch (err) { if (err.status === 401) redirect('/sign-in') }`. Moving to
-errors-as-values changes every one of those call sites, so do it as its own
-change with its own tests — not folded into an unrelated refactor, where a
-behaviour change hides inside a diff that claims to have none.
+`lib/strapi.ts` is gone. All 37 call sites across 13 files moved onto
+`loaders`, and no file outside `lib/data-api.ts` calls `fetch`.
 
-The shape of each call site after the move:
+Two things worth carrying forward from doing it:
+
+- **Type against the renderer, not against a guess.** Where a component already
+  declared its props — `TrendChart`, `GraphView`, the MCP panel, the lead
+  profile form — those types became the payload types. Where the renderer was
+  still untyped, the payload type stayed deliberately permissive rather than
+  inventing a shape nothing could check.
+- **The compiler catches wrong guesses.** Two of ours: `leadContext.decayApplied`
+  is a multiplier compared against `1`, not a boolean flag, and the
+  acknowledged-by-reason rows are read as `.name`, not `.reason`.
+
+The shape of each call site after the move, for reference:
 
 ```ts
 // before
