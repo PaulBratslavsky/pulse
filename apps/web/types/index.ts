@@ -8,9 +8,15 @@
 
 // ── API envelope ────────────────────────────────────────────────────────────
 
-/** What `strapiFetch` resolves to. `meta` is absent on single-entity reads. */
+/**
+ * Every response from the transport, success or failure.
+ *
+ * `success` is the discriminant — narrow on it and TypeScript hands you `data`
+ * without a `!`. Failures arrive as values rather than exceptions, so a caller
+ * that must handle a 401 is told so by the type rather than by a stack trace.
+ */
 export type TStrapiResponse<T> = {
-  data: T
+  data?: T
   meta?: {
     pagination?: TPagination
     /**
@@ -20,6 +26,18 @@ export type TStrapiResponse<T> = {
      */
     grouped?: boolean
   }
+  error?: TStrapiError
+  success: boolean
+  status: number
+}
+
+export type THTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+
+export type TRequestOptions = { timeoutMs?: number; authToken?: string }
+
+export type TApiOptions<P = Record<string, unknown>> = TRequestOptions & {
+  method: THTTPMethod
+  payload?: P
 }
 
 export type TPagination = {
@@ -29,8 +47,13 @@ export type TPagination = {
   total: number
 }
 
-/** An error from `strapiFetch` carrying the HTTP status it failed with. */
-export type TStrapiError = Error & { status?: number }
+/** Strapi's own error shape, plus the ones we synthesise for timeout and network. */
+export type TStrapiError = {
+  status: number
+  name: string
+  message: string
+  details?: unknown
+}
 
 // ── Route params ────────────────────────────────────────────────────────────
 
