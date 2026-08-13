@@ -25,11 +25,69 @@ export type TStrapiResponse<T> = {
      * has to read this rather than assume it got what it asked for.
      */
     grouped?: boolean
+    /** the graph endpoint offers the projections it can render */
+    projections?: TGraphProjection[]
   }
   error?: TStrapiError
   success: boolean
   status: number
 }
+
+export type TGraphProjection = { id: string; label: string; description: string }
+
+// ── Insights payloads ───────────────────────────────────────────────────────
+
+export type TInsightsConfig = { aiEnabled: boolean }
+
+/** Shapes taken from TrendChart's own props — it is the only consumer. */
+export type TTrendPoint = { date: string; score: number | null; volume: number }
+export type TTrendEvent = { documentId: string; title: string; date: string; kind: string }
+export type TTrendsPayload = { series: TTrendPoint[]; events: TTrendEvent[] }
+
+/**
+ * Deliberately permissive, and NOT `any`.
+ *
+ * The components consuming these (theme-list, the sigma graph, the feedback and
+ * snapshot panels) still take untyped props, so a precise payload type here
+ * would be a guess that the compiler could not check against its only consumer.
+ * Typing each payload belongs with typing the component that renders it.
+ */
+export type TLooseRecord = Record<string, unknown>
+
+export type TThemesPayload = { windowDays: number; themes: TLooseRecord[] }
+export type TGraphPayload = { projection?: string } & TLooseRecord
+export type TLeaderboard = { leaders: TLooseRecord[] }
+
+// ── Settings payloads ───────────────────────────────────────────────────────
+
+export type TPreferences = { hideFromLeaderboard: boolean }
+
+export type TAnalysisStatus = {
+  enabled: boolean
+  provider: string
+  model: string
+  counts: { missing: number; fallbackOnly: number }
+  budget: { spent: number; budget: number; exceeded: boolean }
+}
+
+export type TLeadsStatus = {
+  scored: number
+  hot: number
+  warm: number
+  lastScoredAt: string | null
+  staleCount: number
+}
+
+export type TMutedAuthor = { documentId: string; handle: string } & TLooseRecord
+
+/** The lead board and the person page read these; the rest varies by endpoint. */
+export type TPerson = {
+  documentId: string
+  handle?: string | null
+  leadScore?: number | null
+  leadContext?: { evidence?: string | null; strongestMention?: string | null } | null
+  profile?: { started?: boolean; hasEmail?: boolean; company?: string | null } | null
+} & TLooseRecord
 
 export type THTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
