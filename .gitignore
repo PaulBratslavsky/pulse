@@ -15,3 +15,7 @@ apps/cms/src/plugins/*/dist/
 apps/cms/src/plugins/*/server/tsconfig.tsbuildinfo
 apps/web/playwright/.auth/
 seed-data.tar.gz
+
+# Scratch checkouts an agent works in. A worktree that fails to delete cleanly
+# otherwise shows up as a few hundred untracked files in Source Control.
+.claude/worktrees/
