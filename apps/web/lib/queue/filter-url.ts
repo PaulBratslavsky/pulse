@@ -1,13 +1,15 @@
 import type { TQueueFilterOverrides, TQueueSearchParams } from '@/types'
 
 /**
- * Every filter that survives a link, in the order the original set them — so a
- * URL built from the same state is byte-identical to the pre-refactor one.
+ * Every filter that survives a link, in the order the original set them.
  *
- * `awaiting` is deliberately absent, matching the original exactly: it was
- * declared in the override type and then never read or written, so the
- * "awaiting reply" pill has always linked to a URL without it. Fixing that is
- * a behaviour change and gets its own commit; this one stays a pure refactor.
+ * `awaiting` is last because it was missing entirely: the old filterUrl
+ * declared it in the override type and then never read or wrote it, so the
+ * "awaiting reply" pill linked to a URL without the param and could never go
+ * active. The filter itself always worked — the page reads params.awaiting, and
+ * currentSearch carried it — so only the one route in, the pill, was dead.
+ * Appended rather than slotted in alphabetically so every other filter's URL is
+ * unchanged.
  */
 const FILTER_KEYS = [
   'status',
@@ -20,6 +22,7 @@ const FILTER_KEYS = [
   'q',
   'lane',
   'every',
+  'awaiting',
 ] as const
 
 /**

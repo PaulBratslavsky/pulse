@@ -101,13 +101,18 @@ test('filterUrl: page 1 is left out of the URL', () => {
 })
 
 /**
- * Pins the pre-refactor bug rather than blessing it: `awaiting` was declared in
- * the override type and never written, so the "awaiting reply" pill linked to a
- * URL without it and could never go active. Preserved here so the refactor is
- * provably behaviour-identical; the fix is its own commit, which flips this.
+ * The bug this branch found: `awaiting` was declared in the override type and
+ * never written, so the "awaiting reply" pill linked to a URL without the param
+ * and could never go active. The filter itself always worked — the page reads
+ * params.awaiting — so only the route in was dead.
  */
-test('filterUrl: awaiting is dropped — pre-refactor behaviour, fixed separately', () => {
-  expect(makeFilterUrl({})({ awaiting: '1' })).toBe('/')
+test('filterUrl: the awaiting pill actually carries its filter', () => {
+  expect(makeFilterUrl({})({ awaiting: '1' })).toBe('/?awaiting=1')
+})
+
+test('filterUrl: awaiting inherits and clears like every other filter', () => {
+  expect(makeFilterUrl({ awaiting: '1' })({ sentiment: 'negative' })).toContain('awaiting=1')
+  expect(makeFilterUrl({ awaiting: '1' })({ awaiting: undefined })).toBe('/')
 })
 
 test('currentSearch: carries the live filters and omits page 1', () => {
