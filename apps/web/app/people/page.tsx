@@ -157,9 +157,12 @@ export default async function PeoplePage({
                 <Avatar name={p.displayName ?? p.handle ?? '?'} src={p.avatarUrl ?? undefined} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {/* Underlined at rest, not only on hover. This is the way
+                        in to everything the person has said, and a link you
+                        cannot see is a page nobody opens. */}
                     <Link
                       href={`/leads/${p.documentId}`}
-                      className="font-medium underline-offset-2 hover:underline"
+                      className="font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-current dark:decoration-zinc-600"
                     >
                       {p.displayName ?? `@${p.handle}`}
                     </Link>
@@ -206,9 +209,17 @@ export default async function PeoplePage({
                   </div>
 
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-                    <span>
+                    {/* The count IS the doorway: it is the number that makes
+                        you curious, and it used to be the one thing on the row
+                        you could not click. Goes to the person page, which
+                        lists every one of them newest first. */}
+                    <Link
+                      href={`/leads/${p.documentId}`}
+                      className="underline decoration-zinc-300 underline-offset-2 hover:text-zinc-700 hover:decoration-current dark:decoration-zinc-600 dark:hover:text-zinc-300"
+                      title={`Read all ${p.mentionCount} — every mention this person has made`}
+                    >
                       {p.mentionCount} {p.mentionCount === 1 ? 'mention' : 'mentions'}
-                    </span>
+                    </Link>
                     {p.lastSeenAt && <span>last seen {new Date(p.lastSeenAt).toLocaleDateString()}</span>}
                     {/* Audience, named with the account it is on — and honest
                         about not knowing. A follower count we were never given
