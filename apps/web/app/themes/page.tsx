@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { strapiFetch, qs } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import ThemeList from '@/components/insights/theme-list'
 
 /**
@@ -15,14 +15,10 @@ export default async function ThemesPage({
   searchParams: Promise<{ window?: string; q?: string; kind?: string }>
 }) {
   const params = await searchParams
-  let data: any
-  try {
-    data = await strapiFetch('/api/insights/themes' + qs({ window: params.window }))
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    throw err
-  }
-  const { windowDays, themes } = data.data
+  const res = await loaders.getThemes({ window: params.window })
+  if (isAuthError(res)) redirect('/sign-in')
+  if (!res.success) throw new Error(res.error?.message ?? 'failed to load themes')
+  const { windowDays, themes } = res.data ?? { windowDays: 30, themes: [] }
 
   return (
     <div>

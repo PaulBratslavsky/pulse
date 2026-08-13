@@ -1,19 +1,17 @@
 import { redirect } from 'next/navigation'
-import { strapiFetch } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import ChatUI from '@/components/chat/chat-ui'
 
 export default async function ChatPage() {
-  let config: any
-  try {
-    config = await strapiFetch('/api/insights/config')
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    config = { data: { aiEnabled: false } }
-  }
+  const res = await loaders.getInsightsConfig()
+  if (isAuthError(res)) redirect('/sign-in')
+  // any other failure degrades to "off" rather than taking the page down —
+  // a chat box that cannot reach its config is worse than an honest notice
+  const config = res.data ?? { aiEnabled: false, chatEnabled: false }
 
   // chatEnabled, not aiEnabled: classification runs on a key alone, the
   // assistant needs AI_CHAT_ENABLED=true as a separate deliberate switch
-  if (!config.data.chatEnabled) {
+  if (!config.chatEnabled) {
     return (
       <div>
         <h1 className="text-2xl font-semibold mb-1">Chat with the data</h1>

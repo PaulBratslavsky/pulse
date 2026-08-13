@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import { Share2 } from 'lucide-react'
-import { strapiFetch, qs } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import { FilterPill, EmptyState } from '@/components/ui'
 import GraphView from '@/components/insights/graph-view'
+import type { TGraphProjection } from '@/types'
 
 /**
  * Conversation map — the corpus as a network rather than a queue.
@@ -24,18 +25,13 @@ export default async function GraphPage({
   const days = WINDOWS.includes(Number(params.days) as any) ? Number(params.days) : 90
   const colorBy = params.color === 'sentiment' ? 'sentiment' : 'cluster'
 
-  let payload: any
-  let projections: { id: string; label: string; description: string }[] = []
-  try {
-    const res = await strapiFetch(
-      '/api/insights/graph' + qs({ projection: params.projection, days: String(days) })
-    )
-    payload = res.data
-    projections = res.meta?.projections ?? []
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    throw err
-  }
+  const res = await loaders.getGraph({ projection: params.projection, days: String(days) })
+  if (isAuthError(res)) redirect('/sign-in')
+  // a 200 with no payload is a broken response, not an empty graph
+  if (!res.success || !res.data) throw new Error(res.error?.message ?? 'failed to load the graph')
+
+  const payload = res.data
+  const projections: TGraphProjection[] = res.meta?.projections ?? []
 
   const url = (over: Record<string, string | undefined>) => {
     const q = new URLSearchParams()

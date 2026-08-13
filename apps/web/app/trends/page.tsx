@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { strapiFetch, qs } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import EventForm from '@/components/insights/event-form'
 import TrendChart from '@/components/insights/trend-chart'
 
@@ -9,17 +9,19 @@ export default async function TrendsPage({
   searchParams: Promise<{ from?: string; to?: string; topic?: string }>
 }) {
   const params = await searchParams
-  let data: any
-  let config: any = { data: { aiEnabled: true } }
-  try {
-    data = await strapiFetch('/api/insights/trends' + qs(params))
-    config = await strapiFetch('/api/insights/config')
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    throw err
-  }
-  const { series, events } = data.data
-  const latest = [...series].reverse().find((p: any) => p.score != null)
+
+  const trends = await loaders.getTrends(params)
+  if (isAuthError(trends)) redirect('/sign-in')
+  if (!trends.success) throw new Error(trends.error?.message ?? 'failed to load trends')
+
+  // the chart is the page; the config only decides whether to offer AI copy,
+  // so it defaults to on rather than taking the page down
+  const configRes = await loaders.getInsightsConfig()
+  if (isAuthError(configRes)) redirect('/sign-in')
+  const config = configRes.data ?? { aiEnabled: true }
+
+  const { series, events } = trends.data ?? { series: [], events: [] }
+  const latest = [...series].reverse().find((p) => p.score != null)
 
   return (
     <div>
@@ -36,14 +38,14 @@ export default async function TrendsPage({
         </div>
       </div>
 
-      {!config.data.aiEnabled && (
+      {!config.aiEnabled && (
         <p className="mb-4 text-sm rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
           Pulse AI is disabled — scores come from Octolens sentiment labels and manual labeling
           (provenance-stamped <code className="text-xs">modelVersion: octolens</code>). Set{' '}
           <code className="text-xs">AI_API_KEY</code> for Pulse&apos;s own analysis.
         </p>
       )}
-      {series.every((p: any) => p.score == null) ? (
+      {series.every((p) => p.score == null) ? (
         <div className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-12 text-center">
           <p className="text-lg font-medium mb-1">Not enough data yet</p>
           <p className="text-sm text-zinc-500 max-w-md mx-auto">
@@ -64,7 +66,7 @@ export default async function TrendsPage({
         </div>
         {events.length > 0 ? (
           <ul className="text-sm space-y-1">
-            {events.map((e: any) => (
+            {events.map((e) => (
               <li key={e.documentId}>
                 <span className="text-zinc-400">{new Date(e.date).toISOString().slice(0, 10)}</span>{' '}
                 <span className="font-medium">{e.title}</span>{' '}

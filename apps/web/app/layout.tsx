@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import Providers from './providers'
 import { EnvironmentBanner } from '@/components/ui/environment-banner'
-import { strapiFetch } from '@/lib/strapi'
+import { loaders } from '@/lib/loaders'
 import { TopNav } from '@/components/navigation/top-nav'
 import { LeftSidebar } from '@/components/navigation/left-sidebar'
 import { RightSidebar } from '@/components/navigation/right-sidebar'
@@ -34,7 +34,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // null on /sign-in (no cookie) or if the session expired — shell degrades to bare content
-  const me = await strapiFetch('/api/users/me').catch(() => null)
+  const me = (await loaders.getMe()).data ?? null
 
   return (
     <html

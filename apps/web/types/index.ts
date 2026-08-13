@@ -1,3 +1,5 @@
+import type { GraphEdge, GraphNode } from '@/components/insights/graph-view'
+
 /**
  * Wire types for the Pulse API.
  *
@@ -37,11 +39,23 @@ export type TGraphProjection = { id: string; label: string; description: string 
 
 // ── Insights payloads ───────────────────────────────────────────────────────
 
-export type TInsightsConfig = { aiEnabled: boolean }
+/**
+ * chatEnabled is separate from aiEnabled on purpose: classification runs on an
+ * API key alone, while the assistant needs AI_CHAT_ENABLED=true as its own
+ * deliberate switch.
+ */
+export type TInsightsConfig = { aiEnabled: boolean; chatEnabled?: boolean }
 
 /** Shapes taken from TrendChart's own props — it is the only consumer. */
 export type TTrendPoint = { date: string; score: number | null; volume: number }
-export type TTrendEvent = { documentId: string; title: string; date: string; kind: string }
+/** `notes` is not in TrendChart's props but the trends page lists it. */
+export type TTrendEvent = {
+  documentId: string
+  title: string
+  date: string
+  kind: string
+  notes?: string | null
+}
 export type TTrendsPayload = { series: TTrendPoint[]; events: TTrendEvent[] }
 
 /**
@@ -55,8 +69,32 @@ export type TTrendsPayload = { series: TTrendPoint[]; events: TTrendEvent[] }
 export type TLooseRecord = Record<string, unknown>
 
 export type TThemesPayload = { windowDays: number; themes: TLooseRecord[] }
-export type TGraphPayload = { projection?: string } & TLooseRecord
 export type TLeaderboard = { leaders: TLooseRecord[] }
+
+/**
+ * The conversation map. Node and edge shapes are GraphView's own exported
+ * types — it is the only renderer, so its props are the source of truth.
+ */
+export type TGraphCluster = { id: string; label: string; size: number; avgSentiment: number }
+export type TGraphBridge = { id: string; label: string }
+export type TGraphGap = { a: string; b: string; bridges: number }
+export type TGraphStats = {
+  nodeCount: number
+  edgeCount: number
+  mentionsConsidered: number
+  windowDays: number
+  truncated?: boolean
+}
+
+export type TGraphPayload = {
+  projection?: string
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  clusters: TGraphCluster[]
+  bridges: TGraphBridge[]
+  gaps: TGraphGap[]
+  stats: TGraphStats
+}
 
 // ── Settings payloads ───────────────────────────────────────────────────────
 
