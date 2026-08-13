@@ -5,16 +5,19 @@ import { api } from '@/lib/data-api'
 import { buildQueueQuery } from '@/lib/queue/query'
 import type {
   TAnalysisStatus,
+  TFeedbackPayload,
   TGraphPayload,
   TInsightsConfig,
   TLeaderboard,
   TLeadsStatus,
   TMcpServer,
   TMention,
+  TMentionThread,
   TMutedAuthor,
   TPerson,
   TPreferences,
   TQueueSearchParams,
+  TSnapshotPayload,
   TStrapiResponse,
   TThemesPayload,
   TTopicRef,
@@ -88,7 +91,7 @@ const getUnansweredPreview = () =>
 
 const getMention = (id: string) => get<TMention>(`/api/mentions/${id}`)
 
-const getMentionThread = (id: string) => get<TMention[]>(`/api/mentions/${id}/thread`)
+const getMentionThread = (id: string) => get<TMentionThread>(`/api/mentions/${id}/thread`)
 
 // ── People and leads ────────────────────────────────────────────────────────
 
@@ -112,10 +115,10 @@ const getThemes = (query: Record<string, unknown>) =>
 
 const getGraph = (query: Record<string, unknown>) => get<TGraphPayload>('/api/insights/graph', query)
 
-const getSnapshot = (days: number) => get<unknown>('/api/insights/snapshot', { days })
+const getSnapshot = (days: number) => get<TSnapshotPayload>('/api/insights/snapshot', { days })
 
 const getFeedback = (days: number, topic?: string) =>
-  get<unknown>('/api/insights/feedback', { days, ...(topic ? { topic } : {}) })
+  get<TFeedbackPayload>('/api/insights/feedback', { days, ...(topic ? { topic } : {}) })
 
 const getLeaderboard = (days: number) => get<TLeaderboard>('/api/insights/leaderboard', { days })
 

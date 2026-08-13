@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ExternalLink, MessagesSquare, CornerDownRight } from 'lucide-react'
 
-type ThreadMention = {
+export type ThreadMention = {
   documentId: string
   content: string
   authorHandle?: string | null

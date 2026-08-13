@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FileBarChart, TrendingUp, Tags, MessagesSquare, ArrowUpRight, ArrowDownRight } from 'lucide-react'
-import { strapiFetch } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import { FilterPill } from '@/components/ui'
 
 /**
@@ -113,13 +113,11 @@ export default async function InsightsPage({
   const params = await searchParams
   const days = WINDOWS.includes(Number(params.window) as any) ? Number(params.window) : 30
 
-  let snap: any
-  try {
-    snap = (await strapiFetch(`/api/insights/snapshot?days=${days}`)).data
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    throw err
-  }
+  const res = await loaders.getSnapshot(days)
+  if (isAuthError(res)) redirect('/sign-in')
+  // a 200 with no payload is a broken response, not an empty dashboard
+  if (!res.success || !res.data) throw new Error(res.error?.message ?? 'failed to load insights')
+  const snap = res.data
 
   const sentimentEntries = Object.entries(snap.mentions.bySentiment as Record<string, number>).filter(
     ([, n]) => n > 0

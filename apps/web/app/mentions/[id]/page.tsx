@@ -4,7 +4,7 @@ import { IdCard } from 'lucide-react'
 import ResponseCard from '@/components/mention/response-card'
 import { ConversationThread } from '@/components/mention/conversation-thread'
 import { BackToQueue } from '@/components/queue/queue-view-memory'
-import { strapiFetch, fetchAllTopics } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import { SentimentBadge, StatusBadge, LaneBadge } from '@/components/ui/badges'
 import MentionActions from '@/components/mention/mention-actions'
 import { UserChip } from '@/components/ui'
@@ -16,23 +16,19 @@ import { ReplyBox } from '@/components/reply/reply-box'
 
 export default async function MentionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  let data: any
-  try {
-    data = await strapiFetch(`/api/mentions/${id}`)
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    throw err
-  }
-  const m = data.data
+  const res = await loaders.getMention(id)
+  if (isAuthError(res)) redirect('/sign-in')
+  if (!res.success) throw new Error(res.error?.message ?? 'failed to load the mention')
+  const m = res.data
   if (!m) notFound()
 
-  const topics = { data: await fetchAllTopics() }
-  const config = await strapiFetch('/api/insights/config').catch(() => ({ data: { aiEnabled: false } }))
-  const me = await strapiFetch('/api/users/me').catch(() => null)
+  const topics = { data: await loaders.getAllTopics() }
+  const config = (await loaders.getInsightsConfig()).data ?? { aiEnabled: false }
+  const me = (await loaders.getMe()).data ?? null
   // Only asked for when the permalink yielded a conversation — X and LinkedIn
   // URLs carry nothing to thread on, so most mentions skip this entirely.
   const thread = m.threadKey
-    ? await strapiFetch(`/api/mentions/${m.documentId}/thread`).catch(() => null)
+    ? await loaders.getMentionThread(m.documentId)
     : null
 
   const twoCol = 'grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start'
@@ -56,7 +52,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
         <BackToQueue />
 
         {/* 1 — the mention, with the rest of its conversation beside it */}
-        <section className={thread?.data?.mentions?.length > 1 ? twoCol : ''}>
+        <section className={(thread?.data?.mentions?.length ?? 0) > 1 ? twoCol : ''}>
         <div>
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <SentimentBadge label={m.sentimentLabel} />
@@ -152,7 +148,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
               moderation. They belong to what you are reading, not to the reply
               you are writing; loose above the reply card they read as a toolbar
               for a box they have nothing to do with. */}
-          <MentionActions mention={m} allTopics={topics.data ?? []} aiEnabled={config.data.aiEnabled} />
+          <MentionActions mention={m} allTopics={topics.data ?? []} aiEnabled={config.aiEnabled} />
         </div>
 
           {/* beside the mention: context for what you are reading, and the
@@ -163,13 +159,13 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
         {/* 2 — answering it */}
         <section className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
           <h2 className={heading}>Your reply</h2>
-          <div className={config.data.aiEnabled ? twoCol : ''}>
-            <ReplyBox mention={m} aiEnabled={config.data.aiEnabled} />
+          <div className={config.aiEnabled ? twoCol : ''}>
+            <ReplyBox mention={m} aiEnabled={config.aiEnabled} />
             {/* The generated draft and the conversation about it are one job:
                 write something, ask whether it is right, revise it. Beside the
                 reply box rather than inside it — a suggestion sitting in the
                 reply card read as a reply already written. */}
-            {config.data.aiEnabled && (
+            {config.aiEnabled && (
               <div className="space-y-4">
                 <DraftPanel documentId={m.documentId} />
                 <ReplyChat documentId={m.documentId} />

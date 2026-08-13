@@ -1,5 +1,6 @@
 import type { GraphEdge, GraphNode } from '@/components/insights/graph-view'
 import type { Server } from '@/components/settings/mcp-servers'
+import type { ThreadMention } from '@/components/mention/conversation-thread'
 
 /**
  * Wire types for the Pulse API.
@@ -70,6 +71,34 @@ export type TTrendsPayload = { series: TTrendPoint[]; events: TTrendEvent[] }
 export type TLooseRecord = Record<string, unknown>
 
 export type TThemesPayload = { windowDays: number; themes: TLooseRecord[] }
+
+/** BarList's row shape; the insights page hands these over untouched. */
+export type TBarRow = { name: string; count: number }
+
+/** The insights dashboard. Fields are the ones that page actually renders. */
+export type TSnapshotPayload = {
+  pulse: { current: number | null; delta: number | null }
+  mentions: {
+    total: number
+    avgScore: number | null
+    bySentiment: Record<string, number>
+    byStatus: Record<string, number>
+    /** BarList rows, not a map — the insights page passes these straight through */
+    byChannel: TBarRow[]
+    acknowledgedByReason: { reason: string; count: number }[]
+  }
+  responses: {
+    total: number
+    medianHoursToAnswer: number | null
+    byUser: TBarRow[]
+  }
+}
+
+export type TFeedbackPayload = {
+  total: number
+  topics: TLooseRecord[]
+  items: TLooseRecord[]
+}
 /** `team` is the totals row — one count per work type, keyed by its stat name. */
 export type TLeaderboard = { leaders: TLooseRecord[]; team?: Record<string, number> }
 
@@ -257,6 +286,27 @@ export type TMention = {
   assignee?: TUserRef | null
   responses?: TResponseRecord[]
   activities?: TActivityEntry[]
+  /** where the conversation happened, when the thread endpoint could say */
+  venue?: string | null
+  /** set only when the permalink yielded a conversation id — Reddit, in practice */
+  threadKey?: string | null
+  /** the resolved author, when Pulse has one */
+  person?: {
+    documentId: string
+    leadProfile?: {
+      startedAt?: string | null
+      email?: string | null
+      company?: string | null
+    } | null
+  } | null
   /** detail API: array; list API: relation count */
   comments?: TCommentEntry[] | { count: number }
 }
+
+/**
+ * The thread endpoint answers with the conversation around a mention, not a
+ * bare list — `venue` describes where it happened.
+ */
+export type TMentionThread = {
+  mentions: ThreadMention[]
+} & TLooseRecord

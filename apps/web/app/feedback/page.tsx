@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { MessageSquareHeart } from 'lucide-react'
-import { strapiFetch } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import { FilterPill, EmptyState } from '@/components/ui'
 import FeedbackList from '@/components/insights/feedback-list'
 
@@ -19,17 +19,11 @@ export default async function FeedbackPage({
   const params = await searchParams
   const days = ['30', '90', '365'].includes(params.days ?? '') ? params.days! : '90'
 
-  let data: any
-  try {
-    data = (
-      await strapiFetch(
-        `/api/insights/feedback?days=${days}${params.topic ? `&topic=${encodeURIComponent(params.topic)}` : ''}`
-      )
-    ).data
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    throw err
-  }
+  const res = await loaders.getFeedback(Number(days), params.topic)
+  if (isAuthError(res)) redirect('/sign-in')
+  // a 200 with no payload is a broken response, not an empty report
+  if (!res.success || !res.data) throw new Error(res.error?.message ?? 'failed to load feedback')
+  const data = res.data
 
   // ranked by count already — the head is the signal, the tail is reference
   const TOP_AREAS = 8
