@@ -9,14 +9,25 @@ import { defineConfig, devices } from '@playwright/test'
  *   project reuses it (per-test sign-ins trip Strapi's auth rate limit).
  *   auth.spec.ts runs in its own project WITHOUT stored state — it tests the
  *   sign-in/sign-out flows themselves.
+ *
+ * PW_BASE_URL points the whole suite somewhere else — a second checkout, a
+ * worktree, a preview deploy. Setting it also means "a server is already
+ * running", so the managed webServer stands down.
+ *
+ * Specs must use RELATIVE paths (`request.get('/api/pulse/...')`). They used to
+ * hardcode http://localhost:3000, which silently tested whatever owned that
+ * port: with an unrelated app there, every such call came back as HTML and the
+ * failures read like application bugs.
  */
+const BASE_URL = process.env.PW_BASE_URL ?? 'http://localhost:3000'
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
   retries: 0,
   workers: 1, // flows mutate shared state (claim/respond) — keep serial
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: BASE_URL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
@@ -90,10 +101,13 @@ export default defineConfig({
         ]
       : []),
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000/sign-in',
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+  // PW_BASE_URL means you started the server yourself; don't also manage one.
+  webServer: process.env.PW_BASE_URL
+    ? undefined
+    : {
+        command: 'npm run dev',
+        url: `${BASE_URL}/sign-in`,
+        reuseExistingServer: true,
+        timeout: 60_000,
+      },
 })

@@ -73,7 +73,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
   })
 
   test('octolens sentiment is adopted as initial label when AI is disabled', async ({ page, request }) => {
-    const config = await (await request.get('http://localhost:3000/api/pulse/insights/config')).json().catch(() => null)
+    const config = await (await request.get('/api/pulse/insights/config')).json().catch(() => null)
     // this behavior is keyless-only; with AI enabled Pulse analyzes instead
     test.skip(config?.data?.aiEnabled === true, 'AI enabled — Pulse analyzes, Octolens label ignored')
 
@@ -345,7 +345,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     // (status badge + activity entry), so counting text can't tell one claim
     // from two. The activity trail is the source of truth.
     const res = await request.get(
-      `http://localhost:3000/api/pulse/activities?filters[mention][documentId][$eq]=${documentId}&filters[action][$eq]=claimed`
+      `/api/pulse/activities?filters[mention][documentId][$eq]=${documentId}&filters[action][$eq]=claimed`
     )
     const body = await res.json()
     expect(body.data.length, 'a double click must not record two claims').toBe(1)
@@ -363,7 +363,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page.getByText('acknowledged', { exact: true }).first()).toBeVisible()
 
     // reason is own-post, which is what excludes it from sentiment metrics
-    const res = await request.get(`http://localhost:3000/api/pulse/mentions/${documentId}`)
+    const res = await request.get(`/api/pulse/mentions/${documentId}`)
     const body = await res.json()
     expect(body.data.acknowledgeReason).toBe('own-post')
 
@@ -883,7 +883,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     const read = async (id: string) =>
       (
         await (
-          await request.get(`http://localhost:3000/api/pulse/mentions/${id}`, {
+          await request.get(`/api/pulse/mentions/${id}`, {
             headers: { cookie },
           })
         ).json()

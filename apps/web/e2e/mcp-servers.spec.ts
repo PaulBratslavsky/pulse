@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const PULSE = 'http://localhost:3000/api/pulse'
+const PULSE = '/api/pulse'
 
 test.describe('external MCP servers', () => {
   test('a server can be registered and shows its connection state', async ({ page }) => {

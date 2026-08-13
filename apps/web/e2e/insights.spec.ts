@@ -18,7 +18,7 @@ test.describe('insights surfaces', () => {
 
   test('chat works when AI is enabled, shows disabled notice when not', async ({ page, request }) => {
     const config = await (
-      await request.get('http://localhost:3000/api/pulse/insights/config', {
+      await request.get('/api/pulse/insights/config', {
         headers: { cookie: (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ') },
       })
     ).json()
@@ -41,7 +41,7 @@ test.describe('insights surfaces', () => {
     await page.goto('/')
     const cookies = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const config = await (
-      await request.get('http://localhost:3000/api/pulse/insights/config', { headers: { cookie: cookies } })
+      await request.get('/api/pulse/insights/config', { headers: { cookie: cookies } })
     ).json()
     test.skip(config.data.aiEnabled, 'AI enabled — draft button is expected to be visible')
 

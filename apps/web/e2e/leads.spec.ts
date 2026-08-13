@@ -5,7 +5,7 @@ import { injectMention } from './helpers'
  *  the session cookie. Hitting Strapi directly with a cookie just 403s — and a
  *  403 here reads as "no leads", which silently skips the test instead of
  *  failing it. */
-const PULSE = 'http://localhost:3000/api/pulse'
+const PULSE = '/api/pulse'
 
 /**
  * Leads is the one surface organised around a PERSON rather than a post, so the
