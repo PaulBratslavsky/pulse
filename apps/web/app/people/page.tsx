@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ExternalLink, IdCard, Users } from 'lucide-react'
-import { strapiFetch } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import { Avatar, EmptyState } from '@/components/ui'
 import PeopleSearch from '@/components/leads/people-search'
 
@@ -42,14 +42,10 @@ export default async function PeoplePage({
   if (params.audience) query.set('audience', params.audience)
   if (params.tier) query.set('tier', params.tier)
 
-  let data: any
-  try {
-    data = await strapiFetch(`/api/people?${query.toString()}`)
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    throw err
-  }
-  const people = data.data ?? []
+  const res = await loaders.getPeople(Object.fromEntries(query))
+  if (isAuthError(res)) redirect('/sign-in')
+  if (!res.success) throw new Error(res.error?.message ?? 'failed to load people')
+  const people = res.data ?? []
 
   const href = (patch: Record<string, string>) => {
     const next = new URLSearchParams(query)
@@ -152,7 +148,7 @@ export default async function PeoplePage({
         </EmptyState>
       ) : (
         <ul className="space-y-2">
-          {people.map((p: any) => (
+          {people.map((p) => (
             <li
               key={p.documentId}
               className="rounded-lg border border-zinc-200 bg-white p-3 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
@@ -170,7 +166,7 @@ export default async function PeoplePage({
                     {/* Lead state, in words. `watch` is a real band but reads
                         as a verb; "possible lead" says what it means to someone
                         deciding whether to spend half an hour on this person. */}
-                    {p.leadScore > 0 && (
+                    {(p.leadScore ?? 0) > 0 && (
                       <span
                         className={`rounded-full border px-2 py-0.5 text-xs ${
                           p.leadBand === 'hot' || p.leadBand === 'warm'
@@ -190,7 +186,7 @@ export default async function PeoplePage({
                     {((p.aliases ?? []).length > 1 || p.displayName
                       ? p.aliases ?? []
                       : []
-                    ).map((a: any) => (
+                    ).map((a) => (
                       <span key={a.identityKey} className="text-xs text-zinc-500">
                         {a.profileUrl ? (
                           <a

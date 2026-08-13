@@ -111,7 +111,7 @@ export default async function InsightsPage({
   searchParams: Promise<{ window?: string }>
 }) {
   const params = await searchParams
-  const days = WINDOWS.includes(Number(params.window) as any) ? Number(params.window) : 30
+  const days = (WINDOWS as readonly number[]).includes(Number(params.window)) ? Number(params.window) : 30
 
   const res = await loaders.getSnapshot(days)
   if (isAuthError(res)) redirect('/sign-in')
@@ -140,7 +140,7 @@ export default async function InsightsPage({
     .join(' · ')
   const ackReasons = snap.mentions.acknowledgedByReason.length
     ? 'Acknowledged: ' +
-      snap.mentions.acknowledgedByReason.map((r: any) => `${r.name} ${r.count}`).join(' · ')
+      snap.mentions.acknowledgedByReason.map((r) => `${r.name} ${r.count}`).join(' · ')
     : undefined
 
   return (

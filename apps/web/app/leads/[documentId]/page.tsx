@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect, notFound } from 'next/navigation'
 import { ArrowLeft, ExternalLink, Quote, Users } from 'lucide-react'
-import { strapiFetch } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import { Avatar, Disclosure } from '@/components/ui'
 import { SentimentBadge, LaneBadge } from '@/components/ui/badges'
 import Timeline from '@/components/timeline'
@@ -35,21 +35,17 @@ export default async function PersonPage({
   // nothing until they save.
   const { profile: openProfile } = await searchParams
 
-  let data: any
-  try {
-    data = await strapiFetch(`/api/people/${documentId}`)
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    if (err.status === 404) notFound()
-    throw err
-  }
-  const p = data.data
+  const res = await loaders.getPerson(documentId)
+  if (isAuthError(res)) redirect('/sign-in')
+  if (res.status === 404) notFound()
+  if (!res.success) throw new Error(res.error?.message ?? 'failed to load the person')
+  const p = res.data
   if (!p) notFound()
 
-  const me = await strapiFetch('/api/users/me').catch(() => null)
+  const me = (await loaders.getMe()).data ?? null
   const ctx = p.leadContext ?? {}
   const signals: { id: string; points: number; label: string }[] = ctx.signals ?? []
-  const mentions: any[] = p.mentions ?? []
+  const mentions = p.mentions ?? []
 
   return (
     <div>
@@ -82,7 +78,7 @@ export default async function PersonPage({
                 {/* the control alone on the top row, flush right; who owns it
                     is a fact, so it belongs with the other facts below */}
                 <span className="ml-auto shrink-0">
-                  <LeadStatus documentId={p.documentId} status={p.status} />
+                  <LeadStatus documentId={p.documentId} status={p.status ?? ''} />
                 </span>
               </div>
               {/* text-xs, not text-sm: at 14px the five facts wrapped onto a
@@ -158,7 +154,7 @@ export default async function PersonPage({
           <LeadProfilePanel
             documentId={p.documentId}
             profile={p.leadProfile ?? null}
-            status={p.status}
+            status={p.status ?? ''}
             defaultOpen={openProfile === '1'}
           />
 
@@ -221,7 +217,7 @@ export default async function PersonPage({
             title="Why this score"
             summaryRight={
               <span
-                className={`rounded-full border px-2 py-0.5 text-xs font-medium ${BAND_STYLE[p.leadBand] ?? 'border-zinc-300 text-zinc-500 dark:border-zinc-700'}`}
+                className={`rounded-full border px-2 py-0.5 text-xs font-medium ${BAND_STYLE[p.leadBand ?? ''] ?? 'border-zinc-300 text-zinc-500 dark:border-zinc-700'}`}
               >
                 {p.leadBand} · {p.leadScore}
               </span>

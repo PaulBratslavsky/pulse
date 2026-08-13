@@ -22,7 +22,7 @@ export default async function GraphPage({
   searchParams: Promise<{ projection?: string; days?: string; color?: string }>
 }) {
   const params = await searchParams
-  const days = WINDOWS.includes(Number(params.days) as any) ? Number(params.days) : 90
+  const days = (WINDOWS as readonly number[]).includes(Number(params.days)) ? Number(params.days) : 90
   const colorBy = params.color === 'sentiment' ? 'sentiment' : 'cluster'
 
   const res = await loaders.getGraph({ projection: params.projection, days: String(days) })
@@ -104,7 +104,7 @@ export default async function GraphPage({
           <div className="mt-6 grid gap-3 lg:grid-cols-3">
             <Panel title="Clusters" hint="Themes discovered from how concepts co-occur — not a list anyone declared.">
               <ul className="space-y-2 text-sm">
-                {payload.clusters.slice(0, 6).map((c: any) => (
+                {payload.clusters.slice(0, 6).map((c) => (
                   <li key={c.id} className="flex items-baseline gap-2">
                     <span className="font-medium">{c.label}</span>
                     <span className="text-xs text-zinc-500">{c.size} concepts</span>
@@ -130,7 +130,7 @@ export default async function GraphPage({
             <Panel title="Bridges" hint="Concepts joining otherwise separate clusters — cross-cutting concerns.">
               <div className="flex flex-wrap gap-2">
                 {payload.bridges.length === 0 && <p className="text-sm text-zinc-500">None yet.</p>}
-                {payload.bridges.slice(0, 8).map((b: any) => (
+                {payload.bridges.slice(0, 8).map((b) => (
                   <span
                     key={b.id}
                     className="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
@@ -149,7 +149,7 @@ export default async function GraphPage({
                 {payload.gaps.length === 0 && (
                   <li className="text-sm text-zinc-500">Everything here is already connected.</li>
                 )}
-                {payload.gaps.slice(0, 5).map((g: any, i: number) => (
+                {payload.gaps.slice(0, 5).map((g, i) => (
                   <li key={i} className="text-zinc-700 dark:text-zinc-300">
                     {g.a} <span className="text-zinc-400">↮</span> {g.b}
                     {g.bridges === 0 && <span className="ml-1 text-xs text-zinc-400">(no link)</span>}

@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { MessageSquareHeart } from 'lucide-react'
 import { isAuthError, loaders } from '@/lib/loaders'
@@ -75,7 +74,7 @@ export default async function FeedbackPage({
                 #{params.topic} ✕
               </FilterPill>
             )}
-            {topTopics.map((t: any) => (
+            {topTopics.map((t) => (
               <FilterPill key={t.slug} href={url({ topic: t.slug })} active={params.topic === t.slug}>
                 #{t.name} <span className="text-zinc-400">{t.count}</span>
               </FilterPill>
@@ -87,7 +86,7 @@ export default async function FeedbackPage({
                 +{restTopics.length} more area{restTopics.length === 1 ? '' : 's'}
               </summary>
               <div className="mt-2 flex flex-wrap gap-2">
-                {restTopics.map((t: any) => (
+                {restTopics.map((t) => (
                   <FilterPill key={t.slug} href={url({ topic: t.slug })} active={params.topic === t.slug}>
                     #{t.name} <span className="text-zinc-400">{t.count}</span>
                   </FilterPill>

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { Target } from 'lucide-react'
-import { strapiFetch } from '@/lib/strapi'
+import { isAuthError, loaders } from '@/lib/loaders'
 import { FilterPill, EmptyState, FilterRow } from '@/components/ui'
 import LeadCard from '@/components/leads/lead-card'
 
@@ -38,13 +38,10 @@ export default async function LeadsPage({
   if (params.status) q.set('status', params.status)
   if (params.direction) q.set('direction', params.direction)
 
-  let leads: any[]
-  try {
-    leads = (await strapiFetch(`/api/people/leads?${q}`)).data ?? []
-  } catch (err: any) {
-    if (err.status === 401 || err.status === 403) redirect('/sign-in')
-    throw err
-  }
+  const res = await loaders.getLeads(Object.fromEntries(q))
+  if (isAuthError(res)) redirect('/sign-in')
+  if (!res.success) throw new Error(res.error?.message ?? 'failed to load the lead board')
+  const leads = res.data ?? []
 
   const url = (over: Record<string, string | undefined>) => {
     const next = new URLSearchParams()

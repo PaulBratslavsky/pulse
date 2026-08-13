@@ -1,6 +1,7 @@
 import type { GraphEdge, GraphNode } from '@/components/insights/graph-view'
 import type { Server } from '@/components/settings/mcp-servers'
 import type { ThreadMention } from '@/components/mention/conversation-thread'
+import type { LeadProfile } from '@/components/leads/lead-profile'
 
 /**
  * Wire types for the Pulse API.
@@ -85,7 +86,8 @@ export type TSnapshotPayload = {
     byStatus: Record<string, number>
     /** BarList rows, not a map — the insights page passes these straight through */
     byChannel: TBarRow[]
-    acknowledgedByReason: { reason: string; count: number }[]
+    /** BarList-shaped: the insights page reads .name, not .reason */
+    acknowledgedByReason: TBarRow[]
   }
   responses: {
     total: number
@@ -94,9 +96,11 @@ export type TSnapshotPayload = {
   }
 }
 
+export type TFeedbackTopic = { slug: string; name: string; count: number }
+
 export type TFeedbackPayload = {
   total: number
-  topics: TLooseRecord[]
+  topics: TFeedbackTopic[]
   items: TLooseRecord[]
 }
 /** `team` is the totals row — one count per work type, keyed by its stat name. */
@@ -152,13 +156,58 @@ export type TMutedAuthor = { documentId: string; handle: string } & TLooseRecord
 /** The settings panel that renders these is the source of truth for the shape. */
 export type TMcpServer = Server
 
-/** The lead board and the person page read these; the rest varies by endpoint. */
+/** One scoring signal, with the points it contributed and why. */
+export type TLeadSignal = { id: string; points: number; label: string }
+
+/** Every presence Pulse has merged into one person. */
+export type TPersonAlias = {
+  identityKey: string
+  handle: string | null
+  profileUrl: string | null
+  channelName: string | null
+  /** an identity Pulse inferred rather than confirmed */
+  provisional: boolean
+}
+
+/**
+ * A person, as the board and the profile page read them. LeadProfile is the
+ * panel's own exported type — it is the only editor, so it owns that shape.
+ */
 export type TPerson = {
   documentId: string
   handle?: string | null
+  displayName?: string | null
+  avatarUrl?: string | null
+  status?: string
+  /** hot / warm / watch — the band the score falls into */
+  leadBand?: string
+  mentionCount?: number
+  firstSeenAt?: string | null
+  lastSeenAt?: string | null
+  owner?: TUserRef | null
+  aliases?: TPersonAlias[]
+  channel?: TChannelRef | null
+  /** audience size where the platform exposes it; 'unknown' where it does not */
+  reachTier?: string
+  followers?: number | null
   leadScore?: number | null
-  leadContext?: { evidence?: string | null; strongestMention?: string | null } | null
+  leadProfile?: LeadProfile | null
+  leadContext?: {
+    evidence?: string | null
+    strongestMention?: string | null
+    signals?: TLeadSignal[]
+    /** which way they are moving — 'none' when it could not be read */
+    direction?: string
+    /** a multiplier, not a flag: < 1 means the score was aged down for staleness */
+    decayApplied?: number
+    ageDays?: number
+    competitor?: string | null
+    venue?: string | null
+    postKind?: string | null
+  } | null
+  /** the board's summary flags, distinct from the full leadProfile */
   profile?: { started?: boolean; hasEmail?: boolean; company?: string | null } | null
+  mentions?: TMention[]
 } & TLooseRecord
 
 export type THTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -236,6 +285,7 @@ export type TResponseRecord = {
   internal?: boolean
   respondedAt?: string
   respondedBy?: TUserRef | null
+  editedAt?: string | null
   outcome?: { result: TOutcomeResult; notes?: string | null; recordedAt?: string } | null
 }
 
@@ -286,6 +336,8 @@ export type TMention = {
   assignee?: TUserRef | null
   responses?: TResponseRecord[]
   activities?: TActivityEntry[]
+  /** what kind of post it was, where the platform distinguishes */
+  postKind?: string | null
   /** where the conversation happened, when the thread endpoint could say */
   venue?: string | null
   /** set only when the permalink yielded a conversation id — Reddit, in practice */

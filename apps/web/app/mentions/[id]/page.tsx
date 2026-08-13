@@ -134,7 +134,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
         )}
 
         <div className="mt-2 flex gap-2 flex-wrap">
-          {(m.topics ?? []).map((t: any) => (
+          {(m.topics ?? []).map((t) => (
             <span key={t.slug} className="text-xs rounded-full border border-zinc-300 dark:border-zinc-700 px-2 py-0.5">
               #{t.name}
             </span>
@@ -184,7 +184,7 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
             <p className="text-sm text-zinc-500">No response recorded yet.</p>
           )}
           <ul data-testid="responses" className="space-y-3">
-            {(m.responses ?? []).map((r: any) => (
+            {(m.responses ?? []).map((r) => (
                 <ResponseCard
                   key={r.documentId}
                   response={r}
