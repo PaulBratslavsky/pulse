@@ -58,7 +58,7 @@ export function StalenessFlag({
   days = 2,
   awaitingReply = true,
 }: {
-  postedAt?: string
+  postedAt?: string | null
   days?: number
   /** red SLA style only applies while the mention still needs action */
   awaitingReply?: boolean
@@ -95,7 +95,7 @@ const laneStyles: Record<string, string> = {
   monitor: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
 }
 
-export function LaneBadge({ lane, reason }: { lane?: string; reason?: string | null }) {
+export function LaneBadge({ lane, reason }: { lane?: string | null; reason?: string | null }) {
   if (!lane || lane === 'respond') return null
   return (
     <span

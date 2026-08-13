@@ -19,7 +19,7 @@ export default function SpamFlagButton({
   compact = false,
 }: {
   documentId: string
-  quality?: string
+  quality?: string | null
   qualityReason?: string | null
   qualityVia?: string | null
   compact?: boolean
