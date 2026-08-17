@@ -14,6 +14,7 @@ import ClaimButton from '@/components/queue/claim-button'
 import MuteAuthorButton from '@/components/mention/mute-author-button'
 import SpamFlagButton from '@/components/mention/spam-flag-button'
 import OwnPostButton from '@/components/mention/own-post-button'
+import AcknowledgeMenu from '@/components/mention/acknowledge-menu'
 import { SelectCheckbox, QueueCard } from '@/components/queue/bulk-triage'
 import type { TMention, TQueueFilterOverrides } from '@/types'
 
@@ -106,7 +107,10 @@ export function QueueRow({
           <span className="text-xs text-blue-600 group-hover:underline">Read more →</span>
         )}
       </Link>
-      <div className="mt-3 flex items-center gap-2">
+      {/* flex-wrap, and gap-y so wrapped rows do not touch. Five controls fit
+          on a tablet; the sixth did not, and an un-wrapping row widened the
+          whole page instead of going to a second line. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
         {m.status === 'unanswered' && <ClaimButton documentId={m.documentId} />}
         <UserChip user={m.owner} label="Claimed by" />
         <Link
@@ -120,6 +124,14 @@ export function QueueRow({
             page and three clicks through the acknowledge panel */}
         {['unanswered', 'claimed'].includes(m.status) && (
           <OwnPostButton documentId={m.documentId} compact />
+        )}
+        {/* Closing without a reply, without leaving the queue. "Ours" stays
+            beside it as the one-click case you hit most from here; this covers
+            the other four reasons in two clicks instead of a page load and
+            four. Same gate as Ours — acknowledging something already answered
+            is not a thing. */}
+        {['unanswered', 'claimed'].includes(m.status) && (
+          <AcknowledgeMenu documentId={m.documentId} compact />
         )}
         {m.quality !== 'spam' && (
           <SpamFlagButton documentId={m.documentId} quality={m.quality} compact />

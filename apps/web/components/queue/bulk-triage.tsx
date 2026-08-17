@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { CheckSquare, X, Keyboard } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
+import { ACK_REASONS } from '@/lib/acknowledge-reasons'
 
 /**
  * Bulk triage: the queue's answer to "ingest outruns one-at-a-time triage".
@@ -31,14 +32,6 @@ export function useSelection() {
   if (!ctx) throw new Error('useSelection outside SelectionProvider')
   return ctx
 }
-
-const ACK_REASONS = [
-  { value: 'competitor', label: 'competitor' },
-  { value: 'not-relevant', label: 'not relevant' },
-  { value: 'watching', label: 'watching' },
-  { value: 'deleted', label: 'deleted from the platform' },
-  { value: 'own-post', label: 'our own post' },
-]
 
 export function SelectionProvider({
   children,
@@ -264,12 +257,16 @@ export function SelectionProvider({
                     </option>
                   ))}
                 </select>
+                {/* "selected", not just "Acknowledge": the cards each have an
+                    Acknowledge of their own now, and three controls with one
+                    name doing different things is a trap — most of all for
+                    anyone driving this by voice or a screen reader. */}
                 <button
                   onClick={() => run.mutate({ action: 'acknowledge', reason: ackReason })}
                   disabled={run.isPending}
                   className="rounded-md bg-violet-600 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
                 >
-                  Acknowledge
+                  Acknowledge selected
                 </button>
 
                 <button

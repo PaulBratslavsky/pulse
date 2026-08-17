@@ -593,8 +593,10 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await cards.nth(1).getByRole('checkbox', { name: 'Select mention' }).check()
     await expect(page.getByText('2 selected')).toBeVisible()
 
-    // bulk acknowledge → both leave the queue, result reported
-    await page.getByRole('button', { name: 'Acknowledge', exact: true }).click()
+    // bulk acknowledge → both leave the queue, result reported.
+    // "Acknowledge selected" — the cards carry their own Acknowledge now, so
+    // the bulk control names its scope.
+    await page.getByRole('button', { name: 'Acknowledge selected', exact: true }).click()
     await expect(page.getByText('2 done')).toBeVisible()
 
     await page.goto(`/mentions/${a.documentId}`)

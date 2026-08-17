@@ -12,6 +12,7 @@ import { TopicPicker } from '@/components/mention/topic-picker'
 import MuteAuthorButton from '@/components/mention/mute-author-button'
 import SpamFlagButton from '@/components/mention/spam-flag-button'
 import OwnPostButton from '@/components/mention/own-post-button'
+import { ACK_REASONS, ackLabelWithHint } from '@/lib/acknowledge-reasons'
 
 const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 
@@ -179,16 +180,10 @@ export default function MentionActions({
             notes below to record the team&apos;s take.
           </p>
           <div className="flex gap-3 flex-wrap">
-            {[
-              { value: 'competitor', label: 'competitor (replying would look pushy)' },
-              { value: 'not-relevant', label: 'not relevant' },
-              { value: 'watching', label: 'watching (no reply needed yet)' },
-              { value: 'deleted', label: 'deleted — the post is gone from the platform' },
-              { value: 'own-post', label: 'our own post (kept out of sentiment metrics)' },
-            ].map((r) => (
+            {ACK_REASONS.map((r) => (
               <label key={r.value} className="text-sm flex items-center gap-1">
                 <input type="radio" checked={ackReason === r.value} onChange={() => setAckReason(r.value)} />{' '}
-                {r.label}
+                {ackLabelWithHint(r)}
               </label>
             ))}
           </div>
