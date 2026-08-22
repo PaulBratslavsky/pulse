@@ -1,4 +1,4 @@
-import type { TQueueSearchParams } from '@/types'
+import type { TQueueSearchParams } from "@/types";
 
 /**
  * Lanes: the queue is REPLY work. Competitor/industry discourse is kept in full
@@ -10,9 +10,9 @@ import type { TQueueSearchParams } from '@/types'
  * for "all" lets the caller drop the key rather than send an empty filter.
  */
 function laneFilter(lane: string | undefined) {
-  if (lane === 'all') return undefined
-  if (lane) return { $eq: lane }
-  return { $in: ['respond', 'lead'] }
+  if (lane === "all") return undefined;
+  if (lane) return { $eq: lane };
+  return { $in: ["respond", "lead"] };
 }
 
 /**
@@ -27,27 +27,38 @@ function laneFilter(lane: string | undefined) {
  * `grouped` is a parameter rather than read from `params` because the caller
  * retries with it off — see lib/queue/fetch.ts.
  */
-export function buildQueueQuery(params: TQueueSearchParams, page: number, grouped: boolean) {
-  const lane = laneFilter(params.lane)
+export function buildQueueQuery(
+  params: TQueueSearchParams,
+  page: number,
+  grouped: boolean,
+) {
+  const lane = laneFilter(params.lane);
 
   return {
     filters: {
       // A one-element $in rather than $eq when a status is named, matching what
       // this query has always sent.
-      status: { $in: params.status ? [params.status] : ['unanswered', 'claimed'] },
-      ...(params.sentiment ? { sentimentLabel: { $eq: params.sentiment } } : {}),
-      ...(params.topic || params.topics === 'none'
+      status: {
+        $in: params.status ? [params.status] : ["unanswered", "claimed"],
+      },
+      ...(params.sentiment
+        ? { sentimentLabel: { $eq: params.sentiment } }
+        : {}),
+      ...(params.topic || params.topics === "none"
         ? {
             topics: {
               ...(params.topic ? { slug: { $eq: params.topic } } : {}),
               // unlabeled backlog — the set a bulk topic pass exists for
-              ...(params.topics === 'none' ? { documentId: { $null: true } } : {}),
+              ...(params.topics === "none"
+                ? { documentId: { $null: true } }
+                : {}),
             },
           }
         : {}),
       // "is this actually about us?" — most of the queue arrives via
       // competitor keyword monitoring and never names Strapi
       ...(params.q ? { content: { $containsi: params.q } } : {}),
+      ...(params.social ? { channel: { key: { $eq: params.social } } } : {}),
       ...(params.draft ? { draftText: { $notNull: true } } : {}),
       // Someone answered us and nobody answered them. Derived on write
       // (utils/thread-state) rather than computed here, because "the last
@@ -55,15 +66,15 @@ export function buildQueueQuery(params: TQueueSearchParams, page: number, groupe
       // filter over a single row.
       ...(params.awaiting ? { awaitsReply: { $eq: true } } : {}),
       // spam is stored but never queued; suspected-spam stays visible with a badge
-      quality: params.quality ? { $eq: params.quality } : { $ne: 'spam' },
+      quality: params.quality ? { $eq: params.quality } : { $ne: "spam" },
       ...(lane ? { lane } : {}),
     },
-    sort: params.sort === 'newest' ? 'postedAt:desc' : 'postedAt:asc',
+    sort: params.sort === "newest" ? "postedAt:desc" : "postedAt:asc",
     // One row per conversation by default. Octolens ingests every comment in a
     // thread as its own mention, so a single Reddit exchange arrives as N rows
     // that look like N separate jobs — and the one actually waiting on us is
     // indistinguishable from the ones already handled.
-    ...(grouped ? { group: 'thread' } : {}),
+    ...(grouped ? { group: "thread" } : {}),
     pagination: { page, pageSize: 25 },
-  }
+  };
 }
