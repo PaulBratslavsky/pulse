@@ -1,4 +1,4 @@
-import type { TQueueFilterOverrides, TQueueSearchParams } from '@/types'
+import type { TQueueFilterOverrides, TQueueSearchParams } from "@/types";
 
 /**
  * Every filter that survives a link, in the order the original set them.
@@ -12,18 +12,19 @@ import type { TQueueFilterOverrides, TQueueSearchParams } from '@/types'
  * unchanged.
  */
 const FILTER_KEYS = [
-  'status',
-  'sentiment',
-  'topic',
-  'draft',
-  'quality',
-  'topics',
-  'sort',
-  'q',
-  'lane',
-  'every',
-  'awaiting',
-] as const
+  "status",
+  "sentiment",
+  "topic",
+  "draft",
+  "quality",
+  "topics",
+  "sort",
+  "q",
+  "lane",
+  "every",
+  "awaiting",
+  "social",
+] as const;
 
 /**
  * Builds queue URLs relative to the filters currently in the address bar.
@@ -34,16 +35,16 @@ const FILTER_KEYS = [
  */
 export function makeFilterUrl(params: TQueueSearchParams) {
   return (over: TQueueFilterOverrides): string => {
-    const q = new URLSearchParams()
+    const q = new URLSearchParams();
 
     for (const key of FILTER_KEYS) {
-      const value = key in over ? over[key] : params[key]
-      if (value) q.set(key, value)
+      const value = key in over ? over[key] : params[key];
+      if (value) q.set(key, value);
     }
 
-    if (over.page && over.page > 1) q.set('page', String(over.page))
+    if (over.page && over.page > 1) q.set("page", String(over.page));
 
-    const search = q.toString()
-    return search ? `/?${search}` : '/'
-  }
+    const search = q.toString();
+    return search ? `/?${search}` : "/";
+  };
 }
