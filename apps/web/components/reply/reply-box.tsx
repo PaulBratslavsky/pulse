@@ -72,6 +72,7 @@ export function ReplyBox({ mention, aiEnabled }: { mention: any; aiEnabled: bool
       if (chat.length) {
         const res: any = await post(`mentions/${mention.documentId}/draft-chat`, {
           text: finalText,
+          draft,
           messages: [
             ...chat.map((t) => ({ role: t.role, content: t.content })),
             {

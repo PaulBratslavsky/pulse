@@ -305,8 +305,11 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
   },
 
   /**
-   * POST /mentions/:documentId/draft-chat — { text, messages }.
+   * POST /mentions/:documentId/draft-chat — { text, draft?, messages }.
    * Talk about the reply you are writing, with the docs server in the room.
+   * `draft` is the suggestion still sitting in the draft panel — sent so the
+   * assistant can see what is on screen, kept out of `text` so it is never
+   * mistaken for something the human wrote.
    * Returns a prose answer and, only when one was asked for, a proposed
    * revision the human applies themselves.
    */
@@ -317,9 +320,13 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       return
     }
     const text = String(ctx.request.body?.text ?? '')
+    // The unaccepted suggestion in the draft panel. Optional, and capped the
+    // same way as the reply: it is another block of text we pay to send.
+    const draft = String(ctx.request.body?.draft ?? '')
     const messages = ctx.request.body?.messages
     if (!Array.isArray(messages) || !messages.length) return ctx.badRequest('messages[] required')
     if (text.length > 8000) return ctx.badRequest('reply is too long (8000 chars max)')
+    if (draft.length > 8000) return ctx.badRequest('draft is too long (8000 chars max)')
 
     // Checked before spending, and after validating — see utils/ai-gate.
     if (await budgetSpent(strapi, ctx, 'Assistance resumes tomorrow — the reply box still works.')) return
@@ -329,7 +336,7 @@ export default factories.createCoreController('api::mention.mention', ({ strapi 
       .findOne({ documentId: ctx.params.documentId, populate: { channel: true } as any })
     if (!mention) return ctx.notFound('mention not found')
 
-    const result = await (strapi.service('api::analysis.ai') as any).chatRefine(mention, text, messages)
+    const result = await (strapi.service('api::analysis.ai') as any).chatRefine(mention, text, messages, draft)
     return {
       data: {
         reply: result?.reply ?? null,

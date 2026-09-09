@@ -643,7 +643,13 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
     async chatRefine(
       mention: any,
       replyText: string,
-      history: { role: 'user' | 'assistant'; content: string }[]
+      history: { role: 'user' | 'assistant'; content: string }[],
+      // The suggestion sitting in the draft panel, which the human has NOT
+      // accepted. Passed separately from replyText and labelled as such in the
+      // prompt: "this machine wrote it" and "a human stands behind it" are
+      // different claims, and collapsing them is how a draft nobody read gets
+      // treated as a decision already made.
+      draftText?: string
     ): Promise<{
       reply: string;
       revision: string | null;
@@ -658,6 +664,12 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       if (!turns.length) return null;
 
       const current = String(replyText ?? '').trim();
+      // Only worth mentioning while it is still a suggestion — once "Use this
+      // draft" has copied it into the reply box the two are the same words, and
+      // showing them twice invites the model to reconcile a difference that
+      // isn't there.
+      const suggestion = String(draftText ?? '').trim();
+      const pendingDraft = suggestion && suggestion !== current ? suggestion : '';
       const content = String(mention.content ?? '');
 
       const loaded = await (strapi.service('api::analysis.mcp-tools') as any).load();
@@ -667,7 +679,10 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
       // picks from pages we have confirmed exist.
       let allowed: string[] = [];
       try {
-        allowed = await shortlistDocsUrls(`${content} ${current} ${turns.map((t) => t.content).join(' ')}`, 12);
+        allowed = await shortlistDocsUrls(
+          `${content} ${current} ${pendingDraft} ${turns.map((t) => t.content).join(' ')}`,
+          12
+        );
       } catch {
         /* no links rather than invented ones */
       }
@@ -684,7 +699,10 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
         propose_revision: tool({
           description:
             'Propose a replacement for the reply the human is writing. Call this ONLY when they asked for a ' +
-            'change to the reply itself. Pass the COMPLETE new reply, not a fragment or a description of the edit.',
+            'change to the reply itself. Pass the COMPLETE new reply, not a fragment or a description of the edit.' +
+            (pendingDraft
+              ? ' If their reply box is empty, base the revision on the unaccepted draft shown to you.'
+              : ''),
           inputSchema: z.object({
             text: z.string().describe('The complete revised reply, ready to post.'),
             what_changed: z.string().describe('One short line: what you changed and why.'),
@@ -724,7 +742,13 @@ export const ai = ({ strapi }: { strapi: Core.Strapi }) => {
                 `The mention being replied to (@${mention.authorHandle ?? 'user'} on ${mention.source ?? 'social'}):\n"${content}"\n\n` +
                 (current
                   ? `Their reply so far:\n---\n${current}\n---`
-                  : 'They have not written anything yet.'),
+                  : 'They have not written anything in the reply box yet.') +
+                (pendingDraft
+                  ? `\n\nOn screen beside them is a machine-written draft they have NOT accepted:\n---\n${pendingDraft}\n---\n` +
+                    'When they say "this", "the draft" or "the reply" and their reply box is empty, they mean that draft. ' +
+                    'It is a suggestion, not their words — do not describe it back to them as something they wrote, ' +
+                    'and do not assume they agree with it.'
+                  : ''),
             },
             { role: 'assistant', content: 'Understood — what would you like to change or know?' },
             ...turns,

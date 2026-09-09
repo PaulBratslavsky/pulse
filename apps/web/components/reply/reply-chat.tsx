@@ -26,7 +26,7 @@ const post = (path: string, body?: unknown) => pulseFetch('POST', path, body)
 export function ReplyChat({ documentId }: { documentId: string }) {
   // Reads the live textarea and writes back through the same undo slot the
   // Refine button uses; the transcript is shared so Refine can use it too.
-  const { text: currentText, replace, chat: turns, setChat: setTurns } = useReplyDraft()
+  const { text: currentText, draft, replace, chat: turns, setChat: setTurns } = useReplyDraft()
   const [input, setInput] = useState('')
   const [applied, setApplied] = useState<number[]>([])
   const listRef = useRef<HTMLDivElement>(null)
@@ -42,6 +42,11 @@ export function ReplyChat({ documentId }: { documentId: string }) {
         // always the CURRENT textarea, not what it held when the panel opened —
         // you can type, ask, type again, and it still knows what it is editing
         text: currentText,
+        // and the draft sitting in the panel above, which the panel deliberately
+        // does not copy into the textarea. Asking "make this shorter" under a
+        // visible draft used to reach a model that had been told nothing was
+        // written yet; sent separately so it stays a suggestion, not your words.
+        draft,
         messages: history,
       })
       return res?.data as {
@@ -83,9 +88,9 @@ export function ReplyChat({ documentId }: { documentId: string }) {
 
       {turns.length === 0 && (
         <p className="mb-2 text-xs text-zinc-500">
-          It can see the mention and what you have written, and it can search the Strapi docs. Ask
-          a question and nothing changes; ask for an edit and you get a proposal to apply. Once
-          you have talked here, <strong>Refine</strong> uses this conversation too.
+          It can see the mention, the draft above and what you have written, and it can search the
+          Strapi docs. Ask a question and nothing changes; ask for an edit and you get a proposal
+          to apply. Once you have talked here, <strong>Refine</strong> uses this conversation too.
         </p>
       )}
 
