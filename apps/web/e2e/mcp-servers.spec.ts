@@ -91,6 +91,9 @@ test.describe('refine', () => {
     for (const data of [
       { text: 'hi', messages: [] },
       { text: 'x'.repeat(8001), messages: [{ role: 'user', content: 'shorter' }] },
+      // the draft panel's suggestion rides along in its own field, and pays the
+      // same size toll — it is another block of text we send to the model
+      { text: 'hi', draft: 'x'.repeat(8001), messages: [{ role: 'user', content: 'shorter' }] },
     ]) {
       const res = await request.post(`${PULSE}/mentions/${id}/draft-chat`, {
         headers: { cookie },
