@@ -14,6 +14,8 @@ import type {
   TMention,
   TMentionThread,
   TMutedAuthor,
+  TMutedTopic,
+  TMuteSuggestion,
   TPerson,
   TPreferences,
   TQueueSearchParams,
@@ -130,6 +132,19 @@ const getMutedAuthors = () =>
     pagination: { pageSize: 100 },
   })
 
+const getMutedTopics = () =>
+  get<TMutedTopic[]>('/api/muted-topics', {
+    sort: 'updatedAt:desc',
+    populate: { topic: { fields: ['name', 'slug', 'kind'] } },
+    pagination: { pageSize: 100 },
+  })
+
+const getMuteSuggestions = (days = 30, minMentions = 20) =>
+  get<{ windowDays: number; minMentions: number; suggestions: TMuteSuggestion[] }>(
+    '/api/muted-topics/suggestions',
+    { days, minMentions }
+  )
+
 const getMyPreferences = () => get<TPreferences>('/api/preferences/me')
 
 const getAnalysisStatus = () => get<TAnalysisStatus>('/api/analysis/status')
@@ -184,6 +199,8 @@ export const loaders = {
   getFeedback,
   getLeaderboard,
   getMutedAuthors,
+  getMutedTopics,
+  getMuteSuggestions,
   getMyPreferences,
   getAnalysisStatus,
   getMcpServers,

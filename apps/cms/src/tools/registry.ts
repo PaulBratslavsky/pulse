@@ -744,6 +744,92 @@ export const PULSE_TOOLS: PulseTool[] = [
       }),
     execute: (strapi, args) => (strapi.service('api::analysis.insights') as any).themes(args),
   },
+
+  {
+    name: 'pulse-mute-suggestions',
+    title: 'Pulse: topics that look like noise',
+    description:
+      'Ranked suggestions for topics worth muting: high volume, almost none of it about Strapi ' +
+      '(sentiment "na"), almost all of it already routed to the monitor lane. Returns evidence ' +
+      'mention ids and a plain-English reason for each, so the call is auditable. A suggestion ' +
+      'only — it never mutes anything. Lead counts are context, not a veto: muting exempts the ' +
+      'lead lane, so accepting a suggestion can never hide someone shopping for a CMS.',
+    access: 'read',
+    subject: 'api::topic.topic',
+    input: () =>
+      z.object({
+        days: z.number().int().min(1).max(365).optional().describe('Window in days (default 30)'),
+        minMentions: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe('Ignore topics below this volume in the window (default 20)'),
+      }),
+    execute: (strapi, args) => (strapi.service('api::muted-topic.muted-topic') as any).suggestions(args),
+  },
+
+  {
+    name: 'pulse-mute-topic',
+    title: 'Pulse: mute a topic (noise filter)',
+    description:
+      'Mute a topic by slug. Its mentions stay stored and readable in the monitor lane, but drop ' +
+      'out of every analytic (trends, themes, topic volumes, the Pulse score) and stop costing ' +
+      'model calls. Retroactive and fully reversible with pulse-unmute-topic. Lane "lead" is never ' +
+      'muted. Use for terms Octolens listens for that are not really our competitors.',
+    access: 'write',
+    subject: 'api::topic.topic',
+    input: () =>
+      z.object({
+        slug: z.string().describe('Topic slug, e.g. "webflow" — from pulse-theme-report or pulse-mute-suggestions'),
+        reason: z
+          .enum(['not-a-competitor', 'off-topic', 'too-noisy', 'other'])
+          .optional()
+          .describe('Why (default not-a-competitor)'),
+        note: z.string().max(500).optional(),
+      }),
+    execute: async (strapi, args, meta) => {
+      const result = await (strapi.service('api::muted-topic.muted-topic') as any).mute(args.slug, {
+        reason: args.reason,
+        note: args.note ? `${args.note} (via ${meta.via})` : `via ${meta.via}`,
+      });
+      return result;
+    },
+  },
+
+  {
+    name: 'pulse-unmute-topic',
+    title: 'Pulse: list or unmute muted topics',
+    description:
+      'With no argument, lists every muted topic with how many mentions it is holding back. With ' +
+      'a slug, unmutes that topic: its mentions rejoin the metrics and the sweep picks them up for ' +
+      'analysis on its next pass. A mention carrying another still-muted topic stays muted.',
+    access: 'write',
+    subject: 'api::topic.topic',
+    input: () =>
+      z.object({
+        slug: z.string().optional().describe('Topic slug to unmute. Omit to list the muted topics instead.'),
+      }),
+    execute: async (strapi, args) => {
+      const svc = strapi.service('api::muted-topic.muted-topic') as any;
+      const rows = await strapi
+        .documents('api::muted-topic.muted-topic')
+        .findMany({ populate: { topic: { fields: ['name', 'slug'] } } as any, limit: 500 });
+      if (!args.slug)
+        return {
+          muted: (rows as any[]).map((r) => ({
+            slug: r.slug,
+            name: r.topic?.name ?? r.slug,
+            reason: r.reason,
+            note: r.note,
+            mentionCount: r.mentionCount,
+          })),
+        };
+      const hit = (rows as any[]).find((r) => r.slug?.toLowerCase() === args.slug.toLowerCase());
+      if (!hit) return { unmuted: false, error: `"${args.slug}" is not muted`, muted: (rows as any[]).map((r) => r.slug) };
+      return svc.unmute(hit.documentId);
+    },
+  },
 ];
 
 export const getTool = (name: string) => PULSE_TOOLS.find((t) => t.name === name);

@@ -783,6 +783,7 @@ export interface ApiMentionMention extends Struct.CollectionTypeSchema {
       ['devrel', 'marketing', 'product']
     >;
     threadKey: Schema.Attribute.String;
+    topicMuted: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     topics: Schema.Attribute.Relation<'manyToMany', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -828,6 +829,49 @@ export interface ApiMutedAuthorMutedAuthor extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'ai-spam'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiMutedTopicMutedTopic extends Struct.CollectionTypeSchema {
+  collectionName: 'muted_topics';
+  info: {
+    description: 'Noise filter: mentions carrying this topic stay stored and readable in the monitor lane, but are dropped from every analytic and skipped by the AI sweep. Lead-lane mentions are never muted.';
+    displayName: 'Muted Topic';
+    pluralName: 'muted-topics';
+    singularName: 'muted-topic';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::muted-topic.muted-topic'
+    > &
+      Schema.Attribute.Private;
+    mentionCount: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
+    mutedBy: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    note: Schema.Attribute.Text;
+    publishedAt: Schema.Attribute.DateTime;
+    reason: Schema.Attribute.Enumeration<
+      ['not-a-competitor', 'off-topic', 'too-noisy', 'other']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'not-a-competitor'>;
+    slug: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    topic: Schema.Attribute.Relation<'manyToOne', 'api::topic.topic'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1617,6 +1661,7 @@ declare module '@strapi/strapi' {
       'api::mcp-server.mcp-server': ApiMcpServerMcpServer;
       'api::mention.mention': ApiMentionMention;
       'api::muted-author.muted-author': ApiMutedAuthorMutedAuthor;
+      'api::muted-topic.muted-topic': ApiMutedTopicMutedTopic;
       'api::person.person': ApiPersonPerson;
       'api::preference.preference': ApiPreferencePreference;
       'api::response.response': ApiResponseResponse;

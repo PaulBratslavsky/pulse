@@ -172,6 +172,28 @@ export type TMutedAuthor = {
   handle: string;
 } & TLooseRecord;
 
+export type TMutedTopic = {
+  documentId: string;
+  slug: string;
+  reason: string;
+  note?: string | null;
+  mentionCount?: number | null;
+  topic?: { name: string; slug: string; kind: string } | null;
+} & TLooseRecord;
+
+/** One ranked noise candidate. `affected` is what muting would actually hide —
+ *  always ≤ mentions, because the lead lane is exempt. */
+export type TMuteSuggestion = {
+  topic: { name: string; slug: string; kind: string };
+  mentions: number;
+  affected: number;
+  naShare: number;
+  monitorShare: number;
+  leads: number;
+  reason: string;
+  evidence: string[];
+};
+
 /** The settings panel that renders these is the source of truth for the shape. */
 export type TMcpServer = Server;
 

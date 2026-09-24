@@ -2,7 +2,7 @@
 
 The Strapi team's tool for tracking sentiment across social mentions, capturing the full response trail, and turning recurring signals into product decisions.
 
-Mentions flow in from [Octolens](https://octolens.com) (webhook + pull-sync, all handled by the Strapi backend), land in a triage queue, and walk a tracked workflow — claim → reply (posted manually on the platform, recorded in Pulse) → outcome — with a full audit trail. Competitor threads can be **acknowledged** (closed without a public reply, reason recorded) and annotated with internal-only notes. Trends, themes, and a 0–100 Pulse score come out the other end. AI is optional everywhere; when enabled it adds sentiment analysis, docs-grounded reply drafts, and a chat assistant. The same nine tools the assistant uses are exposed over Strapi's built-in **MCP server**, so Claude Desktop / Claude Code can work the queue — read context, save drafts (single or bulk), correct labels, acknowledge — always for human review.
+Mentions flow in from [Octolens](https://octolens.com) (webhook + pull-sync, all handled by the Strapi backend), land in a triage queue, and walk a tracked workflow — claim → reply (posted manually on the platform, recorded in Pulse) → outcome — with a full audit trail. Competitor threads can be **acknowledged** (closed without a public reply, reason recorded) and annotated with internal-only notes. Trends, themes, and a 0–100 Pulse score come out the other end. AI is optional everywhere; when enabled it adds sentiment analysis, docs-grounded reply drafts, and a chat assistant. The same fifteen tools the assistant uses are exposed over Strapi's built-in **MCP server**, so Claude Desktop / Claude Code can work the queue — read context, save drafts (single or bulk), correct labels, acknowledge, mute a noisy topic — always for human review.
 
 - **Docs**: [`docs/architecture.md`](docs/architecture.md) — system overview, data model, ingestion, permissions, tool registry
 - **Spec**: [`06-build-spec.md`](06-build-spec.md) (stages 1–5 in the sibling `0*.md` files; revision log at the bottom)
@@ -36,6 +36,21 @@ Start the CMS once with `PULSE_SEED_DEMO=true` to get 10 pre-analyzed mentions, 
 
 Without `AI_API_KEY`, Pulse **runs fully** — mentions ingest (with Octolens' own sentiment adopted as the initial, provenance-stamped label), the queue/claim/respond/outcome loop, acknowledge + internal notes, Slack notifications, search, and the activity trail all work. The three AI features are cleanly **disabled** (not degraded with fake heuristics): automatic sentiment/topic analysis, draft generation, and chat. Add a key later and the cron sweep **auto-analyzes previously skipped mentions**; human corrections are never overwritten. The frontend reads `GET /api/insights/config` (`{ aiEnabled }`).
 
+### Noise control
+
+Octolens listens for competitor terms that aren't always our competitors — Webflow alone ran 218 themed
+mentions in a 30-day window against 69 for Strapi, so the theme report described Webflow's community
+rather than ours. Two filters, both retroactive and reversible:
+
+- **Mute an author** (Settings) — spam and content farms. Out of the queue *and* out of every metric.
+- **Mute a topic** (the Mute button on **Themes**, or Settings) — for terms that aren't really competitors.
+  Its mentions stay stored and readable in the monitor lane, but drop out of trends, themes, topic volumes
+  and the Pulse score, and stop costing model calls. Settings also ranks **suggestions**: topics that are
+  mostly `na` sentiment and already monitor-lane, each with the numbers behind the call.
+
+`lane: lead` is never muted by either, so neither can hide someone shopping for a CMS. Unmuting restores
+everything — nothing is ever deleted.
+
 ### Webhook smoke test
 
 ```bash
@@ -56,15 +71,15 @@ curl -X POST http://localhost:1338/api/octolens/ingest \
 
 ## Connecting AI clients (MCP)
 
-The backend exposes Strapi's built-in MCP server at `POST /mcp` with twelve Pulse tools — queue (semantic
+The backend exposes Strapi's built-in MCP server at `POST /mcp` with fifteen Pulse tools — queue (semantic
 filters + paging), mention detail, **save-draft**, **update-mention** (partial), **save-drafts-bulk**,
-**assign-topics**, **set-lane**, **acknowledge**, search, trends, graph, themes — the same registry the
-in-app assistant uses. Drafts saved by an agent pre-fill the reply form for a human to review and post;
+**assign-topics**, **set-lane**, **acknowledge**, **mute-topic**, **unmute-topic**, search, trends, graph,
+themes, mute-suggestions — the same registry the in-app assistant uses. Drafts saved by an agent pre-fill the reply form for a human to review and post;
 **nothing auto-posts**, and write tools never expose the mention body, so an agent can't overwrite a
 post's content.
 
 1. In the Strapi admin, create an **Admin Token** (Settings → Admin Tokens — a classic content-API token is rejected by `/mcp`).
-2. On the token's permission screen, open the **Settings tab → "Pulse MCP tools"** and check the tools this token may call (per-tool, granular; six of the twelve are writes, marked `(write)`). The **Plugins tab → octolens** separately gates the plugin's admin sync UI. ⚠️ Grant **only** these actions — adding content-manager permissions re-exposes Strapi's generic CRUD tools, whose update flow requires resending the whole record (a truncated resend silently overwrote a long post in a real session).
+2. On the token's permission screen, open the **Settings tab → "Pulse MCP tools"** and check the tools this token may call (per-tool, granular; eight of the fifteen are writes, marked `(write)`). The **Plugins tab → octolens** separately gates the plugin's admin sync UI. ⚠️ Grant **only** these actions — adding content-manager permissions re-exposes Strapi's generic CRUD tools, whose update flow requires resending the whole record (a truncated resend silently overwrote a long post in a real session).
 3. Point your client at the endpoint, e.g. Claude Desktop `claude_desktop_config.json`:
    ```json
    "pulse": {

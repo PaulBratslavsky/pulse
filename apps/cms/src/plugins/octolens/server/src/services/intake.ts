@@ -167,6 +167,16 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     const channel = await this.resolveChannel(normalized.platformKey);
     const competitorTopicIds = await this.resolveTopics(this.competitorTopicNames(raw), 'competitor');
 
+    // Noise filter: Octolens listens for competitor terms that are not our
+    // competitors (Webflow above all). A mention carrying a muted topic is
+    // stored and readable, but counts in no metric and costs no model call.
+    // Resolved here, at ingest, because `competitorTopicNames` has already
+    // turned Octolens's own matched keywords into topics — the AI sweep never
+    // has to run for this to be known. The lead carve-out is applied below,
+    // once routing is known: a lead is never muted.
+    const mutedTopicIds = await (strapi.service('api::muted-topic.muted-topic') as any).mutedTopicIds();
+    const carriesMutedTopic = competitorTopicIds.some((id: string) => mutedTopicIds.has(id));
+
     // Shadow-block: a muted author's mentions are stored (full trail) but never
     // queued and never counted. Heuristic hits only SUSPECT — a human confirms.
     const muted = await (strapi.service('api::muted-author.muted-author') as any).isMuted(
@@ -224,7 +234,7 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
 
     let mention: any;
     try {
-      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens, quality, routing, personId, ours);
+      mention = await this.createMention(normalized, raw, channel, competitorTopicIds, octolens, quality, routing, personId, ours, carriesMutedTopic && routing?.lane !== 'lead');
     } catch (err: any) {
       // unique-index violation → another writer created it between check and insert
       const winner = await strapi
@@ -283,7 +293,8 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
     quality: string = 'normal',
     routing?: { lane: string; laneReason: string; matchedKeywords: any[]; keywordTag: string | null },
     personId?: string | null,
-    ours: boolean = false
+    ours: boolean = false,
+    topicMuted: boolean = false
   ) {
     return strapi.documents('api::mention.mention').create({
       data: {
@@ -337,7 +348,12 @@ export const intake = ({ strapi }: { strapi: Core.Strapi }) => ({
               modelVersion: 'octolens',
               promptVersion: 'label-map-v1',
             }
-          : { analysisStatus: 'pending' }),
+          // A muted topic is never worth a model call, so it goes straight to
+          // 'skipped' rather than sitting 'pending' forever. 'skipped' is also
+          // what the sweep re-picks, so unmuting gets it analyzed with no
+          // backfill step.
+          : { analysisStatus: topicMuted ? 'skipped' : 'pending' }),
+        ...(topicMuted ? { topicMuted: true } : {}),
         raw,
       } as any,
     });

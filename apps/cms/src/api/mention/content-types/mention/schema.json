@@ -71,6 +71,11 @@
       "default": "normal",
       "description": "spam = muted author or confirmed slop: hidden from queue AND excluded from all analytics"
     },
+    "topicMuted": {
+      "type": "boolean",
+      "default": false,
+      "description": "carries a muted topic: dropped from every analytic and skipped by the AI sweep, but still stored and readable in the monitor lane. Denormalized on purpose \u2014 filtering analytics on the topics many-to-many would mean `has at least one unmuted topic`, which lets a mention tagged [Webflow, Astro] through. Never set on lane 'lead'."
+    },
     "lane": {
       "type": "enumeration",
       "enum": [

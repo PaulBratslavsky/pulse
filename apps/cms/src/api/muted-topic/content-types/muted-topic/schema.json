@@ -1,0 +1,37 @@
+{
+  "kind": "collectionType",
+  "collectionName": "muted_topics",
+  "info": {
+    "singularName": "muted-topic",
+    "pluralName": "muted-topics",
+    "displayName": "Muted Topic",
+    "description": "Noise filter: mentions carrying this topic stay stored and readable in the monitor lane, but are dropped from every analytic and skipped by the AI sweep. Lead-lane mentions are never muted."
+  },
+  "options": { "draftAndPublish": false },
+  "attributes": {
+    "slug": {
+      "type": "string",
+      "required": true,
+      "unique": true,
+      "description": "the topic's slug — the key, so intake can check muting with one cheap lookup and no join"
+    },
+    "topic": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::topic.topic"
+    },
+    "reason": {
+      "type": "enumeration",
+      "enum": ["not-a-competitor", "off-topic", "too-noisy", "other"],
+      "default": "not-a-competitor",
+      "required": true
+    },
+    "note": { "type": "text" },
+    "mutedBy": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "mentionCount": { "type": "integer", "default": 0 }
+  }
+}

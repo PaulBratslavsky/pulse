@@ -124,6 +124,10 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
         // confirmed spam is never worth a model call — it is already hidden
         // from the queue and every metric
         quality: { $ne: 'spam' },
+        // same logic for a muted topic: it counts in no metric, so classifying
+        // it buys nothing. This was the expensive half of the Webflow problem —
+        // the sweep was drafting replies to Webflow component promos.
+        topicMuted: { $ne: true },
         $or: [
           { analysisStatus: { $in: ['pending', 'skipped'] } },
           // failed: retry only until the attempt cap; parked rows leave the window

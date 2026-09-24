@@ -13,8 +13,8 @@ const DAY = 24 * 60 * 60 * 1000;
 const utcDay = (d: string | Date) => new Date(d).toISOString().slice(0, 10);
 
 /**
- * What counts as community signal. Two exclusions, for the same reason —
- * neither is someone talking about Strapi in the wild:
+ * What counts as community signal. Three exclusions, for the same reason —
+ * none of them is someone talking about Strapi in the wild:
  *  - spam: both `spam` (muted authors / confirmed slop) AND `suspected-spam`
  *    (flagged, awaiting a human). One AI content farm would otherwise own the
  *    top topic and set the Pulse score, and waiting for confirmation left it
@@ -24,18 +24,25 @@ const utcDay = (d: string | Date) => new Date(d).toISOString().slice(0, 10);
  *    mentions stay in the QUEUE so they can still be reviewed.
  *  - our OWN social posts (acknowledged as `own-post`): announcements are
  *    positive by construction, so counting them inflates our own score.
+ *  - muted topics (`topicMuted`): Octolens listens for competitor terms that
+ *    are not our competitors. Webflow alone was 218 themed mentions in a 30-day
+ *    window against 69 for Strapi, so the theme report described Webflow's
+ *    community rather than ours. Muting is per-topic, retroactive and
+ *    reversible — see `api::muted-topic.muted-topic`. Lead-lane mentions are
+ *    never muted, so this can never hide someone shopping for a CMS.
  * Excluded from the numbers, never hidden from the team.
  *
  * NULL-safety matters here: SQL `col NOT IN (…)` is FALSE for NULL, so legacy
- * rows written before `quality` existed need the explicit `$null` arm or they
- * silently vanish from every metric.
+ * rows written before `quality` or `topicMuted` existed need the explicit
+ * `$null` arm or they silently vanish from every metric.
  */
 const SPAM_QUALITIES = ['spam', 'suspected-spam'];
 
-const NOT_SPAM = {
+export const COUNTS_AS_SIGNAL = {
   $and: [
     { $or: [{ quality: { $null: true } }, { quality: { $notIn: SPAM_QUALITIES } }] },
     { $or: [{ acknowledgeReason: { $null: true } }, { acknowledgeReason: { $ne: 'own-post' } }] },
+    { $or: [{ topicMuted: { $null: true } }, { topicMuted: { $ne: true } }] },
   ],
 } as any;
 
@@ -46,7 +53,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     const windowStart = new Date(fromDate.getTime() - 7 * DAY);
 
     const filters: any = {
-      ...NOT_SPAM,
+      ...COUNTS_AS_SIGNAL,
       analysisStatus: 'analyzed',
       postedAt: { $gte: windowStart.toISOString(), $lte: toDate.toISOString() },
     };
@@ -100,7 +107,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     const since = new Date(Date.now() - days * DAY).toISOString();
 
     const mentions = await strapi.documents('api::mention.mention').findMany({
-      filters: { ...NOT_SPAM, analysisStatus: 'analyzed', postedAt: { $gte: since } },
+      filters: { ...COUNTS_AS_SIGNAL, analysisStatus: 'analyzed', postedAt: { $gte: since } },
       fields: ['sentimentScore', 'sentimentLabel', 'postedAt'],
       populate: { topics: { fields: ['name', 'slug', 'kind'] } } as any,
       limit: 5000,
@@ -137,7 +144,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     const days = opts.days ?? Number(process.env.STALE_AFTER_DAYS ?? 2);
     const cutoff = new Date(Date.now() - days * DAY).toISOString();
     const mentions = await strapi.documents('api::mention.mention').findMany({
-      filters: { ...NOT_SPAM, status: { $in: ['unanswered', 'claimed'] }, postedAt: { $lte: cutoff } },
+      filters: { ...COUNTS_AS_SIGNAL, status: { $in: ['unanswered', 'claimed'] }, postedAt: { $lte: cutoff } },
       fields: ['content', 'status', 'sentimentLabel', 'postedAt', 'receivedAt', 'url'],
       populate: { owner: { fields: ['username'] }, channel: { fields: ['name'] } } as any,
       sort: 'postedAt:asc' as any,
@@ -345,7 +352,7 @@ export const insights = ({ strapi }: { strapi: Core.Strapi }) => ({
     const since = new Date(Date.now() - days * DAY).toISOString();
 
     const mentions = await strapi.documents('api::mention.mention').findMany({
-      filters: { ...NOT_SPAM, postedAt: { $gte: since } },
+      filters: { ...COUNTS_AS_SIGNAL, postedAt: { $gte: since } },
       fields: ['sentimentLabel', 'sentimentScore', 'status', 'acknowledgeReason', 'postedAt'],
       populate: { channel: { fields: ['name'] } } as any,
       limit: 10000,

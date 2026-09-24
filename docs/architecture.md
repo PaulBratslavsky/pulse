@@ -70,6 +70,7 @@ flowchart LR
 - **response** — what the team replied (or an `internal: true` note that never leaves the team). `finalText`, `draftText`, `notes`, outcome component.
 - **activity** — append-only audit trail per mention (`ingested`, `analyzed`, `claimed`, `routed`, `corrected`, `answered`, `resolved`, `replayed`, `acknowledged`, `noted`, `drafted`).
 - **topic** — theme mentions cluster into (`kind`: feature/bug/docs/competitor/other). Machine-created (AI clustering or competitor auto-tagging), admin-curated, and mintable inline from the labeling panel.
+- **muted-author / muted-topic** — the two noise filters, both retroactive and reversible. Muting an *author* marks their mentions `quality: spam` and closes their open items: out of the queue and out of every metric. Muting a *topic* sets the denormalized `mention.topicMuted` flag: out of every metric and skipped by the AI sweep, but still queued and readable in the monitor lane. `lane: 'lead'` is never muted by either, so neither can hide someone shopping for a CMS.
 - **channel / event / dead-letter** — platforms, annotated timeline events, and failed webhook payloads (nothing is silently dropped).
 
 ### Mention workflow
@@ -132,11 +133,12 @@ Everything except three features works with no AI key. With `AI_API_KEY` unset:
 - **Built-in MCP server** (`/mcp`, GA since Strapi 5.49) — `src/mcp/index.ts` loops the registry in `register()`.
 - **In-app assistant** (`api::assistant.answer`) — a Claude API tool-use loop; `z.toJSONSchema()` bridges the same schemas to the Messages API.
 
-Tools (12): `pulse-queue` (semantic filters — `draft: no-draft|has-draft`, status, sentiment, topic,
+Tools (15): `pulse-queue` (semantic filters — `draft: no-draft|has-draft`, status, sentiment, topic,
 search — paged, excerpt-trimmed, relations as names), `pulse-get-mention` (context + similar past
 replies), `pulse-save-draft`, `pulse-update-mention` (**partial by construction**),
 `pulse-save-drafts-bulk` (25/call), `pulse-assign-topics`, `pulse-set-lane`, `pulse-acknowledge`,
-`pulse-search-mentions`, `pulse-trend-summary`, `pulse-graph`, `pulse-theme-report`.
+`pulse-search-mentions`, `pulse-trend-summary`, `pulse-graph`, `pulse-theme-report`,
+`pulse-mute-suggestions`, `pulse-mute-topic`, `pulse-unmute-topic`.
 
 **Agent-safety design** (after a real session with Strapi's generic content-manager tools silently
 overwrote a long post): our write tools never expose `content`, so a truncated resend can't destroy
