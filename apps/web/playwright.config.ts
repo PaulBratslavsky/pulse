@@ -43,7 +43,7 @@ export default defineConfig({
     },
     {
       name: 'app',
-      testMatch: /(queue-and-detail|insights|graph|leads|mcp-servers)\.spec\.ts/,
+      testMatch: /(queue-and-detail|insights|graph|leads|mcp-servers|muted-topics)\.spec\.ts/,
       dependencies: ['setup'],
       use: { storageState: 'playwright/.auth/dana.json' },
     },

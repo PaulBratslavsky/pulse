@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useMutation } from '@tanstack/react-query'
+import { Search, VolumeX } from 'lucide-react'
+import { pulseFetch } from '@/lib/pulse-client'
+import { MutationError } from '@/components/ui/mutation-error'
 
 /**
  * Themes list: search, kind filter and paging, all client-side.
@@ -25,9 +29,23 @@ export default function ThemeList({
   initialQuery: string
   initialKind: string
 }) {
+  const router = useRouter()
   const [query, setQuery] = useState(initialQuery)
   const [kind, setKind] = useState(initialKind)
   const [page, setPage] = useState(1)
+  const [pendingSlug, setPendingSlug] = useState<string | null>(null)
+
+  /** Mute from here, because this is where the volume that justifies it is
+   *  already on screen. Muting drops the topic out of every metric but leaves
+   *  its mentions readable, and never touches the lead lane. */
+  const mute = useMutation({
+    mutationFn: (slug: string) => {
+      setPendingSlug(slug)
+      return pulseFetch('POST', 'muted-topics/mute', { slug, reason: 'not-a-competitor' })
+    },
+    onSettled: () => setPendingSlug(null),
+    onSuccess: () => router.refresh(),
+  })
 
   const syncUrl = (q: string, k: string) => {
     const sp = new URLSearchParams(window.location.search)
@@ -135,11 +153,22 @@ export default function ThemeList({
                 >
                   view queue →
                 </Link>
+                <button
+                  onClick={() => mute.mutate(t.topic.slug)}
+                  disabled={mute.isPending}
+                  data-testid="mute-topic"
+                  className="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:border-zinc-400 max-sm:min-h-[38px] max-sm:px-3 dark:border-zinc-700 dark:text-zinc-400"
+                  title="Mute — drops this topic out of trends, themes and the Pulse score. Its mentions stay readable, and leads are never muted."
+                >
+                  <VolumeX size={11} /> {pendingSlug === t.topic.slug ? 'Muting…' : 'Mute'}
+                </button>
               </div>
             </li>
           ))}
         </ul>
       )}
+
+      <MutationError m={mute} className="mt-2 text-xs" />
 
       {pageCount > 1 && (
         <div className="mt-6 flex items-center justify-between text-sm">

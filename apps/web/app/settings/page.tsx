@@ -1,5 +1,6 @@
 import { loaders } from '@/lib/loaders'
 import MutedAuthors from '@/components/settings/muted-authors'
+import MutedTopics from '@/components/settings/muted-topics'
 import ClassificationPanel from '@/components/settings/classification-panel'
 import LeaderboardOptOut from '@/components/settings/leaderboard-optout'
 import McpServers from '@/components/settings/mcp-servers'
@@ -10,15 +11,20 @@ const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? 'http://localhost:1338'
 export default async function SettingsPage() {
   // Every panel here degrades independently: one endpoint being down should
   // cost you that panel, not the whole settings page.
-  const [mutedRes, prefsRes, classificationRes, mcpRes, leadsRes] = await Promise.all([
-    loaders.getMutedAuthors(),
-    loaders.getMyPreferences(),
-    loaders.getAnalysisStatus(),
-    loaders.getMcpServers(),
-    loaders.getLeadsStatus(),
-  ])
+  const [mutedRes, mutedTopicsRes, suggestionsRes, prefsRes, classificationRes, mcpRes, leadsRes] =
+    await Promise.all([
+      loaders.getMutedAuthors(),
+      loaders.getMutedTopics(),
+      loaders.getMuteSuggestions(),
+      loaders.getMyPreferences(),
+      loaders.getAnalysisStatus(),
+      loaders.getMcpServers(),
+      loaders.getLeadsStatus(),
+    ])
 
   const muted = mutedRes.data ?? []
+  const mutedTopics = mutedTopicsRes.data ?? []
+  const suggestions = suggestionsRes.data ?? { windowDays: 30, minMentions: 20, suggestions: [] }
   const prefs = prefsRes.data ?? { hideFromLeaderboard: false }
   const classification = classificationRes.data ?? {
     enabled: false,
@@ -76,6 +82,16 @@ export default async function SettingsPage() {
 
       <div className="mb-4">
         <MutedAuthors muted={muted} />
+      </div>
+
+      {/* after muted authors: the same "take it out of the numbers" idea, one
+          level up. Topic muting is the blunter instrument, so it reads second. */}
+      <div className="mb-4">
+        <MutedTopics
+          muted={mutedTopics}
+          suggestions={suggestions.suggestions}
+          windowDays={suggestions.windowDays}
+        />
       </div>
 
       <div className="mb-8">
