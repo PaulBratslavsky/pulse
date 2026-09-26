@@ -26,7 +26,7 @@ export function QueueFilters({
   filterUrl: (over: TQueueFilterOverrides) => string;
 }) {
   return (
-    <div className="mb-4 space-y-1.5 text-sm">
+    <div className="mb-4 space-y-1.5 text-sm" data-testid="queue-filters">
       {/* active topic sits above the axes — it comes from elsewhere (a theme
           or a chip) and clearing it is a distinct action */}
       {params.topic && (
@@ -118,6 +118,7 @@ export function QueueFilters({
             key={v || "all"}
             href={filterUrl({ sentiment: v || undefined, page: 0 })}
             active={(params.sentiment ?? "") === v}
+            ariaLabel={v ? undefined : "all sentiments"}
           >
             {v === "na" ? "n/a" : v || "all"}
           </FilterPill>
@@ -201,6 +202,7 @@ export function QueueFilters({
             key={social.key || "all"}
             href={filterUrl({ social: social.key || undefined, page: 0 })}
             active={(params.social ?? "") === social.key}
+            ariaLabel={social.key ? undefined : "all socials"}
           >
             {social.label || "all"}
           </FilterPill>

@@ -386,7 +386,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     expect(await count()).toBeGreaterThan(replyWork)
 
     // the sentiment "all" pill is a DIFFERENT axis — it must not reset the lane
-    await page.getByRole('link', { name: 'all', exact: true }).click()
+    await page.getByRole('link', { name: 'all sentiments', exact: true }).click()
     await expect(page).toHaveURL(/lane=all/)
   })
 
@@ -514,11 +514,38 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await expect(page).not.toHaveURL(/sort=/)
   })
 
+  /**
+   * Every filter pill must be reachable by name.
+   *
+   * The filter rows are separate axes that happen to share vocabulary: both
+   * "sentiment" and "socials" want a pill meaning "no filter on this axis".
+   * The row's visual label is a plain <span>, so it gives a screen reader
+   * nothing — two links both announcing "all" are genuinely ambiguous, and a
+   * by-name click cannot say which axis it meant.
+   *
+   * This asserts the invariant rather than the instance: any future row that
+   * reuses a label fails here instead of silently breaking an unrelated test.
+   */
+  test('every queue filter pill has a unique accessible name', async ({ page }) => {
+    await page.goto('/')
+    // every anchor in the region, NOT just ones with a query string: a pill
+    // that CLEARS its axis links to a bare path, and those are exactly the
+    // "all" / "queue" / "reply work" resets where the collisions live.
+    const names = await page
+      .locator('[data-testid="queue-filters"] a')
+      .evaluateAll((links) =>
+        links.map((l) => (l.getAttribute('aria-label') ?? l.textContent ?? '').trim())
+      )
+    expect(names.length).toBeGreaterThan(25) // all six rows actually rendered
+    const dupes = names.filter((n, i) => names.indexOf(n) !== i)
+    expect(dupes, `filter pills share an accessible name: ${[...new Set(dupes)].join(', ')}`).toEqual([])
+  })
+
   test('queue filter chips can CLEAR their filters (all / topic ✕ / status)', async ({ page }) => {
     await page.goto('/?sentiment=negative&topic=docs&status=claimed')
 
     // "all" must drop the sentiment param (regression: explicit-undefined override was ignored)
-    await page.getByRole('link', { name: 'all', exact: true }).click()
+    await page.getByRole('link', { name: 'all sentiments', exact: true }).click()
     await expect(page).toHaveURL(/status=claimed/)
     await expect(page).not.toHaveURL(/sentiment=/)
     await expect(page).toHaveURL(/topic=docs/)
