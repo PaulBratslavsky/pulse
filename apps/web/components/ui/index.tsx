@@ -83,17 +83,27 @@ export function FilterPill({
   children,
   title,
   activeClassName,
+  ariaLabel,
 }: {
   href: string
   active: boolean
   children: React.ReactNode
   title?: string
   activeClassName?: string
+  /**
+   * Overrides the accessible name when the visible label is only meaningful
+   * next to its row. Two axes both want a pill meaning "no filter here", and
+   * a link that announces just "all" tells a screen reader nothing about
+   * WHICH axis it clears — the row label beside it is decoration, not
+   * structure. Give those pills a name that stands on its own.
+   */
+  ariaLabel?: string
 }) {
   return (
     <Link
       href={href}
       title={title}
+      aria-label={ariaLabel}
       // taller tap area under sm: the desktop pill is ~26px, well under the
       // 44px iOS / 48dp Android minimum, and the queue stacks ~17 of them
       className={`inline-flex items-center rounded-full border px-3 py-1 max-sm:min-h-[38px] max-sm:px-3.5 ${
@@ -167,13 +177,19 @@ export function Spinner({ size = 14, className = '' }: { size?: number; classNam
  * The label column collapses under `sm`: on a phone it would eat a third of
  * the width, and the pills wrap under it instead.
  */
+/**
+ * One filter axis. `role="group"` + `aria-label` rather than the bare <span>
+ * alone: the label was purely visual, so assistive tech got a flat run of ~30
+ * links with no notion of which axis any of them belonged to. The span stays
+ * (it is what sighted users read) but the group is what makes it structure.
+ */
 export function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={label}>
       {/* w-24: "SENTIMENT" at this size is ~76px and was overrunning a 64px
           column straight into the first pill. Sized to the longest label so
           every row's pills start on the same vertical line. */}
-      <span className="w-24 shrink-0 text-xs uppercase tracking-wide text-zinc-400 max-sm:w-full">
+      <span aria-hidden className="w-24 shrink-0 text-xs uppercase tracking-wide text-zinc-400 max-sm:w-full">
         {label}
       </span>
       {children}
