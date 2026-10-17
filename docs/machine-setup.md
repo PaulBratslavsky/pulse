@@ -41,6 +41,34 @@ Strapi comes up on **:1338**, Next waits for its health check, then starts on **
 
 ---
 
+## 2b. Shortcut: coming from an existing machine
+
+If the old machine still works, don't retype anything. `scripts/handoff.sh`
+packages the three things git cannot carry — `apps/cms/.env`,
+`apps/web/.env.local` and `~/.config/mcp/` — plus an optional database
+snapshot, into one passphrase-encrypted zip with a `RESTORE.sh` inside.
+
+```bash
+# on the OLD machine
+bash scripts/handoff.sh          # writes ~/Desktop/pulse-handoff-<date>.zip
+
+# move it by AirDrop / encrypted USB / password-manager attachment,
+# sending the passphrase separately — then on the NEW machine:
+unzip pulse-handoff-<date>.zip
+bash RESTORE.sh ~/work/pulse
+```
+
+The script is safe to keep in git: it contains no secrets, it only collects
+them. **Its output is the opposite** — live API keys and MCP bearer tokens — so
+that never goes near git, email or chat, and gets deleted from both machines
+once the new one works.
+
+Even taking the shortcut, read **§3 "Generate fresh"** below: the crypto
+material should be regenerated rather than copied, with one exception
+(`JWT_SECRET` / `ENCRYPTION_KEY` travel with a restored database).
+
+---
+
 ## 3. Backend variables — `apps/cms/.env`
 
 ### Generate fresh on the new machine (do NOT copy)
