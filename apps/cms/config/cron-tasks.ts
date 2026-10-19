@@ -84,4 +84,18 @@ export default {
     },
     options: { rule: process.env.OCTOLENS_SYNC_CRON || '*/5 * * * *' },
   },
+  // Saved blog resources: re-read just the posts the team kept, to pick up
+  // title/summary edits and flag ones unpublished upstream. Small by design —
+  // Pulse never mirrors the whole blog. No-op without MARKETING_MCP_URL/TOKEN.
+  resourceRefresh: {
+    task: async ({ strapi }: any) => {
+      try {
+        await strapi.service('api::resource.resource').refresh()
+      } catch (err: any) {
+        strapi.log.error(`[cron] resource refresh crashed: ${err.message}`)
+        await strapi.service('api::notify.slack').ops(`saved resource refresh failed: ${err.message}`).catch(() => {})
+      }
+    },
+    options: { rule: process.env.RESOURCE_REFRESH_CRON || '0 4 * * *' },
+  },
 }

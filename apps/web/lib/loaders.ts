@@ -19,6 +19,8 @@ import type {
   TPerson,
   TPreferences,
   TQueueSearchParams,
+  TBlogSearchResult,
+  TResource,
   TSnapshotPayload,
   TStrapiResponse,
   TThemesPayload,
@@ -151,6 +153,15 @@ const getAnalysisStatus = () => get<TAnalysisStatus>('/api/analysis/status')
 
 const getMcpServers = () => get<TMcpServer[]>('/api/mcp-servers')
 
+// ── Resources ───────────────────────────────────────────────────────────────
+
+/** Every saved resource, hidden ones included — the page filters on the client. */
+const getResources = () => get<TResource[]>('/api/resources', { includeHidden: 'true' })
+
+/** Live search of the marketing blog. 503 = not configured, 502 = the marketing site failed. */
+const searchBlog = (q: string, page = 1) =>
+  get<TBlogSearchResult[]>('/api/resources/source/search', { q, page })
+
 // ── Topics ──────────────────────────────────────────────────────────────────
 
 /**
@@ -204,5 +215,7 @@ export const loaders = {
   getMyPreferences,
   getAnalysisStatus,
   getMcpServers,
+  getResources,
+  searchBlog,
   getAllTopics,
 }

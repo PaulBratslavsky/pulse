@@ -1,0 +1,78 @@
+{
+  "kind": "collectionType",
+  "collectionName": "resources",
+  "info": {
+    "singularName": "resource",
+    "pluralName": "resources",
+    "displayName": "Resource",
+    "description": "A post the team chose to keep as a reference for replies. Found by a live search of the marketing site (api::resource.source), saved by hand; Pulse owns this copy — only saved posts are refreshed."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "kind": {
+      "type": "enumeration",
+      "enum": [
+        "blog"
+      ],
+      "default": "blog",
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "url": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "summary": {
+      "type": "text"
+    },
+    "keywords": {
+      "type": "json"
+    },
+    "category": {
+      "type": "string"
+    },
+    "postedAt": {
+      "type": "datetime"
+    },
+    "sourceId": {
+      "type": "string",
+      "unique": true
+    },
+    "sourceUpdatedAt": {
+      "type": "datetime"
+    },
+    "searchText": {
+      "type": "text",
+      "private": true
+    },
+    "pinned": {
+      "type": "boolean",
+      "default": false
+    },
+    "hidden": {
+      "type": "boolean",
+      "default": false
+    },
+    "upstreamMissing": {
+      "type": "boolean",
+      "default": false
+    },
+    "note": {
+      "type": "text"
+    },
+    "savedBy": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "refreshedAt": {
+      "type": "datetime"
+    }
+  }
+}
