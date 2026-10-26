@@ -93,6 +93,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::resource.resource.searchSource',
   'api::resource.resource.refresh',
   'api::resource.resource.forMention',
+  'api::resource.resource.sharedBefore',
   'plugin::users-permissions.user.me',
 ]
 

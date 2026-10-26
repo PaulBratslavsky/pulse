@@ -159,8 +159,18 @@ const getMcpServers = () => get<TMcpServer[]>('/api/mcp-servers')
 const getResources = () => get<TResource[]>('/api/resources', { includeHidden: 'true' })
 
 /** Live search of the marketing blog. 503 = not configured, 502 = the marketing site failed. */
-const searchBlog = (q: string, page = 1) =>
-  get<TBlogSearchResult[]>('/api/resources/source/search', { q, page })
+const searchBlog = (
+  q: string,
+  page = 1,
+  filters: { since?: string | null; hideOld?: boolean; exclude?: string[] } = {}
+) =>
+  get<TBlogSearchResult[]>('/api/resources/source/search', {
+    q,
+    page,
+    ...(filters.since ? { since: filters.since } : {}),
+    ...(filters.hideOld ? { hideOld: 'true' } : {}),
+    ...(filters.exclude?.length ? { exclude: filters.exclude.join(',') } : {}),
+  })
 
 // ── Topics ──────────────────────────────────────────────────────────────────
 

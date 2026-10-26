@@ -9,6 +9,7 @@ import { pulseFetch } from '@/lib/pulse-client'
 import { EmptyState } from '@/components/ui'
 import { MutationError } from '@/components/ui/mutation-error'
 import type { TResource } from '@/types'
+import SharedBefore from './shared-before'
 
 /**
  * The team's saved resources.
@@ -43,6 +44,8 @@ export default function SavedResources({ resources }: { resources: TResource[] }
 
   if (resources.length === 0) {
     return (
+      <>
+      <SharedBefore />
       <EmptyState icon={<BookOpen size={28} className="mx-auto mb-3 text-zinc-300" />} title="Nothing saved yet">
         <p className="text-sm text-zinc-500">
           <Link href="/resources?view=find" className="font-medium text-blue-600 hover:underline">
@@ -51,11 +54,13 @@ export default function SavedResources({ resources }: { resources: TResource[] }
           and save it. Saved posts are the ones Pulse suggests when you reply.
         </p>
       </EmptyState>
+      </>
     )
   }
 
   return (
     <div>
+      <SharedBefore />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 basis-60">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" aria-hidden />
@@ -175,7 +180,7 @@ function ResourceRow({ resource: r }: { resource: TResource }) {
       </div>
 
       <p className="mt-0.5 text-xs text-zinc-500">
-        {[r.category, r.postedAt && new Date(r.postedAt).toLocaleDateString(), r.savedBy?.username && `saved by ${r.savedBy.username}`]
+        {[r.category, r.version && r.version !== 'v5' && `written for ${r.version}`, r.postedAt && new Date(r.postedAt).toLocaleDateString(), r.savedBy?.username && `saved by ${r.savedBy.username}`]
           .filter(Boolean)
           .join(' · ')}
       </p>

@@ -4,8 +4,9 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
-import { BookmarkPlus, Check, Search } from 'lucide-react'
+import { BookmarkPlus, Check, Search, SlidersHorizontal } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
+import { blogFilterParams, DEFAULT_EXCLUDED_CATEGORIES, type TBlogFilters } from '@/lib/blog-filters'
 import { Spinner } from '@/components/ui'
 import { MutationError } from '@/components/ui/mutation-error'
 import type { TBlogSearchResult } from '@/types'
@@ -17,6 +18,9 @@ type Result = {
   results: TBlogSearchResult[]
   pageCount: number
   total: number
+  /** results on this page the filters removed */
+  hidden: number
+  categories: string[]
 } | null
 
 /**
@@ -26,17 +30,31 @@ type Result = {
  * component only owns the box and the Save buttons. Results are not stored
  * anywhere until someone clicks Save.
  */
-export default function BlogSearch({ q, page, result }: { q: string; page: number; result: Result }) {
+export default function BlogSearch({
+  q,
+  page,
+  filters,
+  result,
+}: {
+  q: string
+  page: number
+  filters: TBlogFilters
+  result: Result
+}) {
   const router = useRouter()
   const [value, setValue] = useState(q)
   const [pending, startTransition] = useTransition()
 
-  const go = (next: string, nextPage = 1) => {
-    const params = new URLSearchParams({ view: 'find' })
+  const go = (next: string, nextPage = 1, nextFilters: TBlogFilters = filters) => {
+    const params = new URLSearchParams({ view: 'find', ...blogFilterParams(nextFilters) })
     if (next.trim()) params.set('q', next.trim())
     if (nextPage > 1) params.set('page', String(nextPage))
     startTransition(() => router.push(`/resources?${params}`))
   }
+  const setFilters = (patch: Partial<TBlogFilters>) => go(q, 1, { ...filters, ...patch })
+  // categories are only known once a search has come back; keep the excluded
+  // ones visible even when this page had none, so they can be turned back on
+  const categories = [...new Set([...(result?.categories ?? []), ...filters.exclude])].sort()
 
   return (
     <div>
@@ -63,6 +81,8 @@ export default function BlogSearch({ q, page, result }: { q: string; page: numbe
         )}
       </form>
 
+      <BlogFilterBar filters={filters} categories={categories} onChange={setFilters} disabled={pending} />
+
       {!q ? (
         <p className="text-sm text-zinc-500">
           Search for the topic people ask about — “webhooks”, “i18n”, “MCP”. Matches in the title are
@@ -73,11 +93,17 @@ export default function BlogSearch({ q, page, result }: { q: string; page: numbe
       ) : !result ? null : !result.ok ? (
         <SearchError status={result.status} message={result.error} />
       ) : result.results.length === 0 ? (
-        <p className="text-sm text-zinc-500">No published posts match “{q}”.</p>
+        <p className="text-sm text-zinc-500">
+          {result.hidden > 0
+            ? `${result.hidden} post${result.hidden === 1 ? '' : 's'} on this page matched “${q}” but the filters hid them.`
+            : `No published posts match “${q}” with these filters.`}
+          {result.pageCount > page && ' Try the next page, or loosen the filters.'}
+        </p>
       ) : (
         <>
           <p className="mb-3 text-xs text-zinc-500">
             {result.total} post{result.total === 1 ? '' : 's'} on the blog match “{q}”
+            {result.hidden > 0 && <> · {result.hidden} on this page hidden by the filters</>}
           </p>
           <ul className="space-y-3">
             {result.results.map((post) => (
@@ -165,7 +191,19 @@ function BlogResult({ post }: { post: TBlogSearchResult }) {
         )}
       </div>
       <p className="mt-0.5 text-xs text-zinc-500">
-        {[post.category, post.postedAt && new Date(post.postedAt).toLocaleDateString()].filter(Boolean).join(' · ')}
+        {[post.category, post.level, post.postedAt && new Date(post.postedAt).toLocaleDateString()].filter(Boolean).join(' · ')}
+        {post.version && (
+          <span
+            className={`ml-2 rounded px-1 py-px text-[11px] font-medium ${
+              post.version === 'v5'
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                : 'bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200'
+            }`}
+            title={post.version === 'v5' ? 'Written for Strapi 5' : `Written for Strapi ${post.version} — check it still applies`}
+          >
+            {post.version}
+          </span>
+        )}
       </p>
       {post.summary && <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{post.summary}</p>}
       {post.keywords && post.keywords.length > 0 && (
@@ -179,5 +217,88 @@ function BlogResult({ post }: { post: TBlogSearchResult }) {
       )}
       <MutationError m={save} className="mt-2 text-xs" />
     </li>
+  )
+}
+
+function BlogFilterBar({
+  filters,
+  categories,
+  onChange,
+  disabled,
+}: {
+  filters: TBlogFilters
+  categories: string[]
+  onChange: (patch: Partial<TBlogFilters>) => void
+  disabled: boolean
+}) {
+  const pill = (active: boolean) =>
+    `rounded-full border px-2.5 py-0.5 text-xs disabled:opacity-50 max-sm:min-h-[32px] ${
+      active
+        ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+        : 'border-zinc-300 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400'
+    }`
+  const ages: { key: TBlogFilters['age']; label: string }[] = [
+    { key: '1y', label: 'last year' },
+    { key: '2y', label: 'last 2 years' },
+    { key: 'all', label: 'any time' },
+  ]
+  const toggleCategory = (c: string) =>
+    onChange({ exclude: filters.exclude.includes(c) ? filters.exclude.filter((x) => x !== c) : [...filters.exclude, c] })
+  const isDefault =
+    filters.age === '2y' &&
+    !filters.showOld &&
+    filters.exclude.length === DEFAULT_EXCLUDED_CATEGORIES.length &&
+    DEFAULT_EXCLUDED_CATEGORIES.every((c) => filters.exclude.includes(c))
+
+  return (
+    <div className="mb-4 space-y-2 rounded-md border border-zinc-200 p-3 text-xs dark:border-zinc-800" aria-label="Blog search filters" role="group">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <SlidersHorizontal size={12} className="text-zinc-400" aria-hidden />
+        <span className="mr-1 text-zinc-500">Published</span>
+        {ages.map((a) => (
+          <button key={a.key} disabled={disabled} onClick={() => onChange({ age: a.key })} className={pill(filters.age === a.key)} aria-pressed={filters.age === a.key}>
+            {a.label}
+          </button>
+        ))}
+        <label className="ml-2 flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
+          <input
+            type="checkbox"
+            disabled={disabled}
+            checked={!filters.showOld}
+            onChange={(e) => onChange({ showOld: !e.target.checked })}
+          />
+          Hide posts written for Strapi v3/v4
+        </label>
+        {!isDefault && (
+          <button
+            disabled={disabled}
+            onClick={() => onChange({ age: '2y', showOld: false, exclude: DEFAULT_EXCLUDED_CATEGORIES })}
+            className="ml-auto text-zinc-500 underline underline-offset-2"
+          >
+            Reset filters
+          </button>
+        )}
+      </div>
+      {categories.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-zinc-500">Categories</span>
+          {categories.map((c) => {
+            const on = !filters.exclude.includes(c)
+            return (
+              <button
+                key={c}
+                disabled={disabled}
+                onClick={() => toggleCategory(c)}
+                className={pill(on)}
+                aria-pressed={on}
+                title={on ? `Hide ${c} posts` : `Show ${c} posts`}
+              >
+                {c}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }

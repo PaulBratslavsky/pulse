@@ -1,7 +1,7 @@
 # Resources tab — design
 
 **Date:** 2026-10-19
-**Status:** approved. Phases 1 (backend), 2 (Resources tab) and 3 (related resources on a mention) are implemented; phases 4–5 are not.
+**Status:** approved. Phases 1 (backend), 2 (Resources tab), 3 (related resources on a mention) and the curation pass below are implemented; phases 4–5 are not.
 
 ## The problem
 
@@ -113,6 +113,33 @@ URL and token, the source endpoints return 503 and refresh is a no-op.
   to this file only.
 - `services/resource.ts` holds save, list, patch and refresh.
 - `controllers/resource.ts` and `routes/resource.ts` expose the endpoints.
+
+## Curation: keeping the saved list relevant (implemented)
+
+Much of the blog is SEO material or written for Strapi v3/v4 (308 posts are
+marked v3/v4 as of 2026-10-26). So the design stays **saved-only**: Pulse
+suggests nothing a person did not choose. The work is making choosing fast and
+accurate.
+
+- **Previously shared** (`GET /resources/shared-before`): reads the blog links
+  in recorded replies (`response.finalText`), resolves their slugs to
+  published posts in one `list_blog-post` call (`slug $in`), and leaves out
+  the ones already saved. The Saved pane shows them as a card, most-shared
+  first, all ticked, with **Save N selected**. Every post there was chosen by
+  someone answering a real question, so it's the best starting list.
+- **Search filters** on Find on the blog. They live in the URL and lean by
+  default:
+  - **published within** 1 year / **2 years (default)** / any time. This runs on
+    the marketing site (`originalPublishedAt $gte`).
+  - **hide posts marked v3/v4** (default on). Posts with no version are kept.
+  - **categories**: Company and Ecosystem are off by default; each is a toggle.
+  - Version and category are filtered **in Pulse, after fetching**, because the
+    marketing MCP accepts no category filter and its version filters drop
+    posts with no version. Pages are source pages of 25, and the result says
+    how many the filters hid, so nothing vanishes silently.
+- **Quality cues** on every result and saved row: category, level, date, and a
+  version badge (green v5, amber v3/v4 "check it still applies").
+- `resource` gains `version` and `level`.
 
 ## Remaining phases
 

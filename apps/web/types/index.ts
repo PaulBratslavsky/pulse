@@ -32,6 +32,9 @@ export type TStrapiResponse<T> = {
     grouped?: boolean;
     /** the graph endpoint offers the projections it can render */
     projections?: TGraphProjection[];
+    /** blog search: results its filters removed from this page, and the categories to filter on */
+    hidden?: number;
+    categories?: string[];
   };
   error?: TStrapiError;
   success: boolean;
@@ -439,6 +442,8 @@ export type TResource = {
   keywords?: string[] | null;
   category?: string | null;
   postedAt?: string | null;
+  version?: string | null;
+  level?: string | null;
   note?: string | null;
   pinned: boolean;
   hidden: boolean;
@@ -459,5 +464,13 @@ export type TBlogSearchResult = {
   keywords?: string[] | null;
   category?: string | null;
   postedAt?: string | null;
+  version?: string | null;
+  level?: string | null;
   savedId: string | null;
+};
+
+/** A blog post already linked in recorded replies, not saved as a resource yet. */
+export type TSharedBefore = Omit<TBlogSearchResult, 'savedId'> & {
+  timesShared: number;
+  lastSharedAt: string | null;
 };

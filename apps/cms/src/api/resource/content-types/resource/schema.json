@@ -40,6 +40,12 @@
     "postedAt": {
       "type": "datetime"
     },
+    "version": {
+      "type": "string"
+    },
+    "level": {
+      "type": "string"
+    },
     "sourceId": {
       "type": "string",
       "unique": true
