@@ -12,6 +12,7 @@ import Timeline from '@/components/timeline'
 import { ReplyDraftProvider } from '@/components/reply/reply-draft-context'
 import { ReplyChat } from '@/components/reply/reply-chat'
 import { DraftPanel } from '@/components/reply/draft-panel'
+import { RelatedResources } from '@/components/reply/related-resources'
 import { ReplyBox } from '@/components/reply/reply-box'
 
 export default async function MentionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -159,18 +160,18 @@ export default async function MentionDetailPage({ params }: { params: Promise<{ 
         {/* 2 — answering it */}
         <section className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
           <h2 className={heading}>Your reply</h2>
-          <div className={config.aiEnabled ? twoCol : ''}>
+          <div className={twoCol}>
             <ReplyBox mention={m} aiEnabled={config.aiEnabled} />
             {/* The generated draft and the conversation about it are one job:
                 write something, ask whether it is right, revise it. Beside the
                 reply box rather than inside it — a suggestion sitting in the
-                reply card read as a reply already written. */}
-            {config.aiEnabled && (
-              <div className="space-y-4">
-                <DraftPanel documentId={m.documentId} />
-                <ReplyChat documentId={m.documentId} />
-              </div>
-            )}
+                reply card read as a reply already written. Related resources
+                sit with them but need no AI, so the column is always there. */}
+            <div className="space-y-4">
+              {config.aiEnabled && <DraftPanel documentId={m.documentId} />}
+              <RelatedResources documentId={m.documentId} />
+              {config.aiEnabled && <ReplyChat documentId={m.documentId} />}
+            </div>
           </div>
         </section>
 

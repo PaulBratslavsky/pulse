@@ -92,6 +92,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::resource.resource.remove',
   'api::resource.resource.searchSource',
   'api::resource.resource.refresh',
+  'api::resource.resource.forMention',
   'plugin::users-permissions.user.me',
 ]
 

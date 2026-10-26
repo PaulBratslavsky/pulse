@@ -19,7 +19,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
  *
  * Everything else on this screen is server state and belongs in a fetch.
  */
-type Via = 'refine' | 'chat' | 'plaintext'
+type Via = 'refine' | 'chat' | 'plaintext' | 'resource'
 
 export type ChatTurn = { role: 'user' | 'assistant'; content: string; revision?: string | null }
 
@@ -31,6 +31,13 @@ type ReplyDraft = {
   /** replace the text, remembering the previous version for undo */
   replace: (next: string, via: Via) => void
   undo: () => void
+  /**
+   * Put `snippet` where the reply's cursor is (or at the end), as an undoable
+   * change. The textarea registers itself through `textareaRef` so a panel in
+   * the sidebar can insert without owning the box.
+   */
+  insert: (snippet: string, via: Via) => void
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>
   previous: string | null
   via: Via
   chat: ChatTurn[]
@@ -77,6 +84,29 @@ export function ReplyDraftProvider({
     [setText]
   )
 
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const insert = useCallback(
+    (snippet: string, v: Via) => {
+      const current = textRef.current
+      const el = textareaRef.current
+      // selectionStart survives a blur, so clicking a sidebar button still
+      // knows where you were typing; no textarea (plain tab) means append
+      const at = el ? Math.min(el.selectionStart ?? current.length, current.length) : current.length
+      const before = current.slice(0, at)
+      const after = current.slice(at)
+      const lead = before && !/\s$/.test(before) ? ' ' : ''
+      const trail = after && !/^\s/.test(after) ? ' ' : ''
+      replace(before + lead + snippet + trail + after, v)
+      const caret = (before + lead + snippet).length
+      requestAnimationFrame(() => {
+        if (!el) return
+        el.focus()
+        el.setSelectionRange(caret, caret)
+      })
+    },
+    [replace]
+  )
+
   const undo = useCallback(() => {
     if (previous === null) return
     setText(previous)
@@ -84,8 +114,8 @@ export function ReplyDraftProvider({
   }, [previous, setText])
 
   const value = useMemo(
-    () => ({ text, setText, replace, undo, previous, via, chat, setChat, draft, setDraft, drafting, setDrafting }),
-    [text, setText, replace, undo, previous, via, chat, draft, drafting]
+    () => ({ text, setText, replace, undo, insert, textareaRef, previous, via, chat, setChat, draft, setDraft, drafting, setDrafting }),
+    [text, setText, replace, undo, insert, previous, via, chat, draft, drafting]
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

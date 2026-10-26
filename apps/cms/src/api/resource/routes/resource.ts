@@ -8,5 +8,7 @@ export default {
     // live search of the marketing site, to find posts worth saving
     { method: 'GET', path: '/resources/source/search', handler: 'resource.searchSource', config: { policies: [] } },
     { method: 'POST', path: '/resources/refresh', handler: 'resource.refresh', config: { policies: [] } },
+    // saved resources that fit one mention — the Related resources panel
+    { method: 'GET', path: '/mentions/:documentId/resources', handler: 'resource.forMention', config: { policies: [] } },
   ],
 }
