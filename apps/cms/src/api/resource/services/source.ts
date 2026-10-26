@@ -155,7 +155,16 @@ export const source = ({ strapi }: { strapi: Core.Strapi }) => {
           try {
             const res = await call(client, GET_POST, { documentId: id, status: 'published' })
             const post = res?.data ?? res
-            out.set(id, post?.documentId ? toSourcePost(post, categories, tags) : null)
+            if (!post?.documentId) {
+              out.set(id, null)
+              continue
+            }
+            // Published but unusable (no title or slug) is NOT "gone": null
+            // would flag the saved copy as unpublished. Treat it as a failed
+            // load, so the saved copy is left as it was.
+            const mapped = toSourcePost(post, categories, tags)
+            if (!mapped) throw new SourceError(`post ${id} is published but has no title or slug`)
+            out.set(id, mapped)
           } catch (err: any) {
             if (/not ?found|404/i.test(String(err.message))) out.set(id, null)
             else if (strict) throw err
