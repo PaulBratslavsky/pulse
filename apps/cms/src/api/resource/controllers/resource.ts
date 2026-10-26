@@ -1,14 +1,19 @@
 import { factories } from '@strapi/strapi'
-import { SourceNotConfigured } from '../services/source'
+import { SourceError, SourceNotConfigured } from '../services/source'
 
 /** Thin wrappers — logic lives in api::resource.resource and api::resource.source. */
 export default factories.createCoreController('api::resource.resource', ({ strapi }) => {
   const resources = () => strapi.service('api::resource.resource') as any
   const source = () => strapi.service('api::resource.source') as any
 
-  /** Source failures are the marketing site's, not ours: say so with a 502/503, never a bare 500. */
+  /**
+   * Source failures are the marketing site's, not ours: say so with a 502/503.
+   * Anything else (our own database) is rethrown, so it is not blamed on the
+   * marketing site.
+   */
   const sourceError = (ctx: any, err: any) => {
     if (err instanceof SourceNotConfigured) return ctx.serviceUnavailable(err.message)
+    if (!(err instanceof SourceError)) throw err
     strapi.log.warn(`[resources] marketing source failed: ${err.message}`)
     ctx.status = 502
     ctx.body = { data: null, error: { status: 502, name: 'BadGateway', message: `Marketing site: ${err.message}` } }
@@ -23,6 +28,7 @@ export default factories.createCoreController('api::resource.resource', ({ strap
     async save(ctx) {
       const { sourceId, note } = (ctx.request.body as any)?.data ?? ctx.request.body ?? {}
       if (typeof sourceId !== 'string' || !sourceId) return ctx.badRequest('sourceId is required')
+      if (note != null && typeof note !== 'string') return ctx.badRequest('note must be a string')
       try {
         const saved = await resources().save({ sourceId, note }, ctx.state.user?.id)
         if (!saved) return ctx.notFound('That post is not published on the marketing site')

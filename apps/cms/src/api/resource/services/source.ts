@@ -52,30 +52,42 @@ let lookups: { at: number; categories: Map<string, string>; tags: Map<string, st
 export const source = ({ strapi }: { strapi: Core.Strapi }) => {
   const configured = () => Boolean(process.env.MARKETING_MCP_URL && process.env.MARKETING_MCP_TOKEN)
 
-  /** Open a client, check the token is read-only, run `fn`, always close. */
+  /**
+   * Open a client, check the token is read-only, run `fn`, always close.
+   *
+   * Every failure in here is the marketing site's (or the token's), so it
+   * leaves as a SourceError — callers map that to a 502 and let anything else
+   * (our own database) surface as what it is. Startup and tool discovery are
+   * bounded by the same deadline as tool calls: a server that accepts the
+   * connection and then goes quiet must not hang a search forever.
+   */
   async function withClient<T>(fn: (client: any, tools: string[]) => Promise<T>): Promise<T> {
     if (!configured()) throw new SourceNotConfigured()
-    const client = await createMCPClient({
-      transport: {
-        type: 'http',
-        url: process.env.MARKETING_MCP_URL!,
-        headers: { Authorization: `Bearer ${process.env.MARKETING_MCP_TOKEN}` },
-      },
-      clientName: 'pulse-resources',
-    })
+    let client: any
     try {
+      client = await createMCPClient({
+        transport: {
+          type: 'http',
+          url: process.env.MARKETING_MCP_URL!,
+          headers: { Authorization: `Bearer ${process.env.MARKETING_MCP_TOKEN}` },
+        },
+        initializationOptions: { timeout: CALL_TIMEOUT_MS },
+        clientName: 'pulse-resources',
+      })
       const tools = await toolNames(client)
       const writable = tools.filter((n) => WRITE_TOOL.test(n))
       if (writable.length) {
-        throw new Error(
+        throw new SourceError(
           `the marketing MCP token can see write tools (${writable.slice(0, 3).join(', ')}${writable.length > 3 ? ', …' : ''}). ` +
             `Grant it only the list/get blog tools.`
         )
       }
-      if (!tools.includes(LIST_POSTS)) throw new Error(`the marketing MCP token cannot see ${LIST_POSTS}`)
+      if (!tools.includes(LIST_POSTS)) throw new SourceError(`the marketing MCP token cannot see ${LIST_POSTS}`)
       return await fn(client, tools)
+    } catch (err: any) {
+      throw err instanceof SourceError ? err : new SourceError(String(err?.message ?? err))
     } finally {
-      await client.close().catch(() => {})
+      await client?.close().catch(() => {})
     }
   }
 
@@ -162,13 +174,19 @@ export class SourceNotConfigured extends Error {
   }
 }
 
+/** The marketing site failed or refused us — as opposed to a failure on Pulse's side. */
+export class SourceError extends Error {}
+
 // ---- MCP plumbing ---------------------------------------------------------
 
 async function toolNames(client: any): Promise<string[]> {
   const names: string[] = []
   let cursor: string | undefined
   do {
-    const res = await client.listTools({ params: cursor ? { cursor } : undefined })
+    const res = await client.listTools({
+      params: cursor ? { cursor } : undefined,
+      options: { timeout: CALL_TIMEOUT_MS },
+    })
     for (const t of res.tools ?? []) names.push(t.name)
     cursor = res.nextCursor
   } while (cursor)

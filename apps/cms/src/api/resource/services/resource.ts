@@ -19,6 +19,45 @@ export default factories.createCoreService(UID, ({ strapi }) => {
   const source = () => strapi.service('api::resource.source') as any
   const docs = () => strapi.documents(UID) as any
 
+  /**
+   * Re-read every saved post from the source: pick up title and summary
+   * edits, and flag (never delete) posts that were unpublished upstream.
+   */
+  async function sweep() {
+    const rows = (await strapi.db.query(UID).findMany({
+      where: { kind: 'blog', sourceId: { $notNull: true } },
+      select: ['documentId', 'sourceId', 'sourceUpdatedAt', 'upstreamMissing'],
+    })) as any[]
+    const posts: Map<string, any> = await source().getMany(rows.map((r) => r.sourceId))
+    const now = new Date().toISOString()
+    const counts = { checked: rows.length, updated: 0, missing: 0, failed: 0 }
+
+    for (const row of rows) {
+      if (!posts.has(row.sourceId)) {
+        counts.failed++ // could not load — leave the row as it was
+        continue
+      }
+      const post = posts.get(row.sourceId)
+      if (!post) {
+        if (!row.upstreamMissing) {
+          await docs().update({ documentId: row.documentId, data: { upstreamMissing: true, refreshedAt: now } })
+          counts.missing++
+        }
+        continue
+      }
+      const changed = toIso(post.sourceUpdatedAt) !== toIso(row.sourceUpdatedAt) || row.upstreamMissing
+      await docs().update({
+        documentId: row.documentId,
+        data: changed ? { ...post, upstreamMissing: false, refreshedAt: now } : { refreshedAt: now },
+      })
+      if (changed) counts.updated++
+    }
+    strapi.log.info(
+      `[resources] refreshed ${counts.checked} saved post(s): ${counts.updated} updated, ${counts.missing} gone upstream, ${counts.failed} failed`
+    )
+    return counts
+  }
+
   return {
     /** Saved resources, pinned first then newest saved. `q` matches title, summary, keywords and the post's opening. */
     async listSaved({ q, includeHidden = false }: { q?: string; includeHidden?: boolean } = {}) {
@@ -65,10 +104,19 @@ export default factories.createCoreService(UID, ({ strapi }) => {
       }
       const post = await source().get(sourceId)
       if (!post) return null
-      return docs().create({
-        data: { ...post, note: note?.trim() || null, savedBy: userId ?? null, refreshedAt: new Date().toISOString() },
-        fields: PUBLIC_FIELDS,
-      })
+      try {
+        return await docs().create({
+          data: { ...post, note: note?.trim() || null, savedBy: userId ?? null, refreshedAt: new Date().toISOString() },
+          fields: PUBLIC_FIELDS,
+        })
+      } catch (err) {
+        // Lost a race with a concurrent save of the same post (a double click,
+        // two teammates): the unique sourceId/url rejected ours. The post IS
+        // saved — return that row rather than an error.
+        const winner = await docs().findFirst({ filters: { sourceId }, fields: PUBLIC_FIELDS })
+        if (winner) return winner
+        throw err
+      }
     },
 
     /** The team's own fields only — the copied post fields are the refresh job's. */
@@ -85,45 +133,22 @@ export default factories.createCoreService(UID, ({ strapi }) => {
     },
 
     /**
-     * Re-read every saved post from the source: pick up title and summary
-     * edits, and flag (never delete) posts that were unpublished upstream.
+     * One refresh at a time per process: the nightly cron and the button can
+     * overlap, and two sweeps reading different upstream versions could finish
+     * out of order and leave the older copy behind.
      */
     async refresh() {
       if (!source().configured()) return null
-      const rows = (await strapi.db.query(UID).findMany({
-        where: { kind: 'blog', sourceId: { $notNull: true } },
-        select: ['documentId', 'sourceId', 'sourceUpdatedAt', 'upstreamMissing'],
-      })) as any[]
-      const posts: Map<string, any> = await source().getMany(rows.map((r) => r.sourceId))
-      const now = new Date().toISOString()
-      const counts = { checked: rows.length, updated: 0, missing: 0, failed: 0 }
-
-      for (const row of rows) {
-        if (!posts.has(row.sourceId)) {
-          counts.failed++ // could not load — leave the row as it was
-          continue
-        }
-        const post = posts.get(row.sourceId)
-        if (!post) {
-          if (!row.upstreamMissing) {
-            await docs().update({ documentId: row.documentId, data: { upstreamMissing: true, refreshedAt: now } })
-            counts.missing++
-          }
-          continue
-        }
-        const changed = toIso(post.sourceUpdatedAt) !== toIso(row.sourceUpdatedAt) || row.upstreamMissing
-        await docs().update({
-          documentId: row.documentId,
-          data: changed ? { ...post, upstreamMissing: false, refreshedAt: now } : { refreshedAt: now },
+      if (!refreshing) {
+        refreshing = sweep().finally(() => {
+          refreshing = null
         })
-        if (changed) counts.updated++
       }
-      strapi.log.info(
-        `[resources] refreshed ${counts.checked} saved post(s): ${counts.updated} updated, ${counts.missing} gone upstream, ${counts.failed} failed`
-      )
-      return counts
+      return refreshing
     },
   }
 })
+
+let refreshing: Promise<{ checked: number; updated: number; missing: number; failed: number }> | null = null
 
 const toIso = (d: unknown) => (d ? new Date(d as any).toISOString() : null)
