@@ -1,7 +1,7 @@
 # Resources tab — design
 
 **Date:** 2026-10-19
-**Status:** approved. Phases 1 (backend) and 2 (Resources tab) are implemented; phases 3–5 are not.
+**Status:** approved. Phases 1 (backend), 2 (Resources tab) and 3 (related resources on a mention) are implemented; phases 4–5 are not.
 
 ## The problem
 
@@ -122,13 +122,24 @@ URL and token, the source endpoints return 503 and refresh is a no-op.
      "unpublished upstream" badge) and **Find on the blog** (live search with
      Save buttons and a "Saved ✓" state).
    - Reads go through `lib/loaders.ts`; mutations go through `pulseFetch`.
-3. **Related resources on a mention**: `GET /mentions/:documentId/resources`
-   ranks **saved** resources against the mention by keyword score:
-   - title ×3, keywords ×2, `searchText` ×1, pinned boost.
-   - Mention terms come from content, `matchedKeywords` and topics.
-   - A panel under `DraftPanel` has an **Insert** button that adds
-     `title — url` through `reply-draft-context.tsx` (`via: 'resource'`, with
-     undo).
+3. **Related resources on a mention** *(implemented)*:
+   `GET /mentions/:documentId/resources` (`services/match.ts`) ranks **saved**
+   resources against the mention by keyword score, with no model call:
+   - title ×3, keywords ×2, `searchText` ×1 per distinct mention term;
+     +3 when a whole multi-word keyword appears in the mention; +1 for pinned
+     once something matched. Rows scoring below 3 are dropped.
+   - Mention terms come from content, `matchedKeywords` and topic names, with
+     stopwords (including "strapi", "cms", "headless") removed and a light
+     plural fold ("apis" → "api").
+   - Hidden and unpublished-upstream resources are never suggested.
+   - `rankResources()` is pure, so phase 4 can reuse it.
+   - The panel (`components/reply/related-resources.tsx`) sits in the reply
+     side column. It is shown even when AI is off. It lists the top 5 with
+     the team note (or summary) and the matched terms, and has a search box
+     over saved resources for when the suggestion misses.
+   - **Insert** puts `title — url` at the reply cursor through
+     `reply-draft-context.tsx` (`insert()`, `via: 'resource'`). It is
+     undoable with the existing undo.
 4. **Drafter suggests, never links**:
    - `draft()` returns `suggestedResources` (the top 3 saved matches) next to
      `sourceUrls`. The prompt does **not** get blog URLs.

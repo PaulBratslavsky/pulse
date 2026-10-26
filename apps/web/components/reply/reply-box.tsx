@@ -27,6 +27,7 @@ export function ReplyBox({ mention, aiEnabled }: { mention: any; aiEnabled: bool
     setText: setFinalText,
     replace,
     undo,
+    textareaRef,
     previous,
     via,
     chat,
@@ -128,6 +129,7 @@ export function ReplyBox({ mention, aiEnabled }: { mention: any; aiEnabled: bool
 
         {tab === 'write' ? (
           <textarea
+            ref={textareaRef}
             id="reply-panel-write"
             role="tabpanel"
             aria-labelledby="reply-tab-write"

@@ -65,6 +65,13 @@ export default factories.createCoreController('api::resource.resource', ({ strap
       }
     },
 
+    async forMention(ctx) {
+      const limit = Math.min(Math.max(Number((ctx.query as any).limit) || 5, 1), 20)
+      const matches = await (strapi.service('api::resource.match') as any).forMention(ctx.params.documentId, limit)
+      if (!matches) return ctx.notFound('Mention not found')
+      return { data: matches }
+    },
+
     /** Kicks the refresh off and returns; it can outlive a request timeout. */
     async refresh(ctx) {
       if (!source().configured()) return ctx.serviceUnavailable(new SourceNotConfigured().message)
