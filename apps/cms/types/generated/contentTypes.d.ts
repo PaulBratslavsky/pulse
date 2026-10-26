@@ -979,6 +979,58 @@ export interface ApiPreferencePreference extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiResourceResource extends Struct.CollectionTypeSchema {
+  collectionName: 'resources';
+  info: {
+    description: 'A post the team chose to keep as a reference for replies. Found by a live search of the marketing site (api::resource.source), saved by hand; Pulse owns this copy \u2014 only saved posts are refreshed.';
+    displayName: 'Resource';
+    pluralName: 'resources';
+    singularName: 'resource';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    category: Schema.Attribute.String;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    hidden: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    keywords: Schema.Attribute.JSON;
+    kind: Schema.Attribute.Enumeration<['blog']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'blog'>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::resource.resource'
+    > &
+      Schema.Attribute.Private;
+    note: Schema.Attribute.Text;
+    pinned: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    postedAt: Schema.Attribute.DateTime;
+    publishedAt: Schema.Attribute.DateTime;
+    refreshedAt: Schema.Attribute.DateTime;
+    savedBy: Schema.Attribute.Relation<
+      'manyToOne',
+      'plugin::users-permissions.user'
+    >;
+    searchText: Schema.Attribute.Text & Schema.Attribute.Private;
+    sourceId: Schema.Attribute.String & Schema.Attribute.Unique;
+    sourceUpdatedAt: Schema.Attribute.DateTime;
+    summary: Schema.Attribute.Text;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    upstreamMissing: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    url: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+  };
+}
+
 export interface ApiResponseResponse extends Struct.CollectionTypeSchema {
   collectionName: 'responses';
   info: {
@@ -1664,6 +1716,7 @@ declare module '@strapi/strapi' {
       'api::muted-topic.muted-topic': ApiMutedTopicMutedTopic;
       'api::person.person': ApiPersonPerson;
       'api::preference.preference': ApiPreferencePreference;
+      'api::resource.resource': ApiResourceResource;
       'api::response.response': ApiResponseResponse;
       'api::social-account.social-account': ApiSocialAccountSocialAccount;
       'api::team-handle.team-handle': ApiTeamHandleTeamHandle;

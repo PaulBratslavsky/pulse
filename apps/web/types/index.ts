@@ -428,3 +428,36 @@ export type TMention = {
 export type TMentionThread = {
   mentions: ThreadMention[];
 } & TLooseRecord;
+
+/** A marketing-site post the team saved as a reference for replies (api::resource). */
+export type TResource = {
+  documentId: string;
+  kind: 'blog';
+  title: string;
+  url: string;
+  summary?: string | null;
+  keywords?: string[] | null;
+  category?: string | null;
+  postedAt?: string | null;
+  note?: string | null;
+  pinned: boolean;
+  hidden: boolean;
+  /** unpublished or deleted on the marketing site; kept because replies may point at it */
+  upstreamMissing: boolean;
+  refreshedAt?: string | null;
+  createdAt: string;
+  savedBy?: { username: string } | null;
+};
+
+/** One live search hit from the marketing blog. `savedId` is set when it is already a resource. */
+export type TBlogSearchResult = {
+  kind: 'blog';
+  sourceId: string;
+  title: string;
+  url: string;
+  summary?: string | null;
+  keywords?: string[] | null;
+  category?: string | null;
+  postedAt?: string | null;
+  savedId: string | null;
+};

@@ -86,6 +86,12 @@ const AUTHENTICATED_ACTIONS = [
   'api::insights.insights.config',
   'api::assistant.chat.chat',
   'plugin::octolens.sync.trigger',
+  'api::resource.resource.list',
+  'api::resource.resource.save',
+  'api::resource.resource.patch',
+  'api::resource.resource.remove',
+  'api::resource.resource.searchSource',
+  'api::resource.resource.refresh',
   'plugin::users-permissions.user.me',
 ]
 

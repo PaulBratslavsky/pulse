@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { Inbox, TrendingUp, Tags, MessagesSquare, Settings, FileBarChart, MessageSquareHeart, Share2, Target, Users } from 'lucide-react'
+import { Inbox, TrendingUp, Tags, MessagesSquare, Settings, FileBarChart, MessageSquareHeart, Share2, Target, Users, BookOpen } from 'lucide-react'
 
 const links = [
   { href: '/', label: 'Queue', Icon: Inbox },
@@ -13,6 +13,8 @@ const links = [
   // beside Leads, not under the reporting surfaces: the board ranks who is
   // worth a look, this is where you go when you already know who you want
   { href: '/people', label: 'People', Icon: Users },
+  // with the reply work: what you link people to when you answer them
+  { href: '/resources', label: 'Resources', Icon: BookOpen },
   { href: '/trends', label: 'Trends', Icon: TrendingUp },
   { href: '/themes', label: 'Themes', Icon: Tags },
   { href: '/feedback', label: 'Feedback', Icon: MessageSquareHeart },

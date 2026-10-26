@@ -386,7 +386,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     expect(await count()).toBeGreaterThan(replyWork)
 
     // the sentiment "all" pill is a DIFFERENT axis — it must not reset the lane
-    await page.getByRole('link', { name: 'all', exact: true }).click()
+    await page.getByRole('group', { name: 'sentiment' }).getByRole('link', { name: 'all', exact: true }).click()
     await expect(page).toHaveURL(/lane=all/)
   })
 
@@ -518,7 +518,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await page.goto('/?sentiment=negative&topic=docs&status=claimed')
 
     // "all" must drop the sentiment param (regression: explicit-undefined override was ignored)
-    await page.getByRole('link', { name: 'all', exact: true }).click()
+    await page.getByRole('group', { name: 'sentiment' }).getByRole('link', { name: 'all', exact: true }).click()
     await expect(page).toHaveURL(/status=claimed/)
     await expect(page).not.toHaveURL(/sentiment=/)
     await expect(page).toHaveURL(/topic=docs/)

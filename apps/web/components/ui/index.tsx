@@ -168,8 +168,10 @@ export function Spinner({ size = 14, className = '' }: { size?: number; classNam
  * the width, and the pills wrap under it instead.
  */
 export function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
+  // A named group, so assistive tech (and tests) can tell the sentiment "all"
+  // from the socials "all" — the pills alone are ambiguous out of context.
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div role="group" aria-label={label} className="flex flex-wrap items-center gap-2">
       {/* w-24: "SENTIMENT" at this size is ~76px and was overrunning a 64px
           column straight into the first pill. Sized to the longest label so
           every row's pills start on the same vertical line. */}
