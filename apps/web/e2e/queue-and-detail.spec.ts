@@ -13,7 +13,10 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     await page.getByPlaceholder('Search mentions & past responses…').fill(externalId)
     await page.locator('a', { hasText: externalId }).first().click()
     await expect(page).toHaveURL(new RegExp(documentId))
-    await expect(page.getByText(externalId)).toBeVisible()
+    // the mention body, not just any text: the search dropdown can still be
+    // showing the same id for a moment after the click, and a bare getByText
+    // then matches both (strict-mode violation)
+    await expect(page.locator('blockquote', { hasText: externalId })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Timeline' })).toBeVisible()
     await expect(page.getByText('ingested')).toBeVisible()
 
