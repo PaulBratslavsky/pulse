@@ -34,7 +34,8 @@ export function QueueHeader({
     subject = 'Unanswered and claimed mentions'
   }
 
-  const order = params.sort === 'newest' ? ', newest first.' : ', oldest first.'
+  const isOldest = params.sort === 'oldest'
+  const order = isOldest ? ', oldest first.' : ', newest first.'
 
   return (
     <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
@@ -61,17 +62,17 @@ export function QueueHeader({
         <div className="flex gap-1 text-sm" role="group" aria-label="Sort order">
           <FilterPill
             href={filterUrl({ sort: undefined, page: 0 })}
-            active={params.sort !== 'newest'}
+            active={!isOldest}
+            title="Newest first — catching up on what just arrived (the default)"
+          >
+            newest
+          </FilterPill>
+          <FilterPill
+            href={filterUrl({ sort: 'oldest', page: 0 })}
+            active={isOldest}
             title="Oldest first — SLA order: what has waited longest"
           >
             oldest
-          </FilterPill>
-          <FilterPill
-            href={filterUrl({ sort: 'newest', page: 0 })}
-            active={params.sort === 'newest'}
-            title="Newest first — catching up on what just arrived"
-          >
-            newest
           </FilterPill>
         </div>
         <SyncButton />
