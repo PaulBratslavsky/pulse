@@ -94,6 +94,16 @@ const AUTHENTICATED_ACTIONS = [
   'api::resource.resource.refresh',
   'api::resource.resource.forMention',
   'plugin::users-permissions.user.me',
+  // READ on the targets of the mention detail populate. Since Strapi 5.52 the
+  // content API strips any populated relation whose target the caller cannot
+  // `find`, silently: a mention arrived without its person, comments, reply
+  // author or activity actor (claims, timeline and "Edit" all broke). person
+  // and comment register no core find route, so these grant no new endpoint;
+  // user.find does open GET /api/users to signed-in team members, which is
+  // acceptable for an invite-only staff tool.
+  'api::person.person.find',
+  'api::comment.comment.find',
+  'plugin::users-permissions.user.find',
 ]
 
 const DEFAULT_CHANNELS = [
