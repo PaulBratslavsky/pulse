@@ -8,12 +8,15 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
   }) => {
     const { externalId, documentId } = await injectMention(request)
 
-    // find it via search (queue is oldest-first and can exceed a page with real data)
+    // find it via search (the queue can exceed a page with real data)
     await page.goto('/')
     await page.getByPlaceholder('Search mentions & past responses…').fill(externalId)
     await page.locator('a', { hasText: externalId }).first().click()
     await expect(page).toHaveURL(new RegExp(documentId))
-    await expect(page.getByText(externalId)).toBeVisible()
+    // the mention body, not just any text: the search dropdown can still be
+    // showing the same id for a moment after the click, and a bare getByText
+    // then matches both (strict-mode violation)
+    await expect(page.locator('blockquote', { hasText: externalId })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Timeline' })).toBeVisible()
     await expect(page.getByText('ingested')).toBeVisible()
 
@@ -494,23 +497,24 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
     }
   })
 
-  test('sort toggle flips the queue between oldest- and newest-first', async ({ page, request }) => {
+  test('sort toggle flips the queue between newest- and oldest-first', async ({ page, request }) => {
     const tag = `sort${Date.now().toString(36)}`
     // one very old, one brand new — each must lead its respective ordering
     await injectMention(request, { text: `sort test ${tag} ancient`, timestamp: '2018-01-01 00:00:00.000' })
     await injectMention(request, { text: `sort test ${tag} freshest` })
 
+    // newest first is the default
     await page.goto(`/?q=${tag}`)
-    await expect(page.getByText(/oldest first\./)).toBeVisible()
-    await expect(page.locator('li').first()).toContainText('ancient')
-
-    await page.getByRole('link', { name: 'newest', exact: true }).click()
-    await expect(page).toHaveURL(/sort=newest/)
     await expect(page.getByText(/newest first\./)).toBeVisible()
     await expect(page.locator('li').first()).toContainText('freshest')
 
-    // back to the default drops the param
     await page.getByRole('link', { name: 'oldest', exact: true }).click()
+    await expect(page).toHaveURL(/sort=oldest/)
+    await expect(page.getByText(/oldest first\./)).toBeVisible()
+    await expect(page.locator('li').first()).toContainText('ancient')
+
+    // back to the default drops the param
+    await page.getByRole('link', { name: 'newest', exact: true }).click()
     await expect(page).not.toHaveURL(/sort=/)
   })
 
@@ -574,7 +578,7 @@ test.describe('queue → claim → respond → outcome (the core loop)', () => {
 
   test('bulk triage: select mentions and acknowledge them in one pass', async ({ page, request }) => {
     const tag = `bulk${Date.now().toString(36)}`
-    // queue is oldest-first: backdate so both land on page 1 regardless of volume
+    // backdated, and scoped with ?q= below, so both land on page 1 whatever the order
     const old = { timestamp: '2019-01-01 00:00:00.000' }
     const a = await injectMention(request, { text: `bulk triage test ${tag} one`, ...old })
     await injectMention(request, { text: `bulk triage test ${tag} two`, ...old })
