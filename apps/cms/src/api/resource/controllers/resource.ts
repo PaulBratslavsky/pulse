@@ -88,7 +88,7 @@ export default factories.createCoreController('api::resource.resource', ({ strap
 
     /** Kicks the refresh off and returns; it can outlive a request timeout. */
     async refresh(ctx) {
-      if (!source().configured()) return ctx.serviceUnavailable(new SourceNotConfigured().message)
+      if (!(await source().configured())) return ctx.serviceUnavailable(new SourceNotConfigured().message)
       resources()
         .refresh()
         .catch((err: any) => strapi.log.error(`[resources] refresh failed: ${err.message}`))

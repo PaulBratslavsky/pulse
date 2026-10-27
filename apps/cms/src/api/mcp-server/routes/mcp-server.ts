@@ -6,6 +6,8 @@ export default {
     { method: 'POST', path: '/mcp-servers/:documentId/finish-auth', handler: 'mcp-server.finishAuth', config: { policies: [] } },
     { method: 'POST', path: '/mcp-servers/:documentId/test', handler: 'mcp-server.test', config: { policies: [] } },
     { method: 'POST', path: '/mcp-servers/:documentId/toggle', handler: 'mcp-server.toggle', config: { policies: [] } },
+    { method: 'PUT', path: '/mcp-servers/:documentId/token', handler: 'mcp-server.setToken', config: { policies: [] } },
+    { method: 'PUT', path: '/mcp-servers/:documentId/purpose', handler: 'mcp-server.setPurpose', config: { policies: [] } },
     { method: 'DELETE', path: '/mcp-servers/:documentId', handler: 'mcp-server.remove', config: { policies: [] } },
   ],
 }

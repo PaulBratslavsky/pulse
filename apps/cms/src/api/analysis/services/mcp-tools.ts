@@ -33,6 +33,9 @@ export const mcpTools = ({ strapi }: { strapi: Core.Strapi }) => ({
     } catch {
       return EMPTY
     }
+    // A Resources server feeds Pulse's own blog search over the posts the team
+    // saved. It is never the model's to call: no tools from it, ever.
+    rows = rows.filter((r: any) => r.purpose !== 'resources')
     if (!rows.length) return EMPTY
 
     const clients: any[] = []

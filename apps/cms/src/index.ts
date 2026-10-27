@@ -43,6 +43,8 @@ const AUTHENTICATED_ACTIONS = [
   'api::mcp-server.mcp-server.test',
   'api::mcp-server.mcp-server.toggle',
   'api::mcp-server.mcp-server.remove',
+  'api::mcp-server.mcp-server.setToken',
+  'api::mcp-server.mcp-server.setPurpose',
   'api::person.person.leads',
   'api::person.person.directory',
   'api::person.person.detail',
@@ -239,6 +241,12 @@ export default {
         strapi.log.info(`pulse: seeded channel ${channel.name}`)
       }
     }
+
+    // ---- Blog search: env-configured marketing site → a Settings entry, once ----
+    // Non-blocking: connecting reaches the network, and boot must not wait on it.
+    void (strapi.service('api::mcp-server.mcp-server') as any)
+      .seedResourcesFromEnv()
+      .catch((err: Error) => strapi.log.warn(`pulse: seeding the marketing MCP server failed: ${err.message}`))
 
     // ---- Demo data (dev only — production starts empty by design) ----
     if (process.env.PULSE_SEED_DEMO === 'true') {

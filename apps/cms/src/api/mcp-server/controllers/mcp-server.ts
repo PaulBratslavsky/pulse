@@ -37,6 +37,8 @@ export default factories.createCoreController('api::mcp-server.mcp-server', ({ s
         name: r.name,
         url: r.url,
         enabled: r.enabled,
+        authType: r.authType === 'token' || r.authType === 'none' ? r.authType : 'oauth',
+        purpose: r.purpose === 'resources' ? 'resources' : 'tools',
         status: r.status,
         statusDetail: r.statusDetail,
         tools: r.tools ?? [],
@@ -45,12 +47,24 @@ export default factories.createCoreController('api::mcp-server.mcp-server', ({ s
     }
   },
 
-  /** POST /mcp-servers — { name, url } */
+  /**
+   * POST /mcp-servers — { name, url, authType?, token?, purpose? }
+   *
+   * authType: `oauth` (Connect runs the consent flow), `token` (a pasted key,
+   * sent as a bearer header — Strapi's built-in MCP server takes an admin
+   * token this way) or `none`. purpose: `tools` (the drafter and chat may call
+   * it) or `resources` (only Pulse's blog search reads it). A token or open
+   * server is connected straight away, so the panel shows whether it worked.
+   */
   async register(ctx) {
-    const { name, url } = ctx.request.body ?? {}
+    const { name, url, authType, token, purpose } = ctx.request.body ?? {}
     const clean = validateUrl(url)
     if (!clean) return ctx.badRequest('url must be a public http(s) URL')
     if (!String(name ?? '').trim()) return ctx.badRequest('name is required')
+    const kind = authType === 'token' || authType === 'none' ? authType : 'oauth'
+    if (kind === 'token' && !String(token ?? '').trim()) return ctx.badRequest('paste the token for a token-based server')
+    if (token != null && typeof token !== 'string') return ctx.badRequest('token must be a string')
+    const use = purpose === 'resources' ? 'resources' : 'tools'
 
     const existing = await strapi
       .documents('api::mcp-server.mcp-server')
@@ -58,9 +72,54 @@ export default factories.createCoreController('api::mcp-server.mcp-server', ({ s
     if (existing) return ctx.badRequest('that server is already registered')
 
     const row = await strapi.documents('api::mcp-server.mcp-server').create({
-      data: { name: String(name).trim(), url: clean, status: 'new', enabled: true } as any,
+      data: {
+        name: String(name).trim(),
+        url: clean,
+        authType: kind,
+        purpose: use,
+        // private attribute: stored, never returned by any read
+        ...(kind === 'token' ? { accessToken: String(token).trim() } : {}),
+        status: 'new',
+        enabled: true,
+      } as any,
     })
-    return { data: { documentId: row.documentId, name: row.name, url: row.url, status: row.status } }
+
+    let status = String(row.status ?? 'new')
+    if (kind !== 'oauth') {
+      try {
+        const result = await (strapi.service('api::mcp-server.mcp-server') as any).connect(row.documentId, '')
+        status = result?.status ?? status
+      } catch {
+        status = 'error' // the row says why; the panel shows statusDetail
+      }
+    }
+    return { data: { documentId: row.documentId, name: row.name, url: row.url, status } }
+  },
+
+  /** PUT /mcp-servers/:documentId/token — { token }: switch to (or replace) a pasted token. */
+  async setToken(ctx) {
+    const token = (ctx.request.body as any)?.token
+    if (typeof token !== 'string' || !token.trim()) return ctx.badRequest('token is required')
+    try {
+      const data = await (strapi.service('api::mcp-server.mcp-server') as any).setToken(ctx.params.documentId, token.trim())
+      return { data }
+    } catch (err: any) {
+      if (err.status === 404) return ctx.notFound(err.message)
+      return ctx.badRequest(err.message)
+    }
+  },
+
+  /** PUT /mcp-servers/:documentId/purpose — { purpose: 'tools' | 'resources' } */
+  async setPurpose(ctx) {
+    const purpose = (ctx.request.body as any)?.purpose
+    if (purpose !== 'tools' && purpose !== 'resources') return ctx.badRequest("purpose must be 'tools' or 'resources'")
+    try {
+      const data = await (strapi.service('api::mcp-server.mcp-server') as any).setPurpose(ctx.params.documentId, purpose)
+      return { data }
+    } catch (err: any) {
+      if (err.status === 404) return ctx.notFound(err.message)
+      return ctx.badRequest(err.message)
+    }
   },
 
   /** POST /mcp-servers/:documentId/connect — { callbackUrl } */
