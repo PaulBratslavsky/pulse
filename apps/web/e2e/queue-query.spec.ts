@@ -5,12 +5,12 @@ import { buildQueueQuery } from '../lib/queue/query'
 import { makeFilterUrl } from '../lib/queue/filter-url'
 import { buildCurrentSearch } from '../lib/queue/current-search'
 
-test('query: the default queue is open work in the reply lanes, oldest first', () => {
+test('query: the default queue is open work in the reply lanes, newest first', () => {
   const q = buildQueueQuery({}, 1, true)
   expect(q.filters.status).toEqual({ $in: ['unanswered', 'claimed'] })
   expect(q.filters.lane).toEqual({ $in: ['respond', 'lead'] })
   expect(q.filters.quality).toEqual({ $ne: 'spam' })
-  expect(q.sort).toBe('postedAt:asc')
+  expect(q.sort).toBe('postedAt:desc')
   expect(q.group).toBe('thread')
   expect(q.pagination).toEqual({ page: 1, pageSize: 25 })
 })
@@ -39,7 +39,8 @@ test('query: ungrouped omits the group param rather than sending false', () => {
   expect('group' in buildQueueQuery({}, 1, false)).toBe(false)
 })
 
-test('query: newest sorts descending', () => {
+test('query: oldest sorts ascending; an old sort=newest link still reads as newest', () => {
+  expect(buildQueueQuery({ sort: 'oldest' }, 1, true).sort).toBe('postedAt:asc')
   expect(buildQueueQuery({ sort: 'newest' }, 1, true).sort).toBe('postedAt:desc')
 })
 

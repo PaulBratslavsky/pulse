@@ -69,7 +69,10 @@ export function buildQueueQuery(
       quality: params.quality ? { $eq: params.quality } : { $ne: "spam" },
       ...(lane ? { lane } : {}),
     },
-    sort: params.sort === "newest" ? "postedAt:desc" : "postedAt:asc",
+    // Newest first by default: the queue is read to catch up on what just
+    // arrived. Oldest-first (SLA order: what has waited longest) is one click
+    // away as sort=oldest; an old ?sort=newest link still reads as newest.
+    sort: params.sort === "oldest" ? "postedAt:asc" : "postedAt:desc",
     // One row per conversation by default. Octolens ingests every comment in a
     // thread as its own mention, so a single Reddit exchange arrives as N rows
     // that look like N separate jobs — and the one actually waiting on us is
