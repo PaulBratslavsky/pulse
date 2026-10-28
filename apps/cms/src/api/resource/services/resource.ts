@@ -177,7 +177,7 @@ export default factories.createCoreService(UID, ({ strapi }) => {
      * out of order and leave the older copy behind.
      */
     async refresh() {
-      if (!source().configured()) return null
+      if (!(await source().configured())) return null
       if (!refreshing) {
         refreshing = sweep().finally(() => {
           refreshing = null

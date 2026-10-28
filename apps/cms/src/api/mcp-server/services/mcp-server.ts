@@ -29,6 +29,27 @@ import type { OAuthClientInformationMixed, OAuthTokens } from '@modelcontextprot
 const loadRow = (strapi: any, documentId: string) =>
   strapi.db.query('api::mcp-server.mcp-server').findOne({ where: { documentId } })
 
+/** How a server signs in. Rows from before authType existed are OAuth. */
+export type AuthType = 'oauth' | 'token' | 'none'
+export const authTypeOf = (row: any): AuthType => (row?.authType === 'token' || row?.authType === 'none' ? row.authType : 'oauth')
+
+/** Tools that change data — a server used only for Resources must expose none of them. */
+export const WRITE_TOOL = /^(create|update|delete|publish|unpublish|discard|remove|upload|move|set|add)[_-]/i
+
+/**
+ * The transport for a row. OAuth goes through the provider (consent, refresh,
+ * 401 retry); a pasted token is sent as a plain bearer header, as Strapi's
+ * built-in MCP server and most API-key servers expect; `none` sends nothing.
+ */
+function transportFor(row: any, provider?: DbOAuthProvider) {
+  const kind = authTypeOf(row)
+  if (kind === 'oauth') {
+    return new StreamableHTTPClientTransport(new URL(row.url), { authProvider: provider as any })
+  }
+  const headers: Record<string, string> = kind === 'token' && row.accessToken ? { Authorization: `Bearer ${row.accessToken}` } : {}
+  return new StreamableHTTPClientTransport(new URL(row.url), { requestInit: { headers } })
+}
+
 /**
  * OAuth state that persists to the row rather than to memory.
  *
@@ -148,11 +169,18 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
     const row: any = await loadRow(strapi, documentId)
     if (!row) throw Object.assign(new Error('server not found'), { status: 404 })
 
+    const kind = authTypeOf(row)
+    if (kind === 'token' && !row.accessToken) {
+      await strapi.documents('api::mcp-server.mcp-server').update({
+        documentId,
+        data: { status: 'needs-auth', statusDetail: 'no token saved — paste one' } as any,
+      })
+      return { status: 'needs_token' as const }
+    }
+
     sweepPending()
-    const provider = new DbOAuthProvider(strapi, documentId, callbackUrl, row)
-    const transport = new StreamableHTTPClientTransport(new URL(row.url), {
-      authProvider: provider as any,
-    })
+    const provider = kind === 'oauth' ? new DbOAuthProvider(strapi, documentId, callbackUrl, row) : undefined
+    const transport = transportFor(row, provider)
     const client = new Client({ name: 'strapi-pulse', version: '1.0.0' }, { capabilities: {} })
 
     try {
@@ -160,6 +188,20 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
       const { tools } = await client.listTools()
       const names = tools.map((t: any) => t.name)
       await client.close()
+      // A Resources server is read by Pulse's own code over the person's saved
+      // posts. It must not be able to change anything: refuse a token that can.
+      const writable = row.purpose === 'resources' ? names.filter((n: string) => WRITE_TOOL.test(n)) : []
+      if (writable.length) {
+        await strapi.documents('api::mcp-server.mcp-server').update({
+          documentId,
+          data: {
+            status: 'error',
+            statusDetail: `this token can see write tools (${writable.slice(0, 3).join(', ')}${writable.length > 3 ? ', …' : ''}) — for Resources, grant it only read tools`,
+            tools: names,
+          } as any,
+        })
+        return { status: 'error' as const, tools: names }
+      }
       await strapi.documents('api::mcp-server.mcp-server').update({
         documentId,
         data: {
@@ -171,7 +213,14 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
       })
       return { status: 'connected' as const, tools: names }
     } catch (err: any) {
-      if (err instanceof UnauthorizedError && provider.authUrl) {
+      if (kind !== 'oauth' && /401|unauthori[sz]ed|invalid.?token|forbidden|403/i.test(String(err.message))) {
+        await strapi.documents('api::mcp-server.mcp-server').update({
+          documentId,
+          data: { status: 'needs-auth', statusDetail: 'the server rejected the token — paste a new one' } as any,
+        })
+        return { status: 'needs_token' as const }
+      }
+      if (err instanceof UnauthorizedError && provider?.authUrl) {
         pending.set(documentId, { provider, transport, at: Date.now() })
         await strapi.documents('api::mcp-server.mcp-server').update({
           documentId,
@@ -228,7 +277,7 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
    */
   async refreshToken(documentId: string): Promise<boolean> {
     const row: any = await loadRow(strapi, documentId)
-    if (!row?.refreshToken) return false
+    if (authTypeOf(row) !== 'oauth' || !row?.refreshToken) return false
     try {
       // The redirect URL must be NON-EMPTY even though a refresh never uses it.
       // The SDK reads `!provider.redirectUrl` as "non-interactive flow" and
@@ -243,6 +292,54 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
       strapi.log.warn(`[mcp] token refresh failed for ${row.name}: ${err.message}`)
       return false
     }
+  },
+
+  /**
+   * MARKETING_MCP_URL / MARKETING_MCP_TOKEN become a normal, editable
+   * "Marketing blog" server (token sign-in, used for Resources), once. After
+   * that the panel is the source of truth: removing the entry deliberately must
+   * stay removed, so a marker records that the seed ran.
+   */
+  async seedResourcesFromEnv() {
+    const url = process.env.MARKETING_MCP_URL
+    const token = process.env.MARKETING_MCP_TOKEN
+    if (!url || !token) return
+    const marker = strapi.store({ type: 'plugin', name: 'pulse', key: 'mcp-resources-seeded' })
+    if (await marker.get()) return
+    const q = strapi.db.query('api::mcp-server.mcp-server')
+    const existing = await q.findOne({ where: { $or: [{ purpose: 'resources' }, { url }] } })
+    if (!existing) {
+      const row = await strapi.documents('api::mcp-server.mcp-server').create({
+        data: { name: 'Marketing blog', url, authType: 'token', purpose: 'resources', accessToken: token, status: 'new', enabled: true } as any,
+      })
+      strapi.log.info('pulse: added the "Marketing blog" MCP server from MARKETING_MCP_URL (Settings → MCP servers)')
+      await (this as any).connect(row.documentId, '').catch(() => {})
+    }
+    await marker.set({ value: true })
+  },
+
+  /**
+   * Save a pasted token (the server signs in with it from now on) and connect,
+   * so the panel shows straight away whether the server took it.
+   */
+  async setToken(documentId: string, token: string) {
+    await strapi.db.query('api::mcp-server.mcp-server').update({
+      where: { documentId },
+      data: { authType: 'token', accessToken: token, refreshToken: null, tokenExpiresAt: null },
+    })
+    return (this as any).connect(documentId, '')
+  },
+
+  /**
+   * What the server is for. `tools`: the reply drafter and chat may call it.
+   * `resources`: only Pulse's blog search reads it — the AI never sees it.
+   * Reconnects, because a Resources server must pass the read-only check.
+   */
+  async setPurpose(documentId: string, purpose: 'tools' | 'resources') {
+    await strapi.documents('api::mcp-server.mcp-server').update({ documentId, data: { purpose } as any })
+    const row: any = await loadRow(strapi, documentId)
+    if (authTypeOf(row) === 'oauth' && !row?.accessToken) return { status: 'needs_auth' as const }
+    return (this as any).connect(documentId, '')
   },
 
   /**
@@ -263,10 +360,8 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
 
     // redirectUrl is only read when the provider has to REGISTER a client, and
     // that cannot happen here: no client means no token, which we reject below.
-    const provider = new DbOAuthProvider(strapi, documentId, '', row)
-    const transport = new StreamableHTTPClientTransport(new URL(row.url), {
-      authProvider: provider as any,
-    })
+    const provider = authTypeOf(row) === 'oauth' ? new DbOAuthProvider(strapi, documentId, '', row) : undefined
+    const transport = transportFor(row, provider)
     const client = new Client({ name: 'strapi-pulse', version: '1.0.0' }, { capabilities: {} })
     const startedAt = Date.now()
 
@@ -307,8 +402,9 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
         truncated: body.length > 1200,
       }
     } catch (err: any) {
-      if (err instanceof UnauthorizedError) {
-        throw Object.assign(new Error('not authorized — click Connect first'), { status: 401 })
+      if (err instanceof UnauthorizedError || /\b401\b/.test(String(err.message))) {
+        const hint = authTypeOf(row) === 'token' ? 'the server rejected the token — paste a new one' : 'not authorized — click Connect first'
+        throw Object.assign(new Error(hint), { status: 401 })
       }
       strapi.log.warn(`[mcp] test call to ${row.name} failed: ${err.stack ?? err.message}`)
       throw err
@@ -327,7 +423,11 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
  * a query and the tool name is always reported back with the result.
  */
 const pickTool = (tools: any[]) =>
-  tools.find((t) => /search|query|ask|find|docs|retriev|lookup/i.test(t.name)) ?? tools[0]
+  tools.find((t) => /search|query|ask|find|docs|retriev|lookup/i.test(t.name)) ??
+  // never fire a tool that writes just to see whether the server is alive
+  tools.find((t) => /^(list|get|read)[_-]/i.test(t.name)) ??
+  tools.find((t) => !WRITE_TOOL.test(t.name)) ??
+  tools[0]
 
 /** Names a server is likely to give the parameter that takes a question. */
 const QUESTION_PARAM = /^(query|question|q|search|prompt|text|input|term)$/i

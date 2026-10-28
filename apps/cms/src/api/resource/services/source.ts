@@ -18,8 +18,11 @@ import { createMCPClient } from '@ai-sdk/mcp'
  * called, and a token that can see write tools is refused outright. Pulse has
  * no business holding a key that can edit the marketing site.
  *
- * Unconfigured (no MARKETING_MCP_URL / MARKETING_MCP_TOKEN) → `configured()` is
- * false and callers degrade; local dev and e2e never touch the real site.
+ * Where it connects: the server marked "Resources" in Settings → MCP servers
+ * (any sign-in method; it must be connected, which already means it passed the
+ * read-only check), else MARKETING_MCP_URL / MARKETING_MCP_TOKEN. Neither →
+ * `configured()` resolves false and callers degrade; local dev and e2e never
+ * touch the real site.
  */
 
 const LIST_POSTS = 'list_blog-post'
@@ -76,7 +79,41 @@ export type SourcePost = {
 let lookups: { at: number; categories: Map<string, string>; tags: Map<string, string> } | null = null
 
 export const source = ({ strapi }: { strapi: Core.Strapi }) => {
-  const configured = () => Boolean(process.env.MARKETING_MCP_URL && process.env.MARKETING_MCP_TOKEN)
+  /** The Resources server from Settings, else the environment; null when neither is set. */
+  const connection = async (): Promise<{ url: string; headers: Record<string, string> } | null> => {
+    const row: any = await strapi.db.query('api::mcp-server.mcp-server').findOne({
+      where: { purpose: 'resources', enabled: true },
+      orderBy: { updatedAt: 'desc' },
+    })
+    if (row?.url) {
+      if (row.status !== 'connected') {
+        throw new SourceError(
+          `the "${row.name}" server in Settings → MCP servers is not connected${row.statusDetail ? `: ${row.statusDetail}` : ''}`
+        )
+      }
+      // an OAuth token near expiry is renewed first, as the drafter's tool loader does
+      const expiresAt = row.tokenExpiresAt ? new Date(row.tokenExpiresAt).getTime() : 0
+      if (row.authType !== 'token' && expiresAt && expiresAt - Date.now() < 60_000) {
+        await (strapi.service('api::mcp-server.mcp-server') as any).refreshToken(row.documentId)
+        return connection()
+      }
+      const token = row.authType === 'none' ? null : row.accessToken
+      return { url: row.url, headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    }
+    if (process.env.MARKETING_MCP_URL && process.env.MARKETING_MCP_TOKEN) {
+      return { url: process.env.MARKETING_MCP_URL, headers: { Authorization: `Bearer ${process.env.MARKETING_MCP_TOKEN}` } }
+    }
+    return null
+  }
+
+  /** Whether blog search has somewhere to go (a broken Settings server still counts: it says why). */
+  const configured = async (): Promise<boolean> => {
+    try {
+      return (await connection()) !== null
+    } catch {
+      return true
+    }
+  }
 
   /**
    * Open a client, check the token is read-only, run `fn`, always close.
@@ -88,15 +125,12 @@ export const source = ({ strapi }: { strapi: Core.Strapi }) => {
    * connection and then goes quiet must not hang a search forever.
    */
   async function withClient<T>(fn: (client: any, tools: string[]) => Promise<T>): Promise<T> {
-    if (!configured()) throw new SourceNotConfigured()
+    const target = await connection()
+    if (!target) throw new SourceNotConfigured()
     let client: any
     try {
       client = await createMCPClient({
-        transport: {
-          type: 'http',
-          url: process.env.MARKETING_MCP_URL!,
-          headers: { Authorization: `Bearer ${process.env.MARKETING_MCP_TOKEN}` },
-        },
+        transport: { type: 'http', url: target.url, headers: target.headers },
         initializationOptions: { timeout: CALL_TIMEOUT_MS },
         clientName: 'pulse-resources',
       })
@@ -245,7 +279,7 @@ export const source = ({ strapi }: { strapi: Core.Strapi }) => {
 
 export class SourceNotConfigured extends Error {
   constructor() {
-    super('Blog search is not configured (MARKETING_MCP_URL / MARKETING_MCP_TOKEN)')
+    super('Blog search is not set up: add the marketing site in Settings → MCP servers, used for "Resources"')
   }
 }
 

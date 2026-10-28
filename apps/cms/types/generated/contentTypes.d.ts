@@ -652,6 +652,8 @@ export interface ApiMcpServerMcpServer extends Struct.CollectionTypeSchema {
   };
   attributes: {
     accessToken: Schema.Attribute.Text & Schema.Attribute.Private;
+    authType: Schema.Attribute.Enumeration<['oauth', 'token', 'none']> &
+      Schema.Attribute.DefaultTo<'oauth'>;
     clientId: Schema.Attribute.String & Schema.Attribute.Private;
     clientSecret: Schema.Attribute.String & Schema.Attribute.Private;
     createdAt: Schema.Attribute.DateTime;
@@ -667,6 +669,8 @@ export interface ApiMcpServerMcpServer extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     name: Schema.Attribute.String & Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
+    purpose: Schema.Attribute.Enumeration<['tools', 'resources']> &
+      Schema.Attribute.DefaultTo<'tools'>;
     refreshToken: Schema.Attribute.Text & Schema.Attribute.Private;
     status: Schema.Attribute.Enumeration<
       ['new', 'connected', 'needs-auth', 'error']

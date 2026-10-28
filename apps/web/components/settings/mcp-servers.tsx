@@ -3,15 +3,22 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
-import { Plug, Trash2, RefreshCw, FlaskConical } from 'lucide-react'
+import { Plug, Trash2, RefreshCw, FlaskConical, KeyRound } from 'lucide-react'
 import { pulseFetch } from '@/lib/pulse-client'
 import { MutationError } from '@/components/ui/mutation-error'
 import { Spinner } from '@/components/ui'
+
+export type AuthType = 'oauth' | 'token' | 'none'
+export type Purpose = 'tools' | 'resources'
 
 export type Server = {
   documentId: string
   name: string
   url: string
+  /** how it signs in: OAuth consent, a pasted token sent as a bearer header, or nothing */
+  authType: AuthType
+  /** `tools`: the drafter and chat may call it. `resources`: only Pulse's blog search reads it */
+  purpose: Purpose
   enabled: boolean
   status: 'new' | 'connected' | 'needs-auth' | 'error'
   statusDetail?: string | null
@@ -28,6 +35,21 @@ type TestResult = {
   preview: string
   truncated: boolean
 }
+
+const AUTH_LABEL: Record<AuthType, string> = { oauth: 'OAuth', token: 'API token', none: 'no sign-in' }
+const PURPOSE_LABEL: Record<Purpose, string> = { tools: 'Drafter & chat tools', resources: 'Resources: blog search' }
+
+/** One click to fill the form for the servers people actually add. */
+const PRESETS: { label: string; name: string; url: string; authType: AuthType; purpose: Purpose }[] = [
+  { label: 'Strapi docs', name: 'Strapi Docs', url: 'https://strapi-docs.mcp.kapa.ai', authType: 'oauth', purpose: 'tools' },
+  {
+    label: 'Marketing blog (Strapi site)',
+    name: 'Marketing blog',
+    url: 'https://<project>.strapiapp.com/mcp',
+    authType: 'token',
+    purpose: 'resources',
+  },
+]
 
 const STATUS: Record<string, string> = {
   connected: 'border-emerald-400 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300',
@@ -49,16 +71,48 @@ export default function McpServers({ servers }: { servers: Server[] }) {
   const router = useRouter()
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
+  const [authType, setAuthType] = useState<AuthType>('oauth')
+  const [token, setToken] = useState('')
+  const [purpose, setPurpose] = useState<Purpose>('tools')
+  // which row's "Replace token" box is open, and what is typed in it
+  const [tokenFor, setTokenFor] = useState<string | null>(null)
+  const [newToken, setNewToken] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [tested, setTested] = useState<Record<string, TestResult>>({})
 
   const add = useMutation({
-    mutationFn: () => pulseFetch('POST', 'mcp-servers', { name, url }),
+    mutationFn: () =>
+      pulseFetch('POST', 'mcp-servers', {
+        name,
+        url,
+        authType,
+        purpose,
+        ...(authType === 'token' ? { token } : {}),
+      }),
     onSuccess: () => {
       setName('')
       setUrl('')
+      setToken('')
+      setAuthType('oauth')
+      setPurpose('tools')
       router.refresh()
     },
+  })
+
+  /** Paste a new token: the server signs in with it from now on, and is reconnected. */
+  const saveToken = useMutation({
+    mutationFn: (id: string) => pulseFetch('PUT', `mcp-servers/${id}/token`, { token: newToken }),
+    onSuccess: () => {
+      setTokenFor(null)
+      setNewToken('')
+      router.refresh()
+    },
+  })
+
+  const changePurpose = useMutation({
+    mutationFn: (v: { id: string; purpose: Purpose }) =>
+      pulseFetch('PUT', `mcp-servers/${v.id}/purpose`, { purpose: v.purpose }),
+    onSuccess: () => router.refresh(),
   })
 
   const remove = useMutation({
@@ -138,10 +192,14 @@ export default function McpServers({ servers }: { servers: Server[] }) {
         MCP servers
       </h2>
       <p className="mb-4 text-sm text-zinc-500">
-        Give chat and the reply drafter real tools. The Strapi docs server is the useful one:{' '}
-        <code className="text-xs">https://strapi-docs.mcp.kapa.ai</code> — it searches the docs by
-        content, so replies cite pages that actually exist instead of ones the model remembers.
-        Pulse&apos;s own tools are always available and are not listed here.
+        Servers Pulse connects to. <strong className="font-medium">Drafter &amp; chat tools</strong>{' '}
+        give the AI real tools — the Strapi docs server is the useful one: it searches the docs by
+        content, so replies cite pages that actually exist.{' '}
+        <strong className="font-medium">Resources: blog search</strong>{' '}is the marketing site that
+        Resources searches; the AI never sees it, and Pulse refuses a token that can change
+        anything there. Each server signs in with OAuth, a pasted API token (Strapi&apos;s built-in
+        MCP server takes an admin token), or nothing. Pulse&apos;s own tools are always available
+        and are not listed here.
       </p>
 
       {servers.length > 0 && (
@@ -156,6 +214,18 @@ export default function McpServers({ servers }: { servers: Server[] }) {
                 <span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS[s.status]}`}>
                   {s.status}
                 </span>
+                <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                  {AUTH_LABEL[s.authType] ?? s.authType}
+                </span>
+                <select
+                  value={s.purpose}
+                  onChange={(e) => changePurpose.mutate({ id: s.documentId, purpose: e.target.value as Purpose })}
+                  aria-label={`What ${s.name} is used for`}
+                  className="rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                >
+                  <option value="tools">{PURPOSE_LABEL.tools}</option>
+                  <option value="resources">{PURPOSE_LABEL.resources}</option>
+                </select>
                 {s.tools.length > 0 && (
                   <span className="text-xs text-zinc-500">
                     {s.tools.length} tool{s.tools.length === 1 ? '' : 's'}
@@ -185,6 +255,19 @@ export default function McpServers({ servers }: { servers: Server[] }) {
                     )}
                     {s.status === 'connected' ? 'Reconnect' : 'Connect'}
                   </button>
+                  {s.authType !== 'none' && (
+                    <button
+                      onClick={() => {
+                        setTokenFor(tokenFor === s.documentId ? null : s.documentId)
+                        setNewToken('')
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-xs dark:border-zinc-700"
+                      title={s.authType === 'oauth' ? 'Sign in with a pasted API token instead of OAuth' : 'Paste a new token'}
+                    >
+                      <KeyRound size={11} />
+                      {s.authType === 'token' ? 'Replace token' : 'Use a token'}
+                    </button>
+                  )}
                   {s.status === 'connected' && (
                     <button
                       onClick={() => {
@@ -213,6 +296,33 @@ export default function McpServers({ servers }: { servers: Server[] }) {
                 </span>
               </div>
               <p className="mt-1 break-all text-xs text-zinc-400">{s.url}</p>
+              {tokenFor === s.documentId && (
+                <form
+                  className="mt-2 flex flex-wrap items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (newToken.trim()) saveToken.mutate(s.documentId)
+                  }}
+                >
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    value={newToken}
+                    onChange={(e) => setNewToken(e.target.value)}
+                    placeholder="Paste the API token (stored on the server, never shown again)"
+                    aria-label={`New token for ${s.name}`}
+                    className="min-w-0 flex-1 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                  />
+                  <button
+                    type="submit"
+                    disabled={saveToken.isPending || !newToken.trim()}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-xs disabled:opacity-50 dark:border-zinc-700"
+                  >
+                    {saveToken.isPending && <Spinner size={11} />}
+                    Save token
+                  </button>
+                </form>
+              )}
               {s.statusDetail && (
                 <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{s.statusDetail}</p>
               )}
@@ -248,23 +358,74 @@ export default function McpServers({ servers }: { servers: Server[] }) {
         </ul>
       )}
 
+      <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
+        <span>Add:</span>
+        {PRESETS.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => {
+              setName(p.name)
+              setUrl(p.url)
+              setAuthType(p.authType)
+              setPurpose(p.purpose)
+            }}
+            className="rounded-full border border-zinc-300 px-2 py-0.5 hover:border-zinc-400 dark:border-zinc-700"
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Name (e.g. Strapi docs)"
+          aria-label="Server name"
           className="w-48 rounded-md border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
         />
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://…"
+          aria-label="Server URL"
           className="min-w-0 flex-1 rounded-md border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
         />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <select
+          value={authType}
+          onChange={(e) => setAuthType(e.target.value as AuthType)}
+          aria-label="How it signs in"
+          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          <option value="oauth">OAuth (sign in with a pop-up)</option>
+          <option value="token">API token (bearer)</option>
+          <option value="none">No sign-in</option>
+        </select>
+        {authType === 'token' && (
+          <input
+            type="password"
+            autoComplete="off"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Paste the API token (stored on the server only)"
+            aria-label="API token"
+            className="min-w-0 flex-1 rounded-md border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        )}
+        <select
+          value={purpose}
+          onChange={(e) => setPurpose(e.target.value as Purpose)}
+          aria-label="What it is used for"
+          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          <option value="tools">Use for: {PURPOSE_LABEL.tools}</option>
+          <option value="resources">Use for: {PURPOSE_LABEL.resources}</option>
+        </select>
         <button
           onClick={() => add.mutate()}
-          disabled={add.isPending || !name.trim() || !url.trim()}
-          className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700"
+          disabled={add.isPending || !name.trim() || !url.trim() || (authType === 'token' && !token.trim())}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700"
         >
           {add.isPending && <Spinner size={12} />}
           Add server
@@ -274,6 +435,8 @@ export default function McpServers({ servers }: { servers: Server[] }) {
       <MutationError m={connect} className="mt-2 text-xs" />
       <MutationError m={test} className="mt-2 text-xs" />
       <MutationError m={remove} className="mt-2 text-xs" />
+      <MutationError m={saveToken} className="mt-2 text-xs" />
+      <MutationError m={changePurpose} className="mt-2 text-xs" />
     </div>
   )
 }

@@ -21,6 +21,46 @@ test.describe('external MCP servers', () => {
     await expect(row).toHaveCount(0, { timeout: 15_000 })
   })
 
+  test('a server can sign in with a pasted token and be used for Resources only', async ({ page, request }) => {
+    await page.goto('/settings')
+    const url = `https://example-mcp-token-${Date.now()}.invalid/mcp`
+    const secret = `e2e-not-a-real-token-${Date.now()}`
+    await page.getByPlaceholder('Name (e.g. Strapi docs)').fill('Token server')
+    await page.getByPlaceholder('https://…').fill(url)
+    await page.getByRole('combobox', { name: 'How it signs in' }).selectOption('token')
+    // a token server cannot be added without its token
+    await expect(page.getByRole('button', { name: 'Add server' })).toBeDisabled()
+    await page.getByPlaceholder('Paste the API token (stored on the server only)').fill(secret)
+    await page.getByRole('combobox', { name: 'What it is used for' }).selectOption('resources')
+    await page.getByRole('button', { name: 'Add server' }).click()
+
+    const row = page.locator('li', { hasText: 'Token server' })
+    await expect(row).toBeVisible({ timeout: 15_000 })
+    await expect(row.getByText('API token', { exact: true })).toBeVisible()
+    await expect(row.getByRole('combobox', { name: /What Token server is used for/ })).toHaveValue('resources')
+    // connected on add: the .invalid host cannot answer, so it says so instead of "new"
+    await expect(row.getByText('error', { exact: true })).toBeVisible()
+    await expect(row.getByRole('button', { name: 'Replace token' })).toBeVisible()
+
+    // the pasted token never comes back out
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const body = await (await request.get(`${PULSE}/mcp-servers`, { headers: { cookie } })).text()
+    expect(body).not.toContain(secret)
+
+    await row.getByRole('button', { name: /Remove Token server/ }).click()
+    await expect(row).toHaveCount(0, { timeout: 15_000 })
+  })
+
+  test('a token-based server without a token is refused', async ({ page, request }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const res = await request.post(`${PULSE}/mcp-servers`, {
+      headers: { cookie },
+      data: { name: 'No token', url: 'https://example-mcp.invalid/mcp', authType: 'token' },
+      failOnStatusCode: false,
+    })
+    expect(res.status()).toBe(400)
+  })
+
   test('tokens are never exposed by the API', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const res = await request.get(`${PULSE}/mcp-servers`, { headers: { cookie } })
