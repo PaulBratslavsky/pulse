@@ -93,6 +93,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::resource.resource.searchSource',
   'api::resource.resource.refresh',
   'api::resource.resource.forMention',
+  'api::resource.resource.sharedBefore',
   'plugin::users-permissions.user.me',
   // READ on the targets of the mention detail populate. Since Strapi 5.52 the
   // content API strips any populated relation whose target the caller cannot

@@ -1000,6 +1000,7 @@ export interface ApiResourceResource extends Struct.CollectionTypeSchema {
     kind: Schema.Attribute.Enumeration<['blog']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'blog'>;
+    level: Schema.Attribute.String;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -1028,6 +1029,7 @@ export interface ApiResourceResource extends Struct.CollectionTypeSchema {
     url: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
+    version: Schema.Attribute.String;
   };
 }
 

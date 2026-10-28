@@ -4,6 +4,7 @@ import { BookOpen } from 'lucide-react'
 import { isAuthError, loaders } from '@/lib/loaders'
 import SavedResources from '@/components/resources/saved-resources'
 import BlogSearch from '@/components/resources/blog-search'
+import { parseBlogFilters, sinceFor } from '@/lib/blog-filters'
 
 /**
  * Resources: the posts we send people to.
@@ -21,16 +22,23 @@ import BlogSearch from '@/components/resources/blog-search'
 export default async function ResourcesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; q?: string; page?: string }>
+  searchParams: Promise<{ view?: string; q?: string; page?: string; age?: string; old?: string; exclude?: string }>
 }) {
   const params = await searchParams
   const view = params.view === 'find' ? 'find' : 'saved'
   const q = (params.q ?? '').trim()
   const page = Math.max(1, Number(params.page) || 1)
+  const filters = parseBlogFilters(params)
 
   const [savedRes, searchRes] = await Promise.all([
     loaders.getResources(),
-    view === 'find' && q.length >= 2 ? loaders.searchBlog(q, page) : Promise.resolve(null),
+    view === 'find' && q.length >= 2
+      ? loaders.searchBlog(q, page, {
+          since: sinceFor(filters.age),
+          hideOld: !filters.showOld,
+          exclude: filters.exclude,
+        })
+      : Promise.resolve(null),
   ])
   if (isAuthError(savedRes)) redirect('/sign-in')
   const saved = savedRes.data ?? []
@@ -74,6 +82,7 @@ export default async function ResourcesPage({
         <BlogSearch
           q={q}
           page={page}
+          filters={filters}
           result={
             searchRes && {
               ok: searchRes.success,
@@ -82,6 +91,8 @@ export default async function ResourcesPage({
               results: searchRes.data ?? [],
               pageCount: searchRes.meta?.pagination?.pageCount ?? 1,
               total: searchRes.meta?.pagination?.total ?? (searchRes.data ?? []).length,
+              hidden: searchRes.meta?.hidden ?? 0,
+              categories: searchRes.meta?.categories ?? [],
             }
           }
         />

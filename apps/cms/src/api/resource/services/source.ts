@@ -30,6 +30,29 @@ const WRITE_TOOL = /^(create|update|delete|publish|unpublish|discard)_/
 const CALL_TIMEOUT_MS = 30_000
 const SEARCH_TEXT_BODY = 2000
 const LOOKUP_TTL_MS = 6 * 60 * 60 * 1000
+const SEARCH_PAGE = 25
+
+/** Written for a Strapi major that is no longer current. */
+const OLD_VERSIONS = new Set(['v3', 'v4'])
+
+/**
+ * What to leave out of a blog search. Much of the blog is SEO material or
+ * written for Strapi v3/v4, and none of that is worth sending someone today.
+ *
+ * Only `since` can run on the marketing site: its MCP accepts no filter on
+ * category, and its version filters drop the many posts with no version set.
+ * Version and category are therefore applied here, after each page comes
+ * back, and the count of what they removed is reported so nothing vanishes
+ * silently.
+ */
+export type SearchFilters = {
+  /** ISO date: only posts first published on or after it */
+  since?: string | null
+  /** leave out posts marked v3/v4 (posts with no version are kept) */
+  hideOldVersions?: boolean
+  /** category names to leave out */
+  excludeCategories?: string[]
+}
 
 export type SourcePost = {
   kind: 'blog'
@@ -40,6 +63,9 @@ export type SourcePost = {
   keywords: string[]
   category: string | null
   postedAt: string | null
+  /** Strapi major the post was written for ("v3" | "v4" | "v5"), when the post says */
+  version: string | null
+  level: string | null
   sourceUpdatedAt: string | null
   /** lowercased title + summary + keywords + the start of the body; stored, never sent to the browser */
   searchText: string
@@ -105,33 +131,73 @@ export const source = ({ strapi }: { strapi: Core.Strapi }) => {
     /**
      * Search published posts by title, description or body. Substring match —
      * the source has no relevance ranking — so title hits are listed first.
+     * Pages are pages of the SOURCE (25 posts); after filtering a page may
+     * hold fewer, and `hidden` says how many the filters removed.
      */
-    async search(q: string, { page = 1, pageSize = 10 }: { page?: number; pageSize?: number } = {}) {
+    async search(q: string, { page = 1, ...filters }: { page?: number } & SearchFilters = {}) {
       const term = q.trim()
-      if (!term) return { results: [] as SourcePost[], pagination: { page: 1, pageSize, pageCount: 0, total: 0 } }
+      const empty = { page: 1, pageSize: SEARCH_PAGE, pageCount: 0, total: 0 }
+      if (!term) return { results: [] as SourcePost[], hidden: 0, categories: [] as string[], pagination: empty }
       return withClient(async (client, tools) => {
+        const match = {
+          $or: [
+            { title: { $containsi: term } },
+            { description: { $containsi: term } },
+            { content: { $containsi: term } },
+          ],
+        }
+        const since = filters.since && !Number.isNaN(Date.parse(filters.since)) ? new Date(filters.since).toISOString() : null
         const res = await call(client, LIST_POSTS, {
           status: 'published',
           page,
-          pageSize: Math.min(Math.max(pageSize, 1), 25),
+          pageSize: SEARCH_PAGE,
           sort: 'originalPublishedAt:desc',
-          filters: {
-            $or: [
-              { title: { $containsi: term } },
-              { description: { $containsi: term } },
-              { content: { $containsi: term } },
-            ],
-          },
+          filters: since ? { $and: [match, { originalPublishedAt: { $gte: since } }] } : match,
         })
         const { categories, tags } = await names(client, tools)
+        const excluded = new Set((filters.excludeCategories ?? []).map((c) => c.toLowerCase()))
+        const mapped = ((res?.results ?? []) as any[]).map((p) => toSourcePost(p, categories, tags)).filter(Boolean) as SourcePost[]
+        const results = mapped.filter(
+          (p) =>
+            !(filters.hideOldVersions && p.version && OLD_VERSIONS.has(p.version)) &&
+            !(p.category && excluded.has(p.category.toLowerCase()))
+        )
         const needle = term.toLowerCase()
-        const results = ((res?.results ?? []) as any[])
-          .map((p) => toSourcePost(p, categories, tags))
-          .filter(Boolean) as SourcePost[]
         // stable: title matches first, otherwise newest first as the source sorted them
         results.sort((a, b) => Number(b.title.toLowerCase().includes(needle)) - Number(a.title.toLowerCase().includes(needle)))
-        return { results, pagination: res?.pagination ?? { page, pageSize, pageCount: 0, total: results.length } }
+        return {
+          results,
+          hidden: mapped.length - results.length,
+          categories: [...new Set(categories.values())].sort(),
+          pagination: res?.pagination ?? { ...empty, total: results.length },
+        }
       })
+    },
+
+    /**
+     * Published posts by slug, over one connection — to turn blog links found
+     * in past replies back into posts. Slugs with no published post are absent.
+     */
+    async bySlugs(slugs: string[]): Promise<Map<string, SourcePost>> {
+      const out = new Map<string, SourcePost>()
+      const unique = [...new Set(slugs.filter(Boolean))]
+      if (!unique.length) return out
+      await withClient(async (client, tools) => {
+        const { categories, tags } = await names(client, tools)
+        for (let i = 0; i < unique.length; i += 50) {
+          const chunk = unique.slice(i, i + 50)
+          const res = await call(client, LIST_POSTS, {
+            status: 'published',
+            pageSize: 100,
+            filters: { slug: { $in: chunk } },
+          })
+          for (const p of res?.results ?? []) {
+            const post = toSourcePost(p, categories, tags)
+            if (post) out.set(String(p.slug), post)
+          }
+        }
+      })
+      return out
     },
 
     /** One published post, or null when it is gone (unpublished or deleted upstream). */
@@ -259,9 +325,23 @@ export function toSourcePost(post: any, categories: Map<string, string>, tags: M
     keywords,
     category,
     postedAt: post.originalPublishedAt ?? post.publishedAt ?? null,
+    version: post.version ?? null,
+    level: post.level ?? null,
     sourceUpdatedAt: post.updatedAt ?? null,
     searchText,
   }
+}
+
+/**
+ * The post slug in a link to the blog, or null when the link is not a blog
+ * post. Tolerates http, www., a trailing slash, a query or a fragment.
+ */
+export function blogSlugFromUrl(url: string): string | null {
+  const base = BLOG_BASE().replace(/^https?:\/\/(www\.)?/, '')
+  const m = url.trim().match(/^https?:\/\/(?:www\.)?([^?#]+?)\/?(?:[?#].*)?$/)
+  if (!m || !m[1].startsWith(`${base}/`)) return null
+  const slug = m[1].slice(base.length + 1)
+  return slug && !slug.includes('/') ? decodeURIComponent(slug) : null
 }
 
 /** The canonical URL when it points at the blog, else the slug on the blog base. */

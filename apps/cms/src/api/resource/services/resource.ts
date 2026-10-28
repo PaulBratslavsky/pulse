@@ -1,4 +1,5 @@
 import { factories } from '@strapi/strapi'
+import { blogSlugFromUrl } from './source'
 
 /**
  * Pulse's own references: the subset of marketing posts the team chose to keep.
@@ -11,7 +12,7 @@ import { factories } from '@strapi/strapi'
 
 const UID = 'api::resource.resource'
 const PUBLIC_FIELDS = [
-  'kind', 'title', 'url', 'summary', 'keywords', 'category', 'postedAt',
+  'kind', 'title', 'url', 'summary', 'keywords', 'category', 'postedAt', 'version', 'level',
   'note', 'pinned', 'hidden', 'upstreamMissing', 'refreshedAt', 'createdAt',
 ]
 
@@ -78,6 +79,44 @@ export default factories.createCoreService(UID, ({ strapi }) => {
         sort: [{ pinned: 'desc' }, { createdAt: 'desc' }],
         limit: 200,
       })
+    },
+
+    /**
+     * Blog posts the team has ALREADY linked in recorded replies but not saved:
+     * the fastest honest starting list, because each one was chosen by a
+     * person answering a real question. Most-shared first. Links to posts
+     * that are no longer published are left out — nothing to save.
+     */
+    async sharedBefore() {
+      const responses = (await strapi.db.query('api::response.response').findMany({
+        where: { finalText: { $containsi: '/blog/' } },
+        select: ['finalText', 'respondedAt', 'createdAt'],
+        limit: 5000,
+      })) as any[]
+
+      const seen = new Map<string, { timesShared: number; lastSharedAt: string | null }>()
+      for (const r of responses) {
+        const when = toIso(r.respondedAt ?? r.createdAt)
+        const slugs = new Set(
+          (String(r.finalText).match(/https?:\/\/[^\s<>()\]"']+/g) ?? [])
+            .map((u) => blogSlugFromUrl(u.replace(/[.,;:!?]+$/, '')))
+            .filter(Boolean) as string[]
+        )
+        for (const slug of slugs) {
+          const prior = seen.get(slug) ?? { timesShared: 0, lastSharedAt: null }
+          prior.timesShared++
+          if (when && (!prior.lastSharedAt || when > prior.lastSharedAt)) prior.lastSharedAt = when
+          seen.set(slug, prior)
+        }
+      }
+      if (!seen.size) return []
+
+      const posts: Map<string, any> = await source().bySlugs([...seen.keys()])
+      const saved = await this.savedSourceIds([...posts.values()].map((p: any) => p.sourceId))
+      return [...posts.entries()]
+        .filter(([, p]) => !saved.has(p.sourceId))
+        .map(([slug, { searchText, ...post }]) => ({ ...post, ...seen.get(slug)! }))
+        .sort((a, b) => b.timesShared - a.timesShared || String(b.lastSharedAt).localeCompare(String(a.lastSharedAt)))
     },
 
     /** sourceId → documentId for the ones already saved, so search results can say so. */

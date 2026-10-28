@@ -52,14 +52,28 @@ export default factories.createCoreController('api::resource.resource', ({ strap
     },
 
     async searchSource(ctx) {
-      const { q, page } = ctx.query as any
+      const { q, page, since, hideOld, exclude } = ctx.query as any
       if (typeof q !== 'string' || q.trim().length < 2) return ctx.badRequest('q must be at least 2 characters')
       try {
-        const { results, pagination } = await source().search(q, { page: Number(page) || 1 })
+        const { results, hidden, categories, pagination } = await source().search(q, {
+          page: Number(page) || 1,
+          since: typeof since === 'string' && since ? since : null,
+          hideOldVersions: hideOld === 'true',
+          excludeCategories: typeof exclude === 'string' && exclude ? exclude.split(',') : [],
+        })
         const saved: Map<string, string> = await resources().savedSourceIds(results.map((r: any) => r.sourceId))
         // searchText is for matching inside Pulse; the browser never needs it
         const data = results.map(({ searchText, ...post }: any) => ({ ...post, savedId: saved.get(post.sourceId) ?? null }))
-        return { data, meta: { pagination } }
+        return { data, meta: { pagination, hidden, categories } }
+      } catch (err: any) {
+        return sourceError(ctx, err)
+      }
+    },
+
+    /** Blog posts already linked in past replies that are not saved yet. */
+    async sharedBefore(ctx) {
+      try {
+        return { data: await resources().sharedBefore() }
       } catch (err: any) {
         return sourceError(ctx, err)
       }
