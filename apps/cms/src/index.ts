@@ -37,14 +37,7 @@ const AUTHENTICATED_ACTIONS = [
   'api::mention.mention.refine',
   'api::mention.mention.draftChat',
   'api::mcp-server.mcp-server.list',
-  'api::mcp-server.mcp-server.register',
-  'api::mcp-server.mcp-server.connect',
-  'api::mcp-server.mcp-server.finishAuth',
   'api::mcp-server.mcp-server.test',
-  'api::mcp-server.mcp-server.toggle',
-  'api::mcp-server.mcp-server.remove',
-  'api::mcp-server.mcp-server.setToken',
-  'api::mcp-server.mcp-server.setPurpose',
   'api::person.person.leads',
   'api::person.person.directory',
   'api::person.person.detail',
@@ -108,6 +101,27 @@ const AUTHENTICATED_ACTIONS = [
   'api::comment.comment.find',
   'plugin::users-permissions.user.find',
 ]
+
+/** The value apps/cms/.env.example ships with — public, so never a production secret. */
+const DEV_WEBHOOK_SECRET = 'dev-secret-123'
+
+/**
+ * Changing the SHARED MCP servers — which servers exist, their tokens, and
+ * whether the AI may call them — is for Pulse admins only. One member account
+ * (or a script running in one member's browser) could otherwise repoint a token
+ * or give every teammate's drafter a hostile server.
+ */
+const MCP_ADMIN_ACTIONS = [
+  'api::mcp-server.mcp-server.register',
+  'api::mcp-server.mcp-server.connect',
+  'api::mcp-server.mcp-server.finishAuth',
+  'api::mcp-server.mcp-server.toggle',
+  'api::mcp-server.mcp-server.remove',
+  'api::mcp-server.mcp-server.setToken',
+  'api::mcp-server.mcp-server.setPurpose',
+]
+
+export const PULSE_ADMIN_ROLE = 'pulse-admin'
 
 const DEFAULT_CHANNELS = [
   { name: 'X', key: 'x', url: 'https://x.com' },
@@ -204,21 +218,54 @@ export default {
       strapi.log.error(`pulse: person dedupe failed: ${err.message}`)
     })
 
-    // ---- Seed Authenticated role permissions (idempotent) ----
-    const authRole = await strapi
-      .query('plugin::users-permissions.role')
-      .findOne({ where: { type: 'authenticated' } })
-    if (authRole) {
-      for (const action of AUTHENTICATED_ACTIONS) {
-        const existing = await strapi
-          .query('plugin::users-permissions.permission')
-          .findOne({ where: { action, role: authRole.id } })
+    // ---- Seed role permissions (idempotent) ----
+    // Authenticated = every team member. Pulse admin = the same, plus managing
+    // the shared MCP servers. Grants are added if missing; the admin-only ones
+    // are also REMOVED from Authenticated, where older deploys put them.
+    const roles = strapi.query('plugin::users-permissions.role')
+    const permissions = strapi.query('plugin::users-permissions.permission')
+    const grant = async (roleId: number, actions: string[]) => {
+      for (const action of actions) {
+        const existing = await permissions.findOne({ where: { action, role: roleId } })
         if (!existing) {
-          await strapi
-            .query('plugin::users-permissions.permission')
-            .create({ data: { action, role: authRole.id } })
-          strapi.log.info(`pulse: seeded permission ${action}`)
+          await permissions.create({ data: { action, role: roleId } })
+          strapi.log.info(`pulse: seeded permission ${action} (role ${roleId})`)
         }
+      }
+    }
+    const authRole = await roles.findOne({ where: { type: 'authenticated' } })
+    if (authRole) {
+      await grant(authRole.id, AUTHENTICATED_ACTIONS)
+      const revoked = await permissions.deleteMany({ where: { role: authRole.id, action: { $in: MCP_ADMIN_ACTIONS } } })
+      if (revoked?.count) strapi.log.info(`pulse: MCP server management is now admin-only (${revoked.count} grants removed from Authenticated)`)
+    }
+    let adminRole = await roles.findOne({ where: { type: PULSE_ADMIN_ROLE } })
+    if (!adminRole) {
+      adminRole = await roles.create({
+        data: {
+          name: 'Pulse admin',
+          description: 'Team member who can also manage the shared MCP servers',
+          type: PULSE_ADMIN_ROLE,
+        },
+      })
+      strapi.log.info('pulse: created the "Pulse admin" role')
+    }
+    await grant(adminRole.id, [...AUTHENTICATED_ACTIONS, ...MCP_ADMIN_ACTIONS])
+
+    // ---- Pulse admins named in PULSE_ADMIN_EMAILS (promote only, never demote) ----
+    // Admins can also be set by hand in the admin panel (Content Manager → User →
+    // role); removing someone from the list does not demote them.
+    const adminEmails = String(process.env.PULSE_ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean)
+    for (const email of adminEmails) {
+      const user = await strapi
+        .query('plugin::users-permissions.user')
+        .findOne({ where: { email }, populate: ['role'] })
+      if (user && user.role?.type === 'authenticated') {
+        await strapi.query('plugin::users-permissions.user').update({ where: { id: user.id }, data: { role: adminRole.id } })
+        strapi.log.info(`pulse: ${email} is now a Pulse admin`)
       }
     }
     // Public role: seed NOTHING — the ingest webhook uses auth:false + shared secret.
@@ -249,8 +296,24 @@ export default {
       .catch((err: Error) => strapi.log.warn(`pulse: seeding the marketing MCP server failed: ${err.message}`))
 
     // ---- Demo data (dev only — production starts empty by design) ----
+    // The demo users have a documented password, so production never seeds
+    // them, whatever the env says.
     if (process.env.PULSE_SEED_DEMO === 'true') {
-      await seedDemo(strapi)
+      if (process.env.NODE_ENV === 'production') {
+        strapi.log.error('pulse: PULSE_SEED_DEMO is set in production — ignored (demo users have a public password)')
+      } else {
+        await seedDemo(strapi)
+      }
+    }
+
+    // ---- The webhook secret must not be the one in .env.example ----
+    // Warn, never refuse: refusing would stop live ingest, and the secret is
+    // rotated on Octolens' side as well as here.
+    if (process.env.NODE_ENV === 'production' && process.env.OCTOLENS_WEBHOOK_SECRET === DEV_WEBHOOK_SECRET) {
+      strapi.log.error('pulse: OCTOLENS_WEBHOOK_SECRET is the public .env.example value — rotate it')
+      await (strapi.service('api::notify.slack') as any)
+        .ops('OCTOLENS_WEBHOOK_SECRET in production is the public .env.example value — rotate it in Octolens and Strapi Cloud')
+        .catch(() => {})
     }
   },
 

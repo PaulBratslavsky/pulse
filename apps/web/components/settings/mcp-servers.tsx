@@ -67,7 +67,7 @@ const STATUS: Record<string, string> = {
  * database rather than in this browser. This panel starts the flow and shows
  * what came back.
  */
-export default function McpServers({ servers }: { servers: Server[] }) {
+export default function McpServers({ servers, canManage }: { servers: Server[]; canManage: boolean }) {
   const router = useRouter()
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
@@ -151,13 +151,13 @@ export default function McpServers({ servers }: { servers: Server[] }) {
       const popup = window.open(res.data.authUrl, 'mcp-oauth', 'width=620,height=760')
       if (!popup) throw new Error('popup blocked — allow popups for this site and try again')
 
-      const code = await new Promise<string>((resolve, reject) => {
+      const callback = await new Promise<{ code: string; state: string }>((resolve, reject) => {
         const onMessage = (e: MessageEvent) => {
           // only trust our own callback page
           if (e.origin !== window.location.origin) return
           if (e.data?.type !== 'mcp-oauth-callback') return
           cleanup()
-          resolve(e.data.code)
+          resolve({ code: String(e.data.code ?? ''), state: String(e.data.state ?? '') })
         }
         const poll = setInterval(() => {
           if (popup.closed) {
@@ -177,7 +177,8 @@ export default function McpServers({ servers }: { servers: Server[] }) {
         window.addEventListener('message', onMessage)
       })
 
-      return pulseFetch('POST', `mcp-servers/${id}/finish-auth`, { code })
+      // the server checks state against the flow it started
+      return pulseFetch('POST', `mcp-servers/${id}/finish-auth`, callback)
     },
     onSettled: () => {
       setBusy(null)
@@ -217,15 +218,19 @@ export default function McpServers({ servers }: { servers: Server[] }) {
                 <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
                   {AUTH_LABEL[s.authType] ?? s.authType}
                 </span>
-                <select
-                  value={s.purpose}
-                  onChange={(e) => changePurpose.mutate({ id: s.documentId, purpose: e.target.value as Purpose })}
-                  aria-label={`What ${s.name} is used for`}
-                  className="rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
-                >
-                  <option value="tools">{PURPOSE_LABEL.tools}</option>
-                  <option value="resources">{PURPOSE_LABEL.resources}</option>
-                </select>
+                {canManage ? (
+                  <select
+                    value={s.purpose}
+                    onChange={(e) => changePurpose.mutate({ id: s.documentId, purpose: e.target.value as Purpose })}
+                    aria-label={`What ${s.name} is used for`}
+                    className="rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                  >
+                    <option value="tools">{PURPOSE_LABEL.tools}</option>
+                    <option value="resources">{PURPOSE_LABEL.resources}</option>
+                  </select>
+                ) : (
+                  <span className="text-xs text-zinc-500">{PURPOSE_LABEL[s.purpose]}</span>
+                )}
                 {s.tools.length > 0 && (
                   <span className="text-xs text-zinc-500">
                     {s.tools.length} tool{s.tools.length === 1 ? '' : 's'}
@@ -236,26 +241,29 @@ export default function McpServers({ servers }: { servers: Server[] }) {
                     <input
                       type="checkbox"
                       checked={s.enabled}
+                      disabled={!canManage}
                       onChange={(e) => toggle.mutate({ id: s.documentId, enabled: e.target.checked })}
                     />
                     enabled
                   </label>
-                  <button
-                    onClick={() => {
-                      setBusy(s.documentId)
-                      connect.mutate(s.documentId)
-                    }}
-                    disabled={connect.isPending}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-xs disabled:opacity-50 dark:border-zinc-700"
-                  >
-                    {busy === s.documentId && connect.isPending ? (
-                      <Spinner size={11} />
-                    ) : (
-                      <RefreshCw size={11} />
+                  {canManage && (
+                    <button
+                      onClick={() => {
+                        setBusy(s.documentId)
+                        connect.mutate(s.documentId)
+                      }}
+                      disabled={connect.isPending}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 text-xs disabled:opacity-50 dark:border-zinc-700"
+                    >
+                      {busy === s.documentId && connect.isPending ? (
+                        <Spinner size={11} />
+                      ) : (
+                        <RefreshCw size={11} />
                     )}
                     {s.status === 'connected' ? 'Reconnect' : 'Connect'}
                   </button>
-                  {s.authType !== 'none' && (
+                  )}
+                  {canManage && s.authType !== 'none' && (
                     <button
                       onClick={() => {
                         setTokenFor(tokenFor === s.documentId ? null : s.documentId)
@@ -285,14 +293,16 @@ export default function McpServers({ servers }: { servers: Server[] }) {
                       Test
                     </button>
                   )}
-                  <button
-                    onClick={() => remove.mutate(s.documentId)}
-                    disabled={remove.isPending}
-                    aria-label={`Remove ${s.name}`}
-                    className="rounded-md border border-zinc-300 p-1 text-zinc-500 hover:border-red-400 hover:text-red-600 disabled:opacity-50 dark:border-zinc-700"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  {canManage && (
+                    <button
+                      onClick={() => remove.mutate(s.documentId)}
+                      disabled={remove.isPending}
+                      aria-label={`Remove ${s.name}`}
+                      className="rounded-md border border-zinc-300 p-1 text-zinc-500 hover:border-red-400 hover:text-red-600 disabled:opacity-50 dark:border-zinc-700"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
                 </span>
               </div>
               <p className="mt-1 break-all text-xs text-zinc-400">{s.url}</p>
@@ -358,79 +368,88 @@ export default function McpServers({ servers }: { servers: Server[] }) {
         </ul>
       )}
 
-      <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
-        <span>Add:</span>
-        {PRESETS.map((p) => (
-          <button
-            key={p.label}
-            onClick={() => {
-              setName(p.name)
-              setUrl(p.url)
-              setAuthType(p.authType)
-              setPurpose(p.purpose)
-            }}
-            className="rounded-full border border-zinc-300 px-2 py-0.5 hover:border-zinc-400 dark:border-zinc-700"
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Name (e.g. Strapi docs)"
-          aria-label="Server name"
-          className="w-48 rounded-md border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        />
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://…"
-          aria-label="Server URL"
-          className="min-w-0 flex-1 rounded-md border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        />
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <select
-          value={authType}
-          onChange={(e) => setAuthType(e.target.value as AuthType)}
-          aria-label="How it signs in"
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        >
-          <option value="oauth">OAuth (sign in with a pop-up)</option>
-          <option value="token">API token (bearer)</option>
-          <option value="none">No sign-in</option>
-        </select>
-        {authType === 'token' && (
+      {!canManage && (
+        <p className="text-xs text-zinc-500">
+          Only Pulse admins can add servers or change their sign-in and use. You can still test them.
+        </p>
+      )}
+      {canManage && (
+        <>
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
+          <span>Add:</span>
+          {PRESETS.map((p) => (
+            <button
+              key={p.label}
+              onClick={() => {
+                setName(p.name)
+                setUrl(p.url)
+                setAuthType(p.authType)
+                setPurpose(p.purpose)
+              }}
+              className="rounded-full border border-zinc-300 px-2 py-0.5 hover:border-zinc-400 dark:border-zinc-700"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <input
-            type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="Paste the API token (stored on the server only)"
-            aria-label="API token"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name (e.g. Strapi docs)"
+            aria-label="Server name"
+            className="w-48 rounded-md border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          />
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://…"
+            aria-label="Server URL"
             className="min-w-0 flex-1 rounded-md border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
           />
-        )}
-        <select
-          value={purpose}
-          onChange={(e) => setPurpose(e.target.value as Purpose)}
-          aria-label="What it is used for"
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        >
-          <option value="tools">Use for: {PURPOSE_LABEL.tools}</option>
-          <option value="resources">Use for: {PURPOSE_LABEL.resources}</option>
-        </select>
-        <button
-          onClick={() => add.mutate()}
-          disabled={add.isPending || !name.trim() || !url.trim() || (authType === 'token' && !token.trim())}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700"
-        >
-          {add.isPending && <Spinner size={12} />}
-          Add server
-        </button>
-      </div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <select
+            value={authType}
+            onChange={(e) => setAuthType(e.target.value as AuthType)}
+            aria-label="How it signs in"
+            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <option value="oauth">OAuth (sign in with a pop-up)</option>
+            <option value="token">API token (bearer)</option>
+            <option value="none">No sign-in</option>
+          </select>
+          {authType === 'token' && (
+            <input
+              type="password"
+              autoComplete="off"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Paste the API token (stored on the server only)"
+              aria-label="API token"
+              className="min-w-0 flex-1 rounded-md border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          )}
+          <select
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value as Purpose)}
+            aria-label="What it is used for"
+            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          >
+            <option value="tools">Use for: {PURPOSE_LABEL.tools}</option>
+            <option value="resources">Use for: {PURPOSE_LABEL.resources}</option>
+          </select>
+          <button
+            onClick={() => add.mutate()}
+            disabled={add.isPending || !name.trim() || !url.trim() || (authType === 'token' && !token.trim())}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700"
+          >
+            {add.isPending && <Spinner size={12} />}
+            Add server
+          </button>
+        </div>
+        </>
+      )}
       <MutationError m={add} className="mt-2 text-xs" />
       <MutationError m={connect} className="mt-2 text-xs" />
       <MutationError m={test} className="mt-2 text-xs" />

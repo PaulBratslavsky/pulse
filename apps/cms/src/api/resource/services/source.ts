@@ -1,5 +1,8 @@
 import type { Core } from '@strapi/strapi'
 import { createMCPClient } from '@ai-sdk/mcp'
+import { safeFetch } from '../../../utils/safe-fetch'
+import { writableTools, type ToolDefinition } from '../../../utils/mcp-read-only'
+import { publicError } from '../../../utils/public-error'
 
 /**
  * The marketing site, as a place to FIND posts — never a place Pulse writes to.
@@ -29,7 +32,6 @@ const LIST_POSTS = 'list_blog-post'
 const GET_POST = 'get_blog-post'
 const LIST_CATEGORIES = 'list_blog-category'
 const LIST_TAGS = 'list_blog-tag'
-const WRITE_TOOL = /^(create|update|delete|publish|unpublish|discard)_/
 const CALL_TIMEOUT_MS = 30_000
 const SEARCH_TEXT_BODY = 2000
 const LOOKUP_TTL_MS = 6 * 60 * 60 * 1000
@@ -130,12 +132,14 @@ export const source = ({ strapi }: { strapi: Core.Strapi }) => {
     let client: any
     try {
       client = await createMCPClient({
-        transport: { type: 'http', url: target.url, headers: target.headers },
+        // safeFetch: the URL was typed into Settings, so internal addresses are refused
+        transport: { type: 'http', url: target.url, headers: target.headers, fetch: safeFetch as any, redirect: 'error' },
         initializationOptions: { timeout: CALL_TIMEOUT_MS },
         clientName: 'pulse-resources',
       })
-      const tools = await toolNames(client)
-      const writable = tools.filter((n) => WRITE_TOOL.test(n))
+      const defs = await toolDefinitions(client)
+      const tools = defs.map((t) => t.name)
+      const writable = writableTools(defs)
       if (writable.length) {
         throw new SourceError(
           `the marketing MCP token can see write tools (${writable.slice(0, 3).join(', ')}${writable.length > 3 ? ', …' : ''}). ` +
@@ -145,7 +149,8 @@ export const source = ({ strapi }: { strapi: Core.Strapi }) => {
       if (!tools.includes(LIST_POSTS)) throw new SourceError(`the marketing MCP token cannot see ${LIST_POSTS}`)
       return await fn(client, tools)
     } catch (err: any) {
-      throw err instanceof SourceError ? err : new SourceError(String(err?.message ?? err))
+      // a remote failure's message can quote the response body — show its kind only
+      throw err instanceof SourceError ? err : Object.assign(new SourceError(publicError(err)), { detail: String(err?.message ?? err) })
     } finally {
       await client?.close().catch(() => {})
     }
@@ -284,22 +289,25 @@ export class SourceNotConfigured extends Error {
 }
 
 /** The marketing site failed or refused us — as opposed to a failure on Pulse's side. */
-export class SourceError extends Error {}
+export class SourceError extends Error {
+  /** the remote failure as it came back — for the server log, never the response */
+  detail?: string
+}
 
 // ---- MCP plumbing ---------------------------------------------------------
 
-async function toolNames(client: any): Promise<string[]> {
-  const names: string[] = []
+async function toolDefinitions(client: any): Promise<ToolDefinition[]> {
+  const defs: ToolDefinition[] = []
   let cursor: string | undefined
   do {
     const res = await client.listTools({
       params: cursor ? { cursor } : undefined,
       options: { timeout: CALL_TIMEOUT_MS },
     })
-    for (const t of res.tools ?? []) names.push(t.name)
+    for (const t of res.tools ?? []) defs.push({ name: t.name, annotations: t.annotations })
     cursor = res.nextCursor
   } while (cursor)
-  return names
+  return defs
 }
 
 async function call(client: any, name: string, args: Record<string, unknown>): Promise<any> {

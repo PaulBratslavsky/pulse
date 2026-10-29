@@ -1,5 +1,8 @@
 import type { Core } from '@strapi/strapi'
 import { createMCPClient } from '@ai-sdk/mcp'
+import { safeFetch } from '../../../utils/safe-fetch'
+import { isReadOnlyTool } from '../../../utils/mcp-read-only'
+import { publicError } from '../../../utils/public-error'
 
 /**
  * Turn every enabled MCP server into AI-SDK tools.
@@ -19,6 +22,10 @@ export type LoadedTools = {
   close: () => Promise<void>
   servers: string[]
 }
+
+/** Connecting and listing tools, per server. Without a bound, one server that
+ *  accepts the connection and goes quiet holds up every draft. */
+const LOAD_TIMEOUT_MS = 15_000
 
 const EMPTY: LoadedTools = { tools: {}, close: async () => {}, servers: [] }
 
@@ -56,21 +63,41 @@ export const mcpTools = ({ strapi }: { strapi: Core.Strapi }) => ({
 
         // findMany omits private fields, so re-read the token explicitly
         const token = await tokenFor(strapi, row.documentId)
-        const client = await createMCPClient({
-          transport: {
-            type: 'http',
-            url: row.url,
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          },
-        })
-        const t = await client.tools()
-        clients.push(client)
-        servers.push(row.name)
-        // Namespace on collision rather than letting one server silently
-        // shadow another's tool of the same name.
-        for (const [name, tool] of Object.entries(t)) {
-          const key = name in tools ? `${slug(row.name)}_${name}` : name
-          tools[key] = tool
+        let client: any
+        try {
+          client = await createMCPClient({
+            transport: {
+              type: 'http',
+              url: row.url,
+              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+              // the URL was typed into Settings: internal addresses are refused
+              fetch: safeFetch as any,
+              redirect: 'error',
+            },
+            initializationOptions: { timeout: LOAD_TIMEOUT_MS },
+          })
+          // The drafter and chat read untrusted public posts, which can ask the
+          // model to call anything it was given — so it is given only tools that
+          // read. listTools(), not tools(): the latter drops the annotations.
+          const listed = await client.listTools({ options: { timeout: LOAD_TIMEOUT_MS } })
+          const all: any[] = listed.tools ?? []
+          const readOnly = all.filter((t) => isReadOnlyTool(t))
+          if (readOnly.length < all.length) {
+            const dropped = all.filter((t) => !readOnly.includes(t)).map((t) => t.name)
+            strapi.log.info(`[mcp] ${row.name}: left out ${dropped.length} tool(s) that may write: ${dropped.slice(0, 8).join(', ')}`)
+          }
+          const t = client.toolsFromDefinitions({ ...listed, tools: readOnly })
+          clients.push(client)
+          servers.push(row.name)
+          // Namespace on collision rather than letting one server silently
+          // shadow another's tool of the same name.
+          for (const [name, tool] of Object.entries(t)) {
+            const key = name in tools ? `${slug(row.name)}_${name}` : name
+            tools[key] = tool
+          }
+        } catch (err) {
+          await client?.close?.().catch(() => {})
+          throw err
         }
       } catch (err: any) {
         strapi.log.warn(`[mcp] ${row.name} unavailable, continuing without it: ${err.message}`)
@@ -85,7 +112,7 @@ export const mcpTools = ({ strapi }: { strapi: Core.Strapi }) => ({
             status: auth ? 'needs-auth' : 'error',
             statusDetail: auth
               ? 'token rejected — click Connect to re-authorize'
-              : String(err.message).slice(0, 500),
+              : publicError(err),
           } as any,
         }).catch(() => {})
       }

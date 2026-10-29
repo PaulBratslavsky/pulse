@@ -14,7 +14,7 @@ export default factories.createCoreController('api::resource.resource', ({ strap
   const sourceError = (ctx: any, err: any) => {
     if (err instanceof SourceNotConfigured) return ctx.serviceUnavailable(err.message)
     if (!(err instanceof SourceError)) throw err
-    strapi.log.warn(`[resources] marketing source failed: ${err.message}`)
+    strapi.log.warn(`[resources] marketing source failed: ${err.message}${err.detail ? ` — ${err.detail}` : ''}`)
     ctx.status = 502
     ctx.body = { data: null, error: { status: 502, name: 'BadGateway', message: `Marketing site: ${err.message}` } }
   }

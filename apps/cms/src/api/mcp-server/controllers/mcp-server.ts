@@ -1,7 +1,14 @@
 import { factories } from '@strapi/strapi'
+import { resolveCallbackUrl } from '../services/mcp-server'
+import { checkUrl } from '../../../utils/safe-fetch'
+import { publicError } from '../../../utils/public-error'
 
-/** Only http(s), and never a loopback/metadata address — a registered URL is
- *  fetched by the SERVER, so an unvalidated one is an SSRF primitive. */
+/**
+ * Only http(s), and in production never a loopback/private/metadata address —
+ * a registered URL is fetched by the SERVER. This is the quick answer for the
+ * form; safeFetch checks the address each request really connects to, so a
+ * name that resolves inward is refused there.
+ */
 const validateUrl = (raw: unknown): string | null => {
   let u: URL
   try {
@@ -10,18 +17,13 @@ const validateUrl = (raw: unknown): string | null => {
     return null
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
-  const host = u.hostname.toLowerCase()
-  const blocked =
-    host === 'localhost' ||
-    host === '0.0.0.0' ||
-    host === '::1' ||
-    host.endsWith('.localhost') ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    /^169\.254\./.test(host) // link-local: AWS/GCP instance metadata
-  if (blocked && process.env.NODE_ENV === 'production') return null
+  if (process.env.NODE_ENV === 'production') {
+    try {
+      checkUrl(u)
+    } catch {
+      return null
+    }
+  }
   return u.toString()
 }
 
@@ -44,6 +46,9 @@ export default factories.createCoreController('api::mcp-server.mcp-server', ({ s
         tools: r.tools ?? [],
         lastConnectedAt: r.lastConnectedAt,
       })),
+      // whether this person may add, connect, re-token, repurpose or remove
+      // servers — the panel hides those controls otherwise
+      meta: { canManage: ctx.state.user?.role?.type === 'pulse-admin' },
     }
   },
 
@@ -105,7 +110,7 @@ export default factories.createCoreController('api::mcp-server.mcp-server', ({ s
       return { data }
     } catch (err: any) {
       if (err.status === 404) return ctx.notFound(err.message)
-      return ctx.badRequest(err.message)
+      return ctx.badRequest(publicError(err))
     }
   },
 
@@ -118,14 +123,16 @@ export default factories.createCoreController('api::mcp-server.mcp-server', ({ s
       return { data }
     } catch (err: any) {
       if (err.status === 404) return ctx.notFound(err.message)
-      return ctx.badRequest(err.message)
+      return ctx.badRequest(publicError(err))
     }
   },
 
   /** POST /mcp-servers/:documentId/connect — { callbackUrl } */
   async connect(ctx) {
-    const callbackUrl = String(ctx.request.body?.callbackUrl ?? '')
-    if (!callbackUrl) return ctx.badRequest('callbackUrl is required')
+    const callbackUrl = resolveCallbackUrl(ctx.request.body?.callbackUrl)
+    if (!callbackUrl) {
+      return ctx.badRequest("callbackUrl must be this app's /oauth-callback (check PULSE_APP_URL matches the web app's address)")
+    }
     try {
       const data = await (strapi.service('api::mcp-server.mcp-server') as any).connect(
         ctx.params.documentId,
@@ -134,22 +141,24 @@ export default factories.createCoreController('api::mcp-server.mcp-server', ({ s
       return { data }
     } catch (err: any) {
       if (err.status === 404) return ctx.notFound(err.message)
-      return ctx.badRequest(err.message)
+      return ctx.badRequest(publicError(err))
     }
   },
 
-  /** POST /mcp-servers/:documentId/finish-auth — { code } */
+  /** POST /mcp-servers/:documentId/finish-auth — { code, state } */
   async finishAuth(ctx) {
     const code = String(ctx.request.body?.code ?? '')
+    const state = String(ctx.request.body?.state ?? '')
     if (!code) return ctx.badRequest('code is required')
     try {
       const data = await (strapi.service('api::mcp-server.mcp-server') as any).finishAuth(
         ctx.params.documentId,
-        code
+        code,
+        state
       )
       return { data }
     } catch (err: any) {
-      return ctx.badRequest(err.message)
+      return ctx.badRequest(publicError(err))
     }
   },
 
@@ -167,7 +176,7 @@ export default factories.createCoreController('api::mcp-server.mcp-server', ({ s
     } catch (err: any) {
       if (err.status === 404) return ctx.notFound(err.message)
       if (err.status === 401) return ctx.unauthorized(err.message)
-      return ctx.badRequest(err.message)
+      return ctx.badRequest(publicError(err))
     }
   },
 

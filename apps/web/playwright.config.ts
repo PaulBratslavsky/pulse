@@ -34,7 +34,7 @@ export default defineConfig({
   projects: [
     // Pure-function tests: no auth, no page, no fixtures. Deliberately has no
     // `dependencies`, so a failing sign-in cannot hide a conversion bug.
-    { name: 'unit', testMatch: /(plain-text|queue-query)\.spec\.ts/ },
+    { name: 'unit', testMatch: /(plain-text|queue-query|mcp-guards)\.spec\.ts/ },
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'auth-flows',
@@ -43,7 +43,7 @@ export default defineConfig({
     },
     {
       name: 'app',
-      testMatch: /(queue-and-detail|insights|graph|leads|mcp-servers|muted-topics)\.spec\.ts/,
+      testMatch: /(queue-and-detail|insights|graph|leads|mcp-servers|muted-topics|security)\.spec\.ts/,
       dependencies: ['setup'],
       use: { storageState: 'playwright/.auth/dana.json' },
     },
