@@ -252,22 +252,6 @@ export default {
     }
     await grant(adminRole.id, [...AUTHENTICATED_ACTIONS, ...MCP_ADMIN_ACTIONS])
 
-    // ---- Pulse admins named in PULSE_ADMIN_EMAILS (promote only, never demote) ----
-    // Admins can also be set by hand in the admin panel (Content Manager → User →
-    // role); removing someone from the list does not demote them.
-    const adminEmails = String(process.env.PULSE_ADMIN_EMAILS ?? '')
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean)
-    for (const email of adminEmails) {
-      const user = await strapi
-        .query('plugin::users-permissions.user')
-        .findOne({ where: { email }, populate: ['role'] })
-      if (user && user.role?.type === 'authenticated') {
-        await strapi.query('plugin::users-permissions.user').update({ where: { id: user.id }, data: { role: adminRole.id } })
-        strapi.log.info(`pulse: ${email} is now a Pulse admin`)
-      }
-    }
     // Public role: seed NOTHING — the ingest webhook uses auth:false + shared secret.
 
     // ---- Close public registration (accounts are admin-invited) ----
@@ -303,6 +287,24 @@ export default {
         strapi.log.error('pulse: PULSE_SEED_DEMO is set in production — ignored (demo users have a public password)')
       } else {
         await seedDemo(strapi)
+      }
+    }
+
+    // ---- Pulse admins named in PULSE_ADMIN_EMAILS (promote only, never demote) ----
+    // After the demo seed, which is what creates the demo admin on a fresh database.
+    // Admins can also be set by hand in the admin panel (Content Manager → User →
+    // role); removing someone from the list does not demote them.
+    const adminEmails = String(process.env.PULSE_ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean)
+    for (const email of adminEmails) {
+      const user = await strapi
+        .query('plugin::users-permissions.user')
+        .findOne({ where: { email }, populate: ['role'] })
+      if (user && user.role?.type === 'authenticated') {
+        await strapi.query('plugin::users-permissions.user').update({ where: { id: user.id }, data: { role: adminRole.id } })
+        strapi.log.info(`pulse: ${email} is now a Pulse admin`)
       }
     }
 
