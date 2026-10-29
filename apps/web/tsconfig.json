@@ -30,5 +30,8 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  // mcp-guards.spec.ts loads CMS modules (and their dependencies, e.g. undici)
+  // that a web-only install such as Vercel's does not have. Playwright still
+  // compiles and runs it; it is type-checked with the CMS code it tests.
+  "exclude": ["node_modules", "e2e/mcp-guards.spec.ts"]
 }
