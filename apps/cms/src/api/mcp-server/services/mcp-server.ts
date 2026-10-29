@@ -286,6 +286,10 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
     if (!session) {
       throw exposed('no pending authorization — start again', { status: 409 })
     }
+    if (Date.now() - session.at > PENDING_TTL_MS) {
+      pending.delete(documentId)
+      throw exposed('the authorization took too long — start again', { status: 409 })
+    }
     if (!sameState(state, session.provider.oauthState)) {
       // one attempt per flow: a forged or stale callback ends it
       pending.delete(documentId)
@@ -420,6 +424,7 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
       if (!tools.length) throw exposed('the server exposes no tools')
 
       const tool = pickTool(tools)
+      if (!tool) throw exposed("none of this server's tools only reads, so Test will not call one")
       const args = argsFor(tool, query)
       if (!args) {
         throw exposed(
@@ -471,11 +476,10 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
  * server that could be a tool that writes, so the button is labelled as running
  * a query and the tool name is always reported back with the result.
  */
-const pickTool = (tools: any[]) =>
+const pickTool = (tools: any[]): any | undefined =>
   tools.find((t) => isReadOnlyTool(t) && /search|query|ask|find|docs|retriev|lookup/i.test(t.name)) ??
   // never fire a tool that writes just to see whether the server is alive
-  tools.find((t) => isReadOnlyTool(t)) ??
-  tools[0]
+  tools.find((t) => isReadOnlyTool(t))
 
 /** Names a server is likely to give the parameter that takes a question. */
 const QUESTION_PARAM = /^(query|question|q|search|prompt|text|input|term)$/i

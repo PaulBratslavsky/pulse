@@ -26,6 +26,10 @@ export type LoadedTools = {
 /** Connecting and listing tools, per server. Without a bound, one server that
  *  accepts the connection and goes quiet holds up every draft. */
 const LOAD_TIMEOUT_MS = 15_000
+/** All servers together. Loading runs before the model call in the same
+ *  request, so it must leave the model its full time inside the web proxy's
+ *  180 s: 30 s here + the model's 120 s. */
+const LOAD_BUDGET_MS = 30_000
 
 const EMPTY: LoadedTools = { tools: {}, close: async () => {}, servers: [] }
 
@@ -49,7 +53,12 @@ export const mcpTools = ({ strapi }: { strapi: Core.Strapi }) => ({
     const tools: Record<string, any> = {}
     const servers: string[] = []
 
+    const startedAt = Date.now()
     for (const row of rows) {
+      if (Date.now() - startedAt > LOAD_BUDGET_MS) {
+        strapi.log.warn(`[mcp] tool loading took over ${LOAD_BUDGET_MS / 1000}s — skipping ${row.name} for this request`)
+        continue
+      }
       try {
         // Renew BEFORE using it, not after a failure: an expired token costs a
         // silent round trip and a draft written without documentation, and the
