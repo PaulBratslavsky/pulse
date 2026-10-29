@@ -304,7 +304,7 @@ export default {
         .findOne({ where: { email }, populate: ['role'] })
       if (user && user.role?.type === 'authenticated') {
         await strapi.query('plugin::users-permissions.user').update({ where: { id: user.id }, data: { role: adminRole.id } })
-        strapi.log.info(`pulse: ${email} is now a Pulse admin`)
+        strapi.log.info(`pulse: user ${user.id} is now a Pulse admin (from PULSE_ADMIN_EMAILS)`)
       }
     }
 
