@@ -1,9 +1,13 @@
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { factories } from '@strapi/strapi'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { OAuthClientInformationMixed, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
+import { safeFetch } from '../../../utils/safe-fetch'
+import { isReadOnlyTool, writableTools } from '../../../utils/mcp-read-only'
+import { exposed, publicError } from '../../../utils/public-error'
 
 /**
  * External MCP servers, registered from Settings.
@@ -33,21 +37,21 @@ const loadRow = (strapi: any, documentId: string) =>
 export type AuthType = 'oauth' | 'token' | 'none'
 export const authTypeOf = (row: any): AuthType => (row?.authType === 'token' || row?.authType === 'none' ? row.authType : 'oauth')
 
-/** Tools that change data — a server used only for Resources must expose none of them. */
-export const WRITE_TOOL = /^(create|update|delete|publish|unpublish|discard|remove|upload|move|set|add)[_-]/i
-
 /**
  * The transport for a row. OAuth goes through the provider (consent, refresh,
  * 401 retry); a pasted token is sent as a plain bearer header, as Strapi's
  * built-in MCP server and most API-key servers expect; `none` sends nothing.
+ * Every request — OAuth discovery and token calls included — goes through
+ * safeFetch, which refuses internal addresses in production.
  */
 function transportFor(row: any, provider?: DbOAuthProvider) {
   const kind = authTypeOf(row)
+  const fetch = safeFetch as any
   if (kind === 'oauth') {
-    return new StreamableHTTPClientTransport(new URL(row.url), { authProvider: provider as any })
+    return new StreamableHTTPClientTransport(new URL(row.url), { authProvider: provider as any, fetch })
   }
   const headers: Record<string, string> = kind === 'token' && row.accessToken ? { Authorization: `Bearer ${row.accessToken}` } : {}
-  return new StreamableHTTPClientTransport(new URL(row.url), { requestInit: { headers } })
+  return new StreamableHTTPClientTransport(new URL(row.url), { requestInit: { headers }, fetch })
 }
 
 /**
@@ -62,6 +66,10 @@ function transportFor(row: any, provider?: DbOAuthProvider) {
 class DbOAuthProvider implements OAuthClientProvider {
   authUrl?: string
   private _verifier?: string
+  /** Sent with the consent request and checked when the code comes back, so a
+   *  code can only finish the flow that asked for it. Memory-only, like the
+   *  PKCE verifier. */
+  readonly oauthState = randomBytes(24).toString('base64url')
 
   constructor(
     private readonly strapi: any,
@@ -132,6 +140,10 @@ class DbOAuthProvider implements OAuthClientProvider {
     return this._verifier
   }
 
+  state() {
+    return this.oauthState
+  }
+
   /** The SDK hands us the URL instead of redirecting — the browser opens it. */
   redirectToAuthorization(url: URL) {
     this.authUrl = url.toString()
@@ -145,6 +157,36 @@ class DbOAuthProvider implements OAuthClientProvider {
     // silently drop the client credentials we just saved
     this.row = await loadRow(this.strapi, this.documentId)
   }
+}
+
+const sameState = (a: unknown, b: string) => {
+  if (typeof a !== 'string' || !a) return false
+  const x = Buffer.from(a)
+  const y = Buffer.from(b)
+  return x.length === y.length && timingSafeEqual(x, y)
+}
+
+/** Where the provider sends the browser back: the web app's callback page. */
+export const appCallbackUrl = () =>
+  `${(process.env.PULSE_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/oauth-callback`
+
+/**
+ * The callback URL to register and send. It becomes a registered redirect_uri
+ * at the provider, so it is never taken from the request as-is: it has to be
+ * the web app's own /oauth-callback. When PULSE_APP_URL is set its origin is the
+ * only one accepted, so a mismatch fails loudly here rather than as a popup
+ * that never reports back.
+ */
+export function resolveCallbackUrl(requested: unknown): string | null {
+  let u: URL
+  try {
+    u = new URL(String(requested ?? ''))
+  } catch {
+    return null
+  }
+  if ((u.protocol !== 'https:' && u.protocol !== 'http:') || u.pathname !== '/oauth-callback' || u.search || u.hash) return null
+  if (process.env.PULSE_APP_URL && u.origin !== new URL(appCallbackUrl()).origin) return null
+  return `${u.origin}/oauth-callback`
 }
 
 /**
@@ -167,7 +209,7 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
    */
   async connect(documentId: string, callbackUrl: string) {
     const row: any = await loadRow(strapi, documentId)
-    if (!row) throw Object.assign(new Error('server not found'), { status: 404 })
+    if (!row) throw exposed('server not found', { status: 404 })
 
     const kind = authTypeOf(row)
     if (kind === 'token' && !row.accessToken) {
@@ -190,7 +232,7 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
       await client.close()
       // A Resources server is read by Pulse's own code over the person's saved
       // posts. It must not be able to change anything: refuse a token that can.
-      const writable = row.purpose === 'resources' ? names.filter((n: string) => WRITE_TOOL.test(n)) : []
+      const writable = row.purpose === 'resources' ? writableTools(tools as any) : []
       if (writable.length) {
         await strapi.documents('api::mcp-server.mcp-server').update({
           documentId,
@@ -228,19 +270,30 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
         })
         return { status: 'auth_required' as const, authUrl: provider.authUrl }
       }
+      strapi.log.warn(`[mcp] connect to ${row.name} failed: ${err.stack ?? err.message}`)
+      const shown = publicError(err)
       await strapi.documents('api::mcp-server.mcp-server').update({
         documentId,
-        data: { status: 'error', statusDetail: String(err.message).slice(0, 500) } as any,
+        data: { status: 'error', statusDetail: shown } as any,
       })
-      throw err
+      throw exposed(shown, { status: err.status })
     }
   },
 
   /** Finish the flow with the code the callback page sent back. */
-  async finishAuth(documentId: string, code: string) {
+  async finishAuth(documentId: string, code: string, state: string) {
     const session = pending.get(documentId)
     if (!session) {
-      throw Object.assign(new Error('no pending authorization — start again'), { status: 409 })
+      throw exposed('no pending authorization — start again', { status: 409 })
+    }
+    if (Date.now() - session.at > PENDING_TTL_MS) {
+      pending.delete(documentId)
+      throw exposed('the authorization took too long — start again', { status: 409 })
+    }
+    if (!sameState(state, session.provider.oauthState)) {
+      // one attempt per flow: a forged or stale callback ends it
+      pending.delete(documentId)
+      throw exposed('authorization did not match the one started here — start again', { status: 400 })
     }
     try {
       await session.transport.finishAuth(code)
@@ -252,11 +305,12 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
       // The row only keeps the message, and a provider's message can be as
       // unhelpful as "Missing client_id" — log the stack while we still have it.
       strapi.log.error(`[mcp] token exchange failed for ${documentId}: ${err.stack ?? err.message}`)
+      const shown = err.expose ? String(err.message) : `token exchange failed: ${publicError(err)}`
       await strapi.documents('api::mcp-server.mcp-server').update({
         documentId,
-        data: { status: 'error', statusDetail: String(err.message).slice(0, 500) } as any,
+        data: { status: 'error', statusDetail: shown } as any,
       })
-      throw err
+      throw exposed(shown)
     }
   },
 
@@ -285,8 +339,7 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
       // have — so an empty string skips the refresh branch entirely and fails
       // with "Either provider.prepareTokenRequest() or authorizationCode is
       // required" (auth.js:260). It only has to be the URL we registered with.
-      const callback = `${(process.env.PULSE_APP_URL || 'http://localhost:3000').replace(/\/$/, '')}/oauth-callback`
-      const result = await (this as any).connect(documentId, callback)
+      const result = await (this as any).connect(documentId, appCallbackUrl())
       return result?.status === 'connected'
     } catch (err: any) {
       strapi.log.warn(`[mcp] token refresh failed for ${row.name}: ${err.message}`)
@@ -356,7 +409,7 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
    */
   async test(documentId: string, query: string) {
     const row: any = await loadRow(strapi, documentId)
-    if (!row) throw Object.assign(new Error('server not found'), { status: 404 })
+    if (!row) throw exposed('server not found', { status: 404 })
 
     // redirectUrl is only read when the provider has to REGISTER a client, and
     // that cannot happen here: no client means no token, which we reject below.
@@ -368,12 +421,13 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
     try {
       await client.connect(transport)
       const { tools } = await client.listTools()
-      if (!tools.length) throw new Error('the server exposes no tools')
+      if (!tools.length) throw exposed('the server exposes no tools')
 
       const tool = pickTool(tools)
+      if (!tool) throw exposed("none of this server's tools only reads, so Test will not call one")
       const args = argsFor(tool, query)
       if (!args) {
-        throw new Error(
+        throw exposed(
           `cannot auto-fill ${tool.name} — it needs ${(tool.inputSchema?.required ?? []).join(', ')}`
         )
       }
@@ -404,10 +458,10 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
     } catch (err: any) {
       if (err instanceof UnauthorizedError || /\b401\b/.test(String(err.message))) {
         const hint = authTypeOf(row) === 'token' ? 'the server rejected the token — paste a new one' : 'not authorized — click Connect first'
-        throw Object.assign(new Error(hint), { status: 401 })
+        throw exposed(hint, { status: 401 })
       }
       strapi.log.warn(`[mcp] test call to ${row.name} failed: ${err.stack ?? err.message}`)
-      throw err
+      throw exposed(publicError(err), { status: err.status })
     } finally {
       await client.close().catch(() => {})
     }
@@ -422,12 +476,10 @@ export default factories.createCoreService('api::mcp-server.mcp-server', ({ stra
  * server that could be a tool that writes, so the button is labelled as running
  * a query and the tool name is always reported back with the result.
  */
-const pickTool = (tools: any[]) =>
-  tools.find((t) => /search|query|ask|find|docs|retriev|lookup/i.test(t.name)) ??
+const pickTool = (tools: any[]): any | undefined =>
+  tools.find((t) => isReadOnlyTool(t) && /search|query|ask|find|docs|retriev|lookup/i.test(t.name)) ??
   // never fire a tool that writes just to see whether the server is alive
-  tools.find((t) => /^(list|get|read)[_-]/i.test(t.name)) ??
-  tools.find((t) => !WRITE_TOOL.test(t.name)) ??
-  tools[0]
+  tools.find((t) => isReadOnlyTool(t))
 
 /** Names a server is likely to give the parameter that takes a question. */
 const QUESTION_PARAM = /^(query|question|q|search|prompt|text|input|term)$/i

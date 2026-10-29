@@ -70,7 +70,7 @@ export default async function SettingsPage() {
           and connecting the docs server is the single biggest quality lever on
           drafted replies */}
       <div className="mb-4">
-        <McpServers servers={mcp} />
+        <McpServers servers={mcp} canManage={(mcpRes.meta as any)?.canManage === true} />
       </div>
 
       {/* after classification, because it consumes what classification produces:
