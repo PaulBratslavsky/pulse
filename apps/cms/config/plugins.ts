@@ -26,6 +26,15 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin =>
   // Octolens integration — local plugin (earned: it ships admin UI — sync page + widget)
   octolens: { enabled: true, resolve: './src/plugins/octolens' },
 
+  // Marketing-brain data hub, phase 1: YouTube channel + video numbers, reports
+  // and decisions — local plugin (its own content types and sync; see its README).
+  // The daily sync is off unless BRAIN_YOUTUBE_SYNC=true (config/cron-tasks.ts).
+  brain: {
+    enabled: true,
+    resolve: './src/plugins/brain',
+    config: { youtubeUploadsLimit: env.int('BRAIN_YOUTUBE_UPLOADS_LIMIT', 100) },
+  },
+
   'users-permissions': {
     config: {
       // DECISION 2026-07-28: long-lived JWTs matching the 7-day auth cookie.
