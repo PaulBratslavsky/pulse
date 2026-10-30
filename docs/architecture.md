@@ -50,6 +50,7 @@ flowchart LR
 | `apps/cms` | Strapi v5 backend — all business logic, integrations, crons, MCP |
 | `apps/cms/src/api/*` | Feature modules (mention, response, topic, analysis, search, assistant, notify, …) — plain `src/api` folders by default |
 | `apps/cms/src/plugins/octolens` | Local plugin (sdk-plugin layout) — the one module that earned plugin-hood: it ships an admin UI (sync page + widget) |
+| `apps/cms/src/plugins/brain` | Local plugin — the marketing brain's data hub (YouTube snapshots, reports, decisions); see [Marketing brain data hub](#marketing-brain-data-hub-phase-1-youtube) |
 | `apps/cms/src/tools/registry.ts` | **Single tool registry** consumed by both the MCP server and the in-app assistant |
 | `apps/cms/src/api/*/services` | Workflow logic: transition guards + transactions (controllers are thin ctx adapters) |
 | `apps/cms/src/utils/dedupe-mentions.ts` | Boot-time integrity: duplicate merge + unique/hot-filter DB indexes |
@@ -138,7 +139,10 @@ search — paged, excerpt-trimmed, relations as names), `pulse-get-mention` (con
 replies), `pulse-save-draft`, `pulse-update-mention` (**partial by construction**),
 `pulse-save-drafts-bulk` (25/call), `pulse-assign-topics`, `pulse-set-lane`, `pulse-acknowledge`,
 `pulse-search-mentions`, `pulse-trend-summary`, `pulse-graph`, `pulse-theme-report`,
-`pulse-mute-suggestions`, `pulse-mute-topic`, `pulse-unmute-topic`.
+`pulse-mute-suggestions`, `pulse-mute-topic`, `pulse-unmute-topic`. Plus six marketing-brain tools
+(`src/tools/brain.ts`, spread into the same registry): `brain-youtube-channels`,
+`brain-youtube-videos`, `brain-video-results`, `brain-save-report`, `brain-decisions`,
+`brain-update-decision` — see below.
 
 **Agent-safety design** (after a real session with Strapi's generic content-manager tools silently
 overwrote a long post): our write tools never expose `content`, so a truncated resend can't destroy
@@ -218,6 +222,7 @@ ask again.
 | Frontend users | U&P role permissions, seeded idempotently in `src/index.ts` bootstrap (registration closed; accounts admin-invited) | code (seed list `AUTHENTICATED_ACTIONS`) |
 | MCP tools | One admin permission action per tool (`api::pulse-mcp.<tool>`) — a tool's action is its **only** gate. Registered in `register()`, **not** `bootstrap()`: admin's bootstrap prunes grants for unknown actions, which silently wiped token checkboxes on every restart | Admin Token / Role screens → **Settings** tab → "Pulse MCP tools" |
 | Octolens plugin admin UI | `plugin::octolens.settings.read` / `plugin::octolens.sync.start`, gating routes, menu link, and widget | Roles / Admin Token screens → **Plugins** tab → octolens |
+| Brain plugin sync route | `plugin::brain.youtube.sync`, gating `POST /brain/youtube/sync`. Registered in the plugin's `register()` for the same pruning reason | Roles / Admin Token screens → **Plugins** tab → brain |
 
 Which tab a permission lands on is set by `section` (`plugins` → Plugins tab, grouped by plugin;
 `settings` → Settings tab, grouped by `category`), while `pluginName` sets the action-id prefix
@@ -240,7 +245,50 @@ User data exposure is deliberately minimal: only `/api/users/me` is exposed; use
 | `leadRescore` | 03:30 | Recompute every person's intent score. Pure arithmetic, no model call, so it runs regardless of the token budget. Required because intent **decays with the age of the post** while a score is only written when something touches that person — without it the board silently keeps showing the value each lead had on the day it was last computed. After recluster, since lanes decide leads |
 | `staleDigest` | 09:00 weekdays | Slack digest of stale unanswered mentions (`STALE_AFTER_DAYS`, default 2) |
 | `budgetReset` | midnight | resets the AI daily token budget |
+| `brainYoutubeSync` | 05:00 | marketing brain: daily YouTube snapshot. **Off unless `BRAIN_YOUTUBE_SYNC=true`** (and a no-op without `YOUTUBE_API_KEY`) |
+
+## Marketing brain data hub (phase 1: YouTube)
+
+Pulse is growing into the data hub for the **marketing brain** — a separate repo of Claude skills
+that write Strapi's marketing reports. The skills read their numbers from Pulse over MCP and write
+their reports and decisions back, so next month's report can compare against this month's and say
+what happened to what was decided. Phase 1 is YouTube; **HubSpot and Launchpad trial data come in
+later phases**, as more content types in the same plugin.
+
+It lives in a local plugin, `src/plugins/brain` (plugin id `brain`; full detail in its
+[README](../apps/cms/src/plugins/brain/README.md)). Unlike the other modules it is a plugin because
+it is a self-contained data hub with its own tables, sync and lifecycle that has nothing to do with
+mentions, and may be lifted out later.
+
+**Data model** (tables prefixed `brain_`): `channel` (handle, youtubeChannelId, title, kind
+own/competitor/creator, active), `video` (youtubeVideoId, channel, title, `postedAt`, durationSeconds,
+isShort ≤ 180 s, topic), `channel-snapshot` (channel, takenOn, subscribers — null when hidden —
+totalViews, videoCount) and `video-snapshot` (video, takenOn, views, likes, comments), one per thing
+per UTC day via a unique `dayKey`; `report` (date, kind `youtube-monthly`, Markdown summary, JSON
+data) and `decision` (report, text, owner, due, status open/done/dropped, outcome). Indexes are
+declared on the schemas, so Strapi's schema sync creates them on SQLite and Postgres alike.
+
+**Sync**: YouTube Data API v3 over `fetch` — `channels.list` (by id, or `forHandle` the first time),
+the uploads playlist via `playlistItems.list` (paginated, newest first, limit 100 by default) and
+`videos.list` in batches of 50. ~3 quota units a channel plus 2 per extra 50 uploads; one log line
+per run. A hidden uploads playlist (404) keeps the channel snapshot. The key travels in the
+`x-goog-api-key` header, never a URL, and no route or tool returns it. Seven channels are seeded on
+first boot (ours, `@Strapi`, and six competitors).
+
+**Tools**: the six `brain-*` tools in the shared registry, each with its own permission action like
+every Pulse tool. Reads compute from stored snapshots only (never the API); writes follow the Pulse
+rules — conditional, partial, stamped with `via`, internal.
+
+| Env | Default | |
+|---|---|---|
+| `YOUTUBE_API_KEY` | empty | YouTube Data API v3 key; empty = no sync |
+| `BRAIN_YOUTUBE_SYNC` | `false` | `true` turns on the daily cron |
+| `BRAIN_YOUTUBE_SYNC_CRON` | `0 5 * * *` | optional override |
+| `BRAIN_YOUTUBE_UPLOADS_LIMIT` | `100` | optional: newest uploads read per channel |
 
 ## Testing & CI
+
+The brain's arithmetic (durations, Shorts, median, views per day, the 7/30/90-day lookup) is
+unit-tested in `apps/web/e2e/brain-youtube.spec.ts`, part of the stack-free `unit` project.
 
 Playwright e2e (18 tests) runs against real dev servers with data injected through the actual webhook — sign-in once via storageState, tests are data-volume independent. CI (`.github/workflows/ci.yml`) boots the full stack keyless (AI-optional is exercised on every run) and runs the suite.
