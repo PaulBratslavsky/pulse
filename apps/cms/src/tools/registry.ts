@@ -1,6 +1,7 @@
 import type { Core } from '@strapi/strapi';
 import { z } from '@strapi/utils';
 import { logActivity } from '../utils/activity';
+import { BRAIN_TOOLS } from './brain';
 
 /**
  * ONE tool registry, TWO surfaces (user decision, 2026-07-27): the same tools are
@@ -830,6 +831,9 @@ export const PULSE_TOOLS: PulseTool[] = [
       return svc.unmute(hit.documentId);
     },
   },
+
+  // Marketing-brain tools (brain plugin) — defined in ./brain.ts, same rules
+  ...BRAIN_TOOLS,
 ];
 
 export const getTool = (name: string) => PULSE_TOOLS.find((t) => t.name === name);

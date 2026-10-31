@@ -98,4 +98,20 @@ export default {
     },
     options: { rule: process.env.RESOURCE_REFRESH_CRON || '0 4 * * *' },
   },
+  // Marketing brain: one snapshot a day of every active YouTube channel and its
+  // newest uploads (src/plugins/brain). OFF unless BRAIN_YOUTUBE_SYNC=true, so a
+  // fresh checkout or a staging copy never spends the API quota by accident;
+  // also a no-op without YOUTUBE_API_KEY. ~35 quota units a run of 10,000/day.
+  brainYoutubeSync: {
+    task: async ({ strapi }: any) => {
+      if (process.env.BRAIN_YOUTUBE_SYNC !== 'true') return
+      try {
+        await strapi.plugin('brain').service('youtube').sync()
+      } catch (err: any) {
+        strapi.log.error(`[cron] brain youtube sync crashed: ${err.message}`)
+        await strapi.service('api::notify.slack').ops(`brain youtube sync crashed: ${err.message}`).catch(() => {})
+      }
+    },
+    options: { rule: process.env.BRAIN_YOUTUBE_SYNC_CRON || '0 5 * * *' },
+  },
 }
