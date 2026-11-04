@@ -1,0 +1,14 @@
+{
+  "enabledPlugins": {
+    "strapi-product-egm@strapi-product-egm": true,
+    "egm@strapi-product-egm": true
+  },
+  "extraKnownMarketplaces": {
+    "strapi-product-egm": {
+      "source": {
+        "source": "github",
+        "repo": "PaulBratslavsky/strapi-product-egm"
+      }
+    }
+  }
+}
