@@ -123,17 +123,27 @@ test.describe("a member cannot change another member's records", () => {
     expect(reply.ok(), 'record reply').toBeTruthy()
     const replyId = (await reply.json()).data.documentId
 
-    for (const path of [`/api/comments/${commentId}`, `/api/responses/${replyId}`]) {
-      const edit = await request.put(`${STRAPI_URL}${path}`, { headers: mark, data: { data: { body: 'x', finalText: 'x' } } })
-      expect(edit.status(), `mark edits ${path}`).toBe(403)
+    // the ownership check's own message, so a 403 from a missing permission
+    // (which would never reach the check) can't pass for it
+    const records = [
+      { path: `/api/comments/${commentId}`, edit: { body: 'x' }, refusal: /only modify your own comments/ },
+      { path: `/api/responses/${replyId}`, edit: { finalText: 'x' }, refusal: /only edit a reply you recorded/ },
+    ]
+    for (const { path, edit, refusal } of records) {
+      const put = await request.put(`${STRAPI_URL}${path}`, { headers: mark, data: { data: edit } })
+      expect(put.status(), `mark edits ${path}`).toBe(403)
+      expect(await put.text()).toMatch(refusal)
       const del = await request.delete(`${STRAPI_URL}${path}`, { headers: mark })
       expect(del.status(), `mark deletes ${path}`).toBe(403)
+      expect(await del.text()).toMatch(refusal)
     }
 
     // the author still can
-    const own = await request.put(`${STRAPI_URL}/api/comments/${commentId}`, { headers: dana, data: { data: { body: 'edited' } } })
-    expect(own.status()).toBe(200)
-    expect((await request.delete(`${STRAPI_URL}/api/comments/${commentId}`, { headers: dana })).ok()).toBeTruthy()
-    expect((await request.delete(`${STRAPI_URL}/api/responses/${replyId}`, { headers: dana })).ok()).toBeTruthy()
+    for (const { path, edit } of records) {
+      const put = await request.put(`${STRAPI_URL}${path}`, { headers: dana, data: { data: edit } })
+      expect(put.status(), `dana edits ${path}`).toBe(200)
+      const del = await request.delete(`${STRAPI_URL}${path}`, { headers: dana })
+      expect(del.status(), `dana deletes ${path}`).toBe(200)
+    }
   })
 })
