@@ -168,8 +168,14 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
     strapi.log.info(`pulse: gave ${nullQuality} mention(s) quality=normal and ${nullMuted} topic_muted=false (were NULL)`)
   }
 
-  // real DB-level guard (works on SQLite and Postgres; NULLs unaffected)
-  await knex.raw('CREATE UNIQUE INDEX IF NOT EXISTS mentions_external_id_uq ON mentions (external_id)')
+  // real DB-level guard (works on SQLite and Postgres; NULLs unaffected).
+  // A failure here is alerted by the caller; it must not stop the indexes below.
+  let externalIdError: Error | null = null
+  try {
+    await knex.raw('CREATE UNIQUE INDEX IF NOT EXISTS mentions_external_id_uq ON mentions (external_id)')
+  } catch (err: any) {
+    externalIdError = err
+  }
 
   // Same v5 gotcha for the other schema-unique fields (Document Service writes
   // bypass content-API unique validation), plus hot-filter indexes for the
@@ -198,6 +204,7 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
   }
 
   await enforceSchemaUniques(strapi, knex)
+  if (externalIdError) throw externalIdError
 
   strapi.log.info(
     `pulse: mention dedupe done (${dupes.length} duplicated externalId(s) merged), unique + hot-filter indexes ensured`
@@ -229,12 +236,17 @@ async function enforceSchemaUniques(strapi: Core.Strapi, knex: any) {
       const dupes = await knex(table).select(column).whereNotNull(column).groupBy(column).havingRaw('count(*) > 1')
       const marker = strapi.store({ type: 'plugin', name: 'pulse', key: `unique-skipped:${index}` })
       if (dupes.length) {
-        const before = await marker.get()
-        if (before !== dupes.length) {
-          await marker.set({ value: dupes.length })
-          const msg = `${table}.${column} has ${dupes.length} duplicated value(s) — unique index ${index} not created; merge the duplicates and restart`
-          strapi.log.error(`pulse: ${msg}`)
-          await (strapi.service('api::notify.slack') as any).ops(msg).catch(() => {})
+        const msg = `${table}.${column} has ${dupes.length} duplicated value(s) — unique index ${index} not created; merge the duplicates and restart`
+        strapi.log.error(`pulse: ${msg}`)
+        // alert ops once per duplicate count; the marker is written only after
+        // the alert went out, so a failed send is retried on the next boot
+        if ((await marker.get()) !== dupes.length) {
+          try {
+            await (strapi.service('api::notify.slack') as any).ops(msg)
+            await marker.set({ value: dupes.length })
+          } catch {
+            /* retried next boot */
+          }
         }
         continue
       }

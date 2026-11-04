@@ -182,7 +182,7 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
           mention.authorHandle
         );
         const flagsSpam =
-          !ours && result.quality === 'suspected-spam' && mention.quality === 'normal';
+          !ours && result.quality === 'suspected-spam' && (mention.quality ?? 'normal') === 'normal';
 
         // humanCorrected fields are never overwritten (spec rule)
         const data: any = mention.humanCorrected
