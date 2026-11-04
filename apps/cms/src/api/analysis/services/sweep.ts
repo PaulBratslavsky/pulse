@@ -120,20 +120,28 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
     }
 
     const pending = await strapi.documents('api::mention.mention').findMany({
+      // `$ne` is SQL `<>`, which is never true for NULL — and rows older than
+      // a column hold NULL there. Each "not X" therefore also admits NULL, and
+      // the conditions sit in `$and` because a second top-level `$or` would
+      // overwrite the first.
       filters: {
-        // confirmed spam is never worth a model call — it is already hidden
-        // from the queue and every metric
-        quality: { $ne: 'spam' },
-        // same logic for a muted topic: it counts in no metric, so classifying
-        // it buys nothing. This was the expensive half of the Webflow problem —
-        // the sweep was drafting replies to Webflow component promos.
-        topicMuted: { $ne: true },
-        $or: [
-          { analysisStatus: { $in: ['pending', 'skipped'] } },
-          // failed: retry only until the attempt cap; parked rows leave the window
+        $and: [
+          // confirmed spam is never worth a model call — it is already hidden
+          // from the queue and every metric
+          { $or: [{ quality: { $ne: 'spam' } }, { quality: { $null: true } }] },
+          // same logic for a muted topic: it counts in no metric, so classifying
+          // it buys nothing. This was the expensive half of the Webflow problem —
+          // the sweep was drafting replies to Webflow component promos.
+          { $or: [{ topicMuted: false }, { topicMuted: { $null: true } }] },
           {
-            analysisStatus: 'failed',
-            $or: [{ analysisAttempts: { $lt: MAX_ATTEMPTS } }, { analysisAttempts: { $null: true } }],
+            $or: [
+              { analysisStatus: { $in: ['pending', 'skipped'] } },
+              // failed: retry only until the attempt cap; parked rows leave the window
+              {
+                analysisStatus: 'failed',
+                $or: [{ analysisAttempts: { $lt: MAX_ATTEMPTS } }, { analysisAttempts: { $null: true } }],
+              },
+            ],
           },
         ],
       } as any,
@@ -174,7 +182,7 @@ export const sweep = ({ strapi }: { strapi: Core.Strapi }) => ({
           mention.authorHandle
         );
         const flagsSpam =
-          !ours && result.quality === 'suspected-spam' && mention.quality === 'normal';
+          !ours && result.quality === 'suspected-spam' && (mention.quality ?? 'normal') === 'normal';
 
         // humanCorrected fields are never overwritten (spec rule)
         const data: any = mention.humanCorrected

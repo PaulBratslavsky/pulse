@@ -60,11 +60,21 @@ export default factories.createCoreService('api::muted-author.muted-author', ({ 
       mentionCount: mentions.length,
       ...(userId ? { mutedBy: userId } : {}),
     }
-    const record: any = existing
-      ? await strapi
-          .documents('api::muted-author.muted-author')
-          .update({ documentId: existing.documentId, data: data as any })
-      : await strapi.documents('api::muted-author.muted-author').create({ data: data as any })
+    const docs = strapi.documents('api::muted-author.muted-author')
+    let record: any
+    if (existing) {
+      record = await docs.update({ documentId: existing.documentId, data: data as any })
+    } else {
+      try {
+        record = await docs.create({ data: data as any })
+      } catch (err) {
+        // Lost race: another mute of the same handle created the row first and
+        // the unique index on handle refused this one. Update that row instead.
+        const winner = await docs.findFirst({ filters: { handle: { $eqi: handle } } as any })
+        if (!winner) throw err
+        record = await docs.update({ documentId: winner.documentId, data: data as any })
+      }
+    }
 
     strapi.log.info(`[mute] ${handle} muted (${mentions.length} mention(s) marked spam)`)
     return { handle, muted: true, mentionsMarked: mentions.length, documentId: record.documentId }

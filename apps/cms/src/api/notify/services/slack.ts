@@ -19,6 +19,9 @@ export const slack = ({ strapi }: { strapi: Core.Strapi }) => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text }),
+      // Slack is awaited inside ingest and the sweep: a slow Slack must not
+      // hold either for undici's 5-minute default
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`slack webhook ${res.status}`);
   };

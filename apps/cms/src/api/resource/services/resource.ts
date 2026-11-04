@@ -39,19 +39,26 @@ export default factories.createCoreService(UID, ({ strapi }) => {
         continue
       }
       const post = posts.get(row.sourceId)
-      if (!post) {
-        if (!row.upstreamMissing) {
-          await docs().update({ documentId: row.documentId, data: { upstreamMissing: true, refreshedAt: now } })
-          counts.missing++
+      // One row that cannot be written (e.g. its new URL is already another
+      // saved post's, which the unique index refuses) must not stop the rest.
+      try {
+        if (!post) {
+          if (!row.upstreamMissing) {
+            await docs().update({ documentId: row.documentId, data: { upstreamMissing: true, refreshedAt: now } })
+            counts.missing++
+          }
+          continue
         }
-        continue
+        const changed = toIso(post.sourceUpdatedAt) !== toIso(row.sourceUpdatedAt) || row.upstreamMissing
+        await docs().update({
+          documentId: row.documentId,
+          data: changed ? { ...post, upstreamMissing: false, refreshedAt: now } : { refreshedAt: now },
+        })
+        if (changed) counts.updated++
+      } catch (err: any) {
+        counts.failed++
+        strapi.log.warn(`[resources] could not refresh ${row.sourceId}: ${err.message}`)
       }
-      const changed = toIso(post.sourceUpdatedAt) !== toIso(row.sourceUpdatedAt) || row.upstreamMissing
-      await docs().update({
-        documentId: row.documentId,
-        data: changed ? { ...post, upstreamMissing: false, refreshedAt: now } : { refreshedAt: now },
-      })
-      if (changed) counts.updated++
     }
     strapi.log.info(
       `[resources] refreshed ${counts.checked} saved post(s): ${counts.updated} updated, ${counts.missing} gone upstream, ${counts.failed} failed`

@@ -49,7 +49,31 @@ export const webhook = ({ strapi }: { strapi: Core.Strapi }) => ({
       return;
     }
 
-    const result = await intake.upsertMention(normalized, payload, 'webhook');
+    let result;
+    try {
+      result = await intake.upsertMention(normalized, payload, 'webhook');
+    } catch (err: any) {
+      // Saving failed (database, a relation, a bug) — keep the delivery as a
+      // dead letter so it can be replayed, rather than lose it. If even that
+      // write fails, answer 500 so the sender can try again.
+      strapi.log.error(`[octolens] webhook intake failed, dead-lettering: ${err.message}`);
+      try {
+        await strapi.documents('api::dead-letter.dead-letter').create({
+          data: { raw: payload, error: `intake: ${err.message}`, receivedAt: new Date().toISOString() } as any,
+        });
+      } catch (dlErr: any) {
+        strapi.log.error(`[octolens] dead-letter write failed too: ${dlErr.message}`);
+        ctx.status = 500;
+        ctx.body = { error: 'intake failed' };
+        return;
+      }
+      await (strapi.service('api::notify.slack') as any)
+        .ops(`octolens webhook intake failed (dead-lettered for replay): ${err.message}`)
+        .catch(() => {});
+      ctx.status = 202;
+      ctx.body = { deadLettered: true };
+      return;
+    }
     ctx.body = result.created
       ? { ok: true, documentId: result.documentId }
       : { duplicate: true, documentId: result.documentId };
