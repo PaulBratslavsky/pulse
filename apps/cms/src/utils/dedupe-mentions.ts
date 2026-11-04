@@ -159,6 +159,15 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
     if (filled) strapi.log.info(`pulse: backfilled author/relevance fields on ${filled} mention(s) from stored raw`)
   }
 
+  // Columns added after rows existed hold NULL in those rows, not the schema
+  // default — and every `$ne` filter (`quality <> 'spam'`, `topic_muted <> true`)
+  // silently skips NULL. Give old rows the defaults. Idempotent.
+  const nullQuality = await knex('mentions').whereNull('quality').update({ quality: 'normal' })
+  const nullMuted = await knex('mentions').whereNull('topic_muted').update({ topic_muted: false })
+  if (nullQuality || nullMuted) {
+    strapi.log.info(`pulse: gave ${nullQuality} mention(s) quality=normal and ${nullMuted} topic_muted=false (were NULL)`)
+  }
+
   // real DB-level guard (works on SQLite and Postgres; NULLs unaffected)
   await knex.raw('CREATE UNIQUE INDEX IF NOT EXISTS mentions_external_id_uq ON mentions (external_id)')
 
@@ -174,6 +183,8 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
     'CREATE INDEX IF NOT EXISTS mentions_analysis_status_received_at_idx ON mentions (analysis_status, received_at)',
     'CREATE INDEX IF NOT EXISTS comments_archived_idx ON comments (archived)',
     'CREATE INDEX IF NOT EXISTS mentions_quality_idx ON mentions (quality)',
+    // conversations: refreshAllThreads and every thread view filter on it
+    'CREATE INDEX IF NOT EXISTS mentions_thread_key_idx ON mentions (thread_key)',
   ]
   for (const ddl of INDEXES) {
     try {
@@ -186,7 +197,54 @@ export async function dedupeMentionsAndEnforceUnique(strapi: Core.Strapi) {
     }
   }
 
+  await enforceSchemaUniques(strapi, knex)
+
   strapi.log.info(
     `pulse: mention dedupe done (${dupes.length} duplicated externalId(s) merged), unique + hot-filter indexes ensured`
   )
+}
+
+/**
+ * `unique: true` in a schema creates NO database index in Strapi 5, and
+ * Document Service writes skip the content API's unique check — so without
+ * these, two racing saves (a double-click, the webhook and the sync together)
+ * both succeed, and the "lost race" recovery in person.ensure() and
+ * resource.save() can never fire.
+ *
+ * Existing duplicates would make CREATE UNIQUE INDEX fail, and which row to
+ * keep is a judgement call — so a table with duplicates is left without its
+ * index and reported to ops (once per duplicate count, not every deploy).
+ */
+const SCHEMA_UNIQUES: [table: string, column: string, index: string][] = [
+  ['social_accounts', 'identity_key', 'social_accounts_identity_key_uq'],
+  ['resources', 'source_id', 'resources_source_id_uq'],
+  ['resources', 'url', 'resources_url_uq'],
+  ['muted_authors', 'handle', 'muted_authors_handle_uq'],
+  ['team_handles', 'handle', 'team_handles_handle_uq'],
+]
+
+async function enforceSchemaUniques(strapi: Core.Strapi, knex: any) {
+  for (const [table, column, index] of SCHEMA_UNIQUES) {
+    try {
+      const dupes = await knex(table).select(column).whereNotNull(column).groupBy(column).havingRaw('count(*) > 1')
+      const marker = strapi.store({ type: 'plugin', name: 'pulse', key: `unique-skipped:${index}` })
+      if (dupes.length) {
+        const before = await marker.get()
+        if (before !== dupes.length) {
+          await marker.set({ value: dupes.length })
+          const msg = `${table}.${column} has ${dupes.length} duplicated value(s) — unique index ${index} not created; merge the duplicates and restart`
+          strapi.log.error(`pulse: ${msg}`)
+          await (strapi.service('api::notify.slack') as any).ops(msg).catch(() => {})
+        }
+        continue
+      }
+      await knex.raw(`CREATE UNIQUE INDEX IF NOT EXISTS ${index} ON ${table} (${column})`)
+      if (await marker.get()) await marker.delete()
+    } catch (err: any) {
+      strapi.log.error(`pulse: unique index ${index} failed: ${err.message}`)
+      await (strapi.service('api::notify.slack') as any)
+        .ops(`unique index ${index} failed at boot: ${err.message}`)
+        .catch(() => {})
+    }
+  }
 }

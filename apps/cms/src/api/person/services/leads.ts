@@ -227,7 +227,7 @@ const leads = ({ strapi }: { strapi: Core.Strapi }) => ({
   async rescoreAll() {
     const people = await strapi
       .documents('api::person.person')
-      .findMany({ fields: ['identityKey'] as any, limit: 5000 })
+      .findMany({ fields: ['documentId'] as any, limit: 5000 })
     let scored = 0
     for (const p of people) {
       await this.persist(p.documentId)

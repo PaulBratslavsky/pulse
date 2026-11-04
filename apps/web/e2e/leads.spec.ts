@@ -75,7 +75,9 @@ test.describe('leads', () => {
       authorFollowers: 9_999_999,
       platform: target.channel ?? 'x',
     })
-    await request.post(`${PULSE}/people/rescore`, { headers: { cookie } })
+    // the nightly rescore runs this same code: a failure here is a failure every night
+    const rescore = await request.post(`${PULSE}/people/rescore`, { headers: { cookie } })
+    expect(rescore.status(), await rescore.text()).toBe(200)
 
     const after = await (
       await request.get(`${PULSE}/people/leads`, { headers: { cookie } })

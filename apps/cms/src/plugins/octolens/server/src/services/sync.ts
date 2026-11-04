@@ -57,6 +57,9 @@ export const sync = ({ strapi }: { strapi: Core.Strapi }) => ({
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey()}`, 'content-type': 'application/json' },
       body: JSON.stringify({ limit: PAGE_SIZE, ...(cursor ? { cursor } : {}) }),
+      // up to 40 pages a run, and the run holds the overlap guard: one hung
+      // page must not stall ingest for minutes
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) throw new Error(`octolens ${res.status}: ${(await res.text()).slice(0, 200)}`);
     return (await res.json()) as { data: any[]; pagination?: { nextCursor?: string } };
