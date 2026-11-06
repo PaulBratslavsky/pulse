@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-import { STRAPI_URL } from './helpers'
+import { STRAPI_URL, DANA, injectMention } from './helpers'
 
 /**
  * Boundaries a signed-in team member must not be able to cross, and pages a
@@ -59,13 +59,13 @@ test.describe('shared MCP servers are managed by Pulse admins only', () => {
   })
 
   test('the demo admin can manage them', async ({ request }) => {
-    const jwt = await jwtFor(request, { identifier: 'dana@example.com', password: 'PulseDemo1!' })
+    const jwt = await jwtFor(request, DANA)
     const list = await request.get(`${STRAPI_URL}/api/mcp-servers`, { headers: { Authorization: `Bearer ${jwt}` } })
     expect((await list.json()).meta?.canManage).toBe(true)
   })
 
   test('OAuth finish with no flow in progress is refused', async ({ request }) => {
-    const jwt = await jwtFor(request, { identifier: 'dana@example.com', password: 'PulseDemo1!' })
+    const jwt = await jwtFor(request, DANA)
     const res = await request.post(`${STRAPI_URL}/api/mcp-servers/nope/finish-auth`, {
       headers: { Authorization: `Bearer ${jwt}` },
       data: { code: 'c', state: 'forged' },
@@ -84,5 +84,66 @@ test.describe('the /api/pulse proxy', () => {
     }
     const ok = await page.request.get('/api/pulse/mcp-servers')
     expect(ok.status()).toBe(200)
+  })
+})
+
+test.describe('the ingest webhook', () => {
+  for (const [name, headers] of [
+    ['no secret', {}],
+    ['a wrong secret', { 'x-pulse-secret': 'not-the-secret' }],
+  ] as const) {
+    test(`refuses ${name}`, async ({ request }) => {
+      const res = await request.post(`${STRAPI_URL}/api/octolens/ingest`, {
+        headers,
+        data: { id: `e2e-unauth-${Date.now()}`, text: 'should not land', platform: 'x', author: { handle: 'x' }, url: 'https://example.com/x' },
+      })
+      expect(res.status()).toBe(401)
+    })
+  }
+})
+
+test.describe("a member cannot change another member's records", () => {
+  test('comments and replies are edited and withdrawn by their author only', async ({ request }) => {
+    const dana = { Authorization: `Bearer ${await jwtFor(request, DANA)}` }
+    const mark = { Authorization: `Bearer ${await jwtFor(request, MARK)}` }
+    const { documentId: mentionDocumentId } = await injectMention(request)
+
+    const comment = await request.post(`${STRAPI_URL}/api/comments`, {
+      headers: dana,
+      data: { data: { mentionDocumentId, body: "Dana's note" } },
+    })
+    expect(comment.ok(), 'create comment').toBeTruthy()
+    const commentId = (await comment.json()).data.documentId
+
+    // internal: a team-only note, so recording it leaves the mention's workflow alone
+    const reply = await request.post(`${STRAPI_URL}/api/responses`, {
+      headers: dana,
+      data: { data: { mentionDocumentId, finalText: "Dana's reply", internal: true } },
+    })
+    expect(reply.ok(), 'record reply').toBeTruthy()
+    const replyId = (await reply.json()).data.documentId
+
+    // the ownership check's own message, so a 403 from a missing permission
+    // (which would never reach the check) can't pass for it
+    const records = [
+      { path: `/api/comments/${commentId}`, edit: { body: 'x' }, refusal: /only modify your own comments/ },
+      { path: `/api/responses/${replyId}`, edit: { finalText: 'x' }, refusal: /only edit a reply you recorded/ },
+    ]
+    for (const { path, edit, refusal } of records) {
+      const put = await request.put(`${STRAPI_URL}${path}`, { headers: mark, data: { data: edit } })
+      expect(put.status(), `mark edits ${path}`).toBe(403)
+      expect(await put.text()).toMatch(refusal)
+      const del = await request.delete(`${STRAPI_URL}${path}`, { headers: mark })
+      expect(del.status(), `mark deletes ${path}`).toBe(403)
+      expect(await del.text()).toMatch(refusal)
+    }
+
+    // the author still can
+    for (const { path, edit } of records) {
+      const put = await request.put(`${STRAPI_URL}${path}`, { headers: dana, data: { data: edit } })
+      expect(put.status(), `dana edits ${path}`).toBe(200)
+      const del = await request.delete(`${STRAPI_URL}${path}`, { headers: dana })
+      expect(del.status(), `dana deletes ${path}`).toBe(200)
+    }
   })
 })

@@ -57,6 +57,14 @@ test.describe('leads', () => {
     }
   })
 
+  // Not behind the fit trap's skip below: a corpus with no scored lead would skip
+  // that test, and with it the only check that the nightly job runs at all.
+  test('the nightly rescore runs', async ({ page, request }) => {
+    const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+    const rescore = await request.post(`${PULSE}/people/rescore`, { headers: { cookie } })
+    expect(rescore.status(), await rescore.text()).toBe(200)
+  })
+
   test('the fit trap: followers must not move the score', async ({ page, request }) => {
     const cookie = (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
     const before = await (

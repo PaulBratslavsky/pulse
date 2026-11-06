@@ -1,7 +1,7 @@
 {
   "name": "pulse",
   "version": "1.0.0",
-  "description": "Pulse \u2014 the Strapi team's mention-sentiment tracker (Strapi 5 + Next.js 16)",
+  "description": "Pulse — the Strapi team's mention-sentiment tracker (Strapi 5 + Next.js 16)",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -18,7 +18,10 @@
     "db:import": "cd apps/cms && npx strapi import -f ../../seed-data.tar.gz --force --exclude config",
     "db:clean-e2e": "node apps/cms/scripts/clean-e2e-data.mjs"
   },
-  "dependencies": {
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
     "concurrently": "^9.1.2",
     "wait-on": "^8.0.1"
   },

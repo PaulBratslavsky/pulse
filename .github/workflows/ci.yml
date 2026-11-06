@@ -14,13 +14,17 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
-      # One-command setup: workspace install + .env from examples
-      # (SQLite locally; webhook secret matches the e2e suite; AI stays disabled — keyless CI)
-      - name: Setup
-        run: npm run setup
+      # What `npm run setup` does, but installing exactly the lockfile: a dependency
+      # drift fails here instead of reaching the deploy. .env files come from the
+      # examples (SQLite; webhook secret matches the e2e suite; AI off — keyless CI).
+      - name: Install
+        run: npm ci
+
+      - name: Env files
+        run: node copy-env.mjs apps/cms && node copy-env.mjs apps/web
 
       - name: Typecheck (cms)
         working-directory: apps/cms
@@ -29,6 +33,15 @@ jobs:
       - name: Typecheck (web)
         working-directory: apps/web
         run: npx tsc --noEmit
+
+      # The deploys run these builds; the dev servers below don't, so without
+      # them a build-only error (admin bundle, a server/client boundary, route
+      # config) would pass CI and break the deploy from master.
+      - name: Build (cms)
+        run: npm run build -w apps/cms
+
+      - name: Build (web)
+        run: npm run build -w apps/web
 
       - name: Install Playwright browsers
         working-directory: apps/web
