@@ -99,6 +99,23 @@ export const youtube = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 
   /**
+   * The last sync run, kept in the plugin's store so brain-health can say when
+   * the sync last ran and what failed, even on a day it wrote no snapshots.
+   * Never fatal: a failed write costs the record, not the sync.
+   */
+  async recordRun(run: Record<string, unknown>) {
+    try {
+      await strapi.store({ type: 'plugin', name: 'brain', key: 'youtube-last-sync' }).set({ value: run });
+    } catch (err: any) {
+      strapi.log.warn(`[brain-youtube] could not record the run: ${err.message}`);
+    }
+  },
+
+  async lastRun(): Promise<Record<string, any> | null> {
+    return ((await strapi.store({ type: 'plugin', name: 'brain', key: 'youtube-last-sync' }).get({})) as any) ?? null;
+  },
+
+  /**
    * Sync every active channel. Returns per-channel results and the quota spent;
    * one channel failing never stops the others.
    */
@@ -148,6 +165,15 @@ export const youtube = ({ strapi }: { strapi: Core.Strapi }) => ({
           `~${quota.used} quota units, ${((Date.now() - started) / 1000).toFixed(1)}s` +
           (failed.length ? ` — failed: ${failed.join(', ')}` : '')
       );
+      await this.recordRun({
+        at: new Date().toISOString(),
+        takenOn: today,
+        ok: ok.map((r) => r.handle),
+        failed: results.filter((r) => !r.ok).map((r) => ({ handle: r.handle, error: r.error ?? null })),
+        videos,
+        quota: quota.used,
+        seconds: Number(((Date.now() - started) / 1000).toFixed(1)),
+      });
       return { ran: true, takenOn: today, uploadsLimit: limit, channels: results, videos, quota: quota.used };
     } finally {
       syncRunning = false;

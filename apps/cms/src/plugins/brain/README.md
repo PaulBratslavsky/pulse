@@ -64,6 +64,8 @@ tool registry and in-app assistant don't include them.
 
 | Tool | Access | What it returns |
 |---|---|---|
+| `brain-guide` | read | How to use the brain and read its numbers (`server/src/mcp/guide.ts`), plus the running build: version, commit, build time, boot time. Agents call it once a session |
+| `brain-health` | read | Data freshness: status (`ok` / `attention` / `off`), the sync switch and its last run (kept in the plugin store), each channel's newest snapshot, the day expected and the days missing in the window, overdue decisions, the latest report, and plain-language findings. Agents call it before writing a report |
 | `brain-youtube-channels` | read | Each active channel's latest snapshot, its baseline N days ago (default 30), deltas in subscribers and total views, long videos and Shorts published in the window, median views of its last 10 long videos |
 | `brain-youtube-videos` | read | A channel's videos (filters: `since`, `shorts`, `topic`), each with latest views and views per day since publish |
 | `brain-video-results` | read | One video's views at ~7, ~30 and ~90 days (nearest snapshot within ±2 / ±4 / ±11 days; null with a reason otherwise), plus the median of the same milestones across its channel's videos with the same topic and format |
@@ -72,6 +74,17 @@ tool registry and in-app assistant don't include them.
 | `brain-update-decision` | write | Partial: status and/or outcome |
 
 Write tools are conditional, partial, stamped with `via`, and internal — nothing is posted anywhere.
+
+## Checking a deploy
+
+Call `brain-guide` through the production connector after a deploy: its `build` says which code is
+running (`version` from this package.json, `commit`, `builtAt`, and `bootedAt`, which changes on every
+restart). Bump the version in `package.json` with each change worth telling apart. CI checks the tools
+end to end with a brain-only token (`apps/web/e2e/brain-mcp.spec.ts`).
+
+Never rename a tool or its permission action (`plugin::brain.tools.<name>`): admin deletes grants for
+actions that no longer exist, so every token silently loses that tool. (They were renamed once, in the
+move into the plugin.) Display names and the sub-category are safe to change.
 
 ## Boundary
 
@@ -95,7 +108,10 @@ rule: add them here, never to Pulse's registry or `config/cron-tasks.ts`.
 |---|---|
 | `server/src/register.ts` | Permission actions (sync + one per tool) and the MCP tools |
 | `server/src/bootstrap.ts` | Channel seed and the daily cron |
-| `server/src/mcp/tools.ts`, `server/src/mcp/index.ts` | The six tools, and their registration on the MCP server |
+| `server/src/mcp/tools.ts`, `server/src/mcp/index.ts` | The eight tools, and their registration on the MCP server |
+| `server/src/mcp/guide.ts` | The text `brain-guide` returns, and the build-stamp reader |
+| `server/src/services/health.ts` | What `brain-health` checks |
+| `scripts/build-info.mjs` | Writes `dist/server/build-info.json` (version, commit, build time) after every build |
 | `server/src/content-types/index.ts` | The six schemas and their indexes |
 | `server/src/services/youtube.ts` | API client, sync, upserts, channel seed |
 | `server/src/services/stats.ts` | The read side of the YouTube tools |

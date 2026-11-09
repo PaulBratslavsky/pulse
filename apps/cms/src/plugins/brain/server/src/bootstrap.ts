@@ -17,6 +17,7 @@ const syncTask = async ({ strapi }: { strapi: Core.Strapi }) => {
     await (strapi.plugin('brain').service('youtube') as any).sync();
   } catch (err: any) {
     strapi.log.error(`[brain] youtube sync crashed: ${err.message}`);
+    await (strapi.plugin('brain').service('youtube') as any).recordRun({ at: new Date().toISOString(), crashed: err.message });
     try {
       const slack: any = strapi.service('api::notify.slack' as any);
       await slack?.ops?.(`brain youtube sync crashed: ${err.message}`);
