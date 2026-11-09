@@ -12,7 +12,7 @@ import {
   viewsAtMilestones,
   viewsPerDay,
 } from '../../cms/src/plugins/brain/server/src/utils/youtube-math'
-import { expectedLatestDay, missingDays, ruleHour } from '../../cms/src/plugins/brain/server/src/services/health'
+import { expectedLatestDay, missingDays, ruleHour } from '../../cms/src/plugins/brain/server/src/utils/freshness'
 
 /**
  * The brain plugin's YouTube arithmetic. No browser and no stack: these are
