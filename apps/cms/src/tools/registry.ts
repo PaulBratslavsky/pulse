@@ -1,7 +1,6 @@
 import type { Core } from '@strapi/strapi';
 import { z } from '@strapi/utils';
 import { logActivity } from '../utils/activity';
-import { BRAIN_TOOLS } from './brain';
 
 /**
  * ONE tool registry, TWO surfaces (user decision, 2026-07-27): the same tools are
@@ -466,7 +465,7 @@ export const PULSE_TOOLS: PulseTool[] = [
 
   {
     name: 'pulse-assign-topics',
-    title: 'Pulse: assign topics (write)',
+    title: 'Pulse: assign topics',
     description:
       'Tag mentions with topics, creating any that do not exist yet (pulse-update-mention can only ' +
       'attach topics that already exist, so it cannot extend the vocabulary). This is the job the AI ' +
@@ -553,7 +552,7 @@ export const PULSE_TOOLS: PulseTool[] = [
 
   {
     name: 'pulse-set-lane',
-    title: 'Pulse: route mentions into lanes (write)',
+    title: 'Pulse: route mentions into lanes',
     description:
       'Re-route mentions between lanes. Ingest classifies deterministically from the search term ' +
       'Octolens matched plus a switching-intent regex, which is a defensible first pass but not a ' +
@@ -832,8 +831,6 @@ export const PULSE_TOOLS: PulseTool[] = [
     },
   },
 
-  // Marketing-brain tools (brain plugin) — defined in ./brain.ts, same rules
-  ...BRAIN_TOOLS,
 ];
 
 export const getTool = (name: string) => PULSE_TOOLS.find((t) => t.name === name);

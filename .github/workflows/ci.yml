@@ -30,6 +30,12 @@ jobs:
         working-directory: apps/cms
         run: npx tsc --noEmit
 
+      # The brain plugin owns all of its pieces (tools, permissions, cron); Pulse
+      # code never refers to it, and it imports nothing from Pulse.
+      - name: Brain plugin stays self-contained
+        working-directory: apps/cms
+        run: node scripts/check-brain-boundary.mjs
+
       - name: Typecheck (web)
         working-directory: apps/web
         run: npx tsc --noEmit

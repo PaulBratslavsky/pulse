@@ -46,8 +46,9 @@ message; no route or tool returns it.
 
 **When it runs**
 
-- Daily at 05:00 UTC (`brainYoutubeSync` in `config/cron-tasks.ts`), **only** when
-  `BRAIN_YOUTUBE_SYNC=true`. Override the time with `BRAIN_YOUTUBE_SYNC_CRON`.
+- Daily at 05:00 UTC (`brainYoutubeSync`, scheduled by the plugin's `bootstrap()`), **only** when
+  `BRAIN_YOUTUBE_SYNC=true`. Override the time with `BRAIN_YOUTUBE_SYNC_CRON`. A crash is logged, and
+  posted to the host app's ops channel if it has one (Pulse's `api::notify.slack`).
 - On demand: `POST /brain/youtube/sync` (admin API, body `{ "uploadsLimit": 200 }` optional), gated by
   the plugin action `plugin::brain.youtube.sync` (Roles / Admin Token → Plugins tab → brain).
 
@@ -56,9 +57,10 @@ Snapshots only start when the sync first sees a video, so videos older than the 
 
 ## Tools
 
-Defined in `apps/cms/src/tools/brain.ts`, part of Pulse's one tool registry: the built-in MCP server
-and the in-app assistant both get them, each behind its own admin permission action
-(`api::pulse-mcp.<tool>`, Admin Token screen → Settings tab → "Pulse MCP tools").
+Defined in `server/src/mcp/tools.ts` and registered on Strapi's built-in MCP server by the plugin's own
+`register()` (`server/src/mcp/index.ts`). Each is gated by its own plugin permission action,
+`plugin::brain.tools.<name>` (Admin Token / Role screens → Plugins tab → brain → "MCP tools"). Pulse's
+tool registry and in-app assistant don't include them.
 
 | Tool | Access | What it returns |
 |---|---|---|
@@ -69,8 +71,14 @@ and the in-app assistant both get them, each behind its own admin permission act
 | `brain-decisions` | read | Decisions, open by default, soonest due first, with their report |
 | `brain-update-decision` | write | Partial: status and/or outcome |
 
-Write tools follow the same rules as Pulse's: conditional, partial, stamped with `via`, and internal
-— nothing is posted anywhere.
+Write tools are conditional, partial, stamped with `via`, and internal — nothing is posted anywhere.
+
+## Boundary
+
+The plugin owns all of its pieces: content types, services, routes, cron, MCP tools and permissions.
+Pulse refers to it only in `config/plugins.ts`, and the plugin imports nothing from Pulse. CI enforces
+both with `apps/cms/scripts/check-brain-boundary.mjs`. New phases (HubSpot, Launchpad) follow the same
+rule: add them here, never to Pulse's registry or `config/cron-tasks.ts`.
 
 ## Configuration
 
@@ -85,6 +93,9 @@ Write tools follow the same rules as Pulse's: conditional, partial, stamped with
 
 | Path | |
 |---|---|
+| `server/src/register.ts` | Permission actions (sync + one per tool) and the MCP tools |
+| `server/src/bootstrap.ts` | Channel seed and the daily cron |
+| `server/src/mcp/tools.ts`, `server/src/mcp/index.ts` | The six tools, and their registration on the MCP server |
 | `server/src/content-types/index.ts` | The six schemas and their indexes |
 | `server/src/services/youtube.ts` | API client, sync, upserts, channel seed |
 | `server/src/services/stats.ts` | The read side of the YouTube tools |

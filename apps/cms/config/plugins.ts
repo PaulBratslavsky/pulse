@@ -27,8 +27,9 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin =>
   octolens: { enabled: true, resolve: './src/plugins/octolens' },
 
   // Marketing-brain data hub, phase 1: YouTube channel + video numbers, reports
-  // and decisions — local plugin (its own content types and sync; see its README).
-  // The daily sync is off unless BRAIN_YOUTUBE_SYNC=true (config/cron-tasks.ts).
+  // and decisions — local plugin, self-contained: its own content types, sync,
+  // cron, MCP tools and permissions (see its README). Pulse code never imports it.
+  // The daily sync is off unless BRAIN_YOUTUBE_SYNC=true.
   brain: {
     enabled: true,
     resolve: './src/plugins/brain',
