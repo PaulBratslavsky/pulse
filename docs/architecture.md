@@ -139,10 +139,8 @@ search — paged, excerpt-trimmed, relations as names), `pulse-get-mention` (con
 replies), `pulse-save-draft`, `pulse-update-mention` (**partial by construction**),
 `pulse-save-drafts-bulk` (25/call), `pulse-assign-topics`, `pulse-set-lane`, `pulse-acknowledge`,
 `pulse-search-mentions`, `pulse-trend-summary`, `pulse-graph`, `pulse-theme-report`,
-`pulse-mute-suggestions`, `pulse-mute-topic`, `pulse-unmute-topic`. Plus six marketing-brain tools
-(`src/tools/brain.ts`, spread into the same registry): `brain-youtube-channels`,
-`brain-youtube-videos`, `brain-video-results`, `brain-save-report`, `brain-decisions`,
-`brain-update-decision` — see below.
+`pulse-mute-suggestions`, `pulse-mute-topic`, `pulse-unmute-topic`. The six `brain-*` tools on the
+same MCP server are **not** in this registry: the brain plugin registers them itself — see below.
 
 **Agent-safety design** (after a real session with Strapi's generic content-manager tools silently
 overwrote a long post): our write tools never expose `content`, so a truncated resend can't destroy
@@ -222,7 +220,7 @@ ask again.
 | Frontend users | U&P role permissions, seeded idempotently in `src/index.ts` bootstrap (registration closed; accounts admin-invited) | code (seed list `AUTHENTICATED_ACTIONS`) |
 | MCP tools | One admin permission action per tool (`api::pulse-mcp.<tool>`) — a tool's action is its **only** gate. Registered in `register()`, **not** `bootstrap()`: admin's bootstrap prunes grants for unknown actions, which silently wiped token checkboxes on every restart | Admin Token / Role screens → **Settings** tab → "Pulse MCP tools" |
 | Octolens plugin admin UI | `plugin::octolens.settings.read` / `plugin::octolens.sync.start`, gating routes, menu link, and widget | Roles / Admin Token screens → **Plugins** tab → octolens |
-| Brain plugin sync route | `plugin::brain.youtube.sync`, gating `POST /brain/youtube/sync`. Registered in the plugin's `register()` for the same pruning reason | Roles / Admin Token screens → **Plugins** tab → brain |
+| Brain plugin | `plugin::brain.youtube.sync`, gating `POST /brain/youtube/sync`, and one action per brain MCP tool, `plugin::brain.tools.<name>`. All registered in the plugin's `register()` for the same pruning reason | Roles / Admin Token screens → **Plugins** tab → brain (tools under "MCP tools") |
 
 Which tab a permission lands on is set by `section` (`plugins` → Plugins tab, grouped by plugin;
 `settings` → Settings tab, grouped by `category`), while `pluginName` sets the action-id prefix
@@ -245,7 +243,9 @@ User data exposure is deliberately minimal: only `/api/users/me` is exposed; use
 | `leadRescore` | 03:30 | Recompute every person's intent score. Pure arithmetic, no model call, so it runs regardless of the token budget. Required because intent **decays with the age of the post** while a score is only written when something touches that person — without it the board silently keeps showing the value each lead had on the day it was last computed. After recluster, since lanes decide leads |
 | `staleDigest` | 09:00 weekdays | Slack digest of stale unanswered mentions (`STALE_AFTER_DAYS`, default 2) |
 | `budgetReset` | midnight | resets the AI daily token budget |
-| `brainYoutubeSync` | 05:00 | marketing brain: daily YouTube snapshot. **Off unless `BRAIN_YOUTUBE_SYNC=true`** (and a no-op without `YOUTUBE_API_KEY`) |
+
+The brain plugin schedules its own job (`brainYoutubeSync`, 05:00, daily YouTube snapshot, **off
+unless `BRAIN_YOUTUBE_SYNC=true`**) from its `bootstrap()`; it isn't in `config/cron-tasks.ts`.
 
 ## Marketing brain data hub (phase 1: YouTube)
 
@@ -259,6 +259,15 @@ It lives in a local plugin, `src/plugins/brain` (plugin id `brain`; full detail 
 [README](../apps/cms/src/plugins/brain/README.md)). Unlike the other modules it is a plugin because
 it is a self-contained data hub with its own tables, sync and lifecycle that has nothing to do with
 mentions, and may be lifted out later.
+
+**Boundary rule (decided 2026-10-30, enforced in CI).** Everything the brain is lives in the plugin:
+content types, services, routes, the daily cron, the MCP tools and every permission action. Pulse
+code refers to it only in `config/plugins.ts`, where it is enabled, and the plugin imports nothing
+from Pulse. A Pulse convention (the shared tool registry, `config/cron-tasks.ts`) doesn't override
+this: the plugin uses Strapi's own APIs instead (`strapi.ai.mcp.registerTool`, `strapi.cron.add`).
+Its one soft link is optional: a sync crash is posted to `api::notify.slack` when the host app has
+it. CI runs `apps/cms/scripts/check-brain-boundary.mjs`, which fails on brain references in Pulse's
+`src/` or `config/` and on plugin imports from outside its folder.
 
 **Data model** (tables prefixed `brain_`): `channel` (handle, youtubeChannelId, title, kind
 own/competitor/creator, active), `video` (youtubeVideoId, channel, title, `postedAt`, durationSeconds,
@@ -275,9 +284,10 @@ per run. A hidden uploads playlist (404) keeps the channel snapshot. The key tra
 `x-goog-api-key` header, never a URL, and no route or tool returns it. Seven channels are seeded on
 first boot (ours, `@Strapi`, and six competitors).
 
-**Tools**: the six `brain-*` tools in the shared registry, each with its own permission action like
-every Pulse tool. Reads compute from stored snapshots only (never the API); writes follow the Pulse
-rules — conditional, partial, stamped with `via`, internal.
+**Tools**: six `brain-*` tools, registered on the built-in MCP server by the plugin itself, each
+with its own plugin permission action. They are not in Pulse's in-app assistant. Reads compute from
+stored snapshots only (never the API); writes follow the Pulse rules — conditional, partial, stamped
+with `via`, internal.
 
 | Env | Default | |
 |---|---|---|

@@ -1,29 +1,36 @@
 import type { Core } from '@strapi/strapi';
 import { z } from '@strapi/utils';
 
-import type { PulseTool } from './registry';
-
 /**
- * Marketing-brain tools (phase 1: YouTube). Part of the ONE registry — spread
- * into PULSE_TOOLS, so the MCP server and the in-app assistant both get them
- * and each has its own permission action (`api::pulse-mcp.brain-…`, Settings
- * → "Pulse MCP tools"), exactly like the pulse-* tools.
+ * The marketing brain's MCP tools (phase 1: YouTube). The plugin registers
+ * them on Strapi's built-in MCP server itself (./index.ts), each gated by its
+ * own plugin permission action, `plugin::brain.tools.<name>` (Admin Token /
+ * Role screens → Plugins tab → brain → "MCP tools"). Pulse's own tool registry
+ * doesn't know about them: the brain owns its tools, as it owns its data.
  *
- * The data and the arithmetic live in the brain plugin
- * (src/plugins/brain: services stats + reports); these are the thin tool
- * shapes over it. The YouTube API key never appears in any result.
+ * Thin shapes over the plugin's services (stats + reports). The YouTube API
+ * key never appears in any result.
  *
- * Write tools follow the pulse-* rules: conditional (brain-save-report refuses
- * a second report for the same kind and date unless overwrite is true),
- * partial (brain-update-decision changes only what it is sent), stamped with
- * `via`, and internal — nothing is posted anywhere.
+ * Write tools are conditional (brain-save-report refuses a second report for
+ * the same kind and date unless overwrite is true), partial
+ * (brain-update-decision changes only what it is sent), stamped with `via`,
+ * and internal: nothing is posted anywhere.
  */
+
+export type BrainTool = {
+  name: string;
+  title: string;
+  description: string;
+  access: 'read' | 'write';
+  input: () => any;
+  execute: (strapi: Core.Strapi, args: any, meta: { via: string }) => Promise<unknown>;
+};
 
 const brain = (strapi: Core.Strapi, name: 'stats' | 'reports') => strapi.plugin('brain').service(name) as any;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'YYYY-MM-DD');
 
-export const BRAIN_TOOLS: PulseTool[] = [
+export const BRAIN_TOOLS: BrainTool[] = [
   {
     name: 'brain-youtube-channels',
     title: 'Brain: YouTube channels',
@@ -34,7 +41,6 @@ export const BRAIN_TOOLS: PulseTool[] = [
       'than the window has baseline null and historyStartsOn set — say so rather than reporting a delta. ' +
       'Subscribers are null when a channel hides them. Start here for any YouTube question.',
     access: 'read',
-    subject: 'plugin::brain.channel',
     input: () =>
       z.object({
         days: z.number().int().min(1).max(365).optional().describe('Window in days (default 30)'),
@@ -50,7 +56,6 @@ export const BRAIN_TOOLS: PulseTool[] = [
       'since publish. Shorts are 180 s or less. Topic is set by people in the admin, so most videos have ' +
       'none until someone tags them.',
     access: 'read',
-    subject: 'plugin::brain.video',
     input: () =>
       z.object({
         channel: z.string().min(1).describe('Handle ("@Strapi") or YouTube channel id ("UC…")'),
@@ -72,7 +77,6 @@ export const BRAIN_TOOLS: PulseTool[] = [
       "video has a topic, topicMedian gives the same milestones' median across its channel's other videos " +
       'with that topic and format, for comparison.',
     access: 'read',
-    subject: 'plugin::brain.video',
     input: () => z.object({ video: z.string().min(1).describe('YouTube video id (the 11 characters after v=)') }),
     execute: (strapi, args) => brain(strapi, 'stats').videoResults(args),
   },
@@ -87,7 +91,6 @@ export const BRAIN_TOOLS: PulseTool[] = [
       'one returned) unless overwrite=true, which replaces summary and data but never removes ' +
       'decisions. Internal only — nothing is sent or published.',
     access: 'write',
-    subject: 'plugin::brain.report',
     input: () =>
       z.object({
         summary: z.string().min(1).max(50_000).describe('The report, in Markdown'),
@@ -116,7 +119,6 @@ export const BRAIN_TOOLS: PulseTool[] = [
       'Decisions recorded with reports, soonest due first, each with the report it came from. Default ' +
       'is the open ones — read these before writing the next report, and say what happened to each.',
     access: 'read',
-    subject: 'plugin::brain.decision',
     input: () =>
       z.object({
         status: z.enum(['open', 'done', 'dropped', 'any']).optional().describe("Default 'open'"),
@@ -134,7 +136,6 @@ export const BRAIN_TOOLS: PulseTool[] = [
       'outcome (what actually happened, in a sentence or two). Close a decision only on evidence or on ' +
       "a person's word, and put that evidence in the outcome.",
     access: 'write',
-    subject: 'plugin::brain.decision',
     input: () =>
       z.object({
         documentId: z.string().describe('Decision documentId, from brain-decisions'),
