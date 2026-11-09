@@ -35,6 +35,8 @@ export default defineConfig({
     // Pure-function tests: no auth, no page, no fixtures. Deliberately has no
     // `dependencies`, so a failing sign-in cannot hide a conversion bug.
     { name: 'unit', testMatch: /(plain-text|queue-query|mcp-guards|brain-youtube)\.spec\.ts/ },
+    // The brain plugin's MCP tools, through a token it mints itself (fresh DB only).
+    { name: 'mcp', testMatch: /brain-mcp\.spec\.ts/ },
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'auth-flows',

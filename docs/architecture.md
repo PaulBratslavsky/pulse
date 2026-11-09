@@ -139,7 +139,7 @@ search — paged, excerpt-trimmed, relations as names), `pulse-get-mention` (con
 replies), `pulse-save-draft`, `pulse-update-mention` (**partial by construction**),
 `pulse-save-drafts-bulk` (25/call), `pulse-assign-topics`, `pulse-set-lane`, `pulse-acknowledge`,
 `pulse-search-mentions`, `pulse-trend-summary`, `pulse-graph`, `pulse-theme-report`,
-`pulse-mute-suggestions`, `pulse-mute-topic`, `pulse-unmute-topic`. The six `brain-*` tools on the
+`pulse-mute-suggestions`, `pulse-mute-topic`, `pulse-unmute-topic`. The eight `brain-*` tools on the
 same MCP server are **not** in this registry: the brain plugin registers them itself — see below.
 
 **Agent-safety design** (after a real session with Strapi's generic content-manager tools silently
@@ -284,7 +284,8 @@ per run. A hidden uploads playlist (404) keeps the channel snapshot. The key tra
 `x-goog-api-key` header, never a URL, and no route or tool returns it. Seven channels are seeded on
 first boot (ours, `@Strapi`, and six competitors).
 
-**Tools**: six `brain-*` tools, registered on the built-in MCP server by the plugin itself, each
+**Tools**: eight `brain-*` tools (`brain-guide` and `brain-health` first: how to read the data and the
+running build, and whether the data is fresh), registered on the built-in MCP server by the plugin itself, each
 with its own plugin permission action. They are not in Pulse's in-app assistant. Reads compute from
 stored snapshots only (never the API); writes follow the Pulse rules — conditional, partial, stamped
 with `via`, internal.

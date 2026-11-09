@@ -1,6 +1,8 @@
 import type { Core } from '@strapi/strapi';
 import { z } from '@strapi/utils';
 
+import { BOOTED_AT, BRAIN_GUIDE, buildInfo } from './guide';
+
 /**
  * The marketing brain's MCP tools (phase 1: YouTube). The plugin registers
  * them on Strapi's built-in MCP server itself (./index.ts), each gated by its
@@ -31,6 +33,36 @@ const brain = (strapi: Core.Strapi, name: 'stats' | 'reports') => strapi.plugin(
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'YYYY-MM-DD');
 
 export const BRAIN_TOOLS: BrainTool[] = [
+  {
+    name: 'brain-guide',
+    title: 'Brain: guide and version',
+    description:
+      'How to use the brain: what each tool is for, how to read its numbers (missing is not zero, ' +
+      'when history starts, Shorts, milestones), and the rules for reports and decisions. Also says ' +
+      'which build production runs (version, commit, build and boot time). Call it once at the start ' +
+      'of a session.',
+    access: 'read',
+    input: () => z.object({}),
+    execute: async () => ({ guide: BRAIN_GUIDE, build: { ...buildInfo(), bootedAt: BOOTED_AT } }),
+  },
+
+  {
+    name: 'brain-health',
+    title: 'Brain: data health',
+    description:
+      'Is the brain\'s data fresh and complete? Returns status (ok, attention, off), the sync switch ' +
+      'and its last run, each tracked channel\'s newest snapshot, the day it was expected and the days ' +
+      'missing in the window, overdue open decisions, the latest report, and plain-language findings. ' +
+      'Call it before writing a report, and name any stale channel or missing day in the report ' +
+      'instead of comparing across it.',
+    access: 'read',
+    input: () =>
+      z.object({
+        days: z.number().int().min(1).max(90).optional().describe('How many days back to look for missing snapshots (default 14)'),
+      }),
+    execute: (strapi, args) => (strapi.plugin('brain').service('health') as any).check({ days: args.days }),
+  },
+
   {
     name: 'brain-youtube-channels',
     title: 'Brain: YouTube channels',

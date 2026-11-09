@@ -1,6 +1,6 @@
 {
   "name": "brain",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "exports": {
     "./package.json": "./package.json",
@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p server/tsconfig.build.json",
+    "build": "tsc -p server/tsconfig.build.json && node scripts/build-info.mjs",
     "watch": "tsc -p server/tsconfig.build.json --watch --preserveWatchOutput",
     "verify": "tsc -p server/tsconfig.json --noEmit"
   },

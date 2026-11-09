@@ -12,6 +12,7 @@ import {
   viewsAtMilestones,
   viewsPerDay,
 } from '../../cms/src/plugins/brain/server/src/utils/youtube-math'
+import { expectedLatestDay, missingDays, ruleHour } from '../../cms/src/plugins/brain/server/src/utils/freshness'
 
 /**
  * The brain plugin's YouTube arithmetic. No browser and no stack: these are
@@ -135,5 +136,26 @@ test.describe('counts from the API and deltas', () => {
     expect(delta(120, 100)).toBe(20)
     expect(delta(null, 100)).toBeNull() // hidden subscriber count
     expect(delta(120, undefined)).toBeNull()
+  })
+})
+
+test.describe('brain-health: when a snapshot is late', () => {
+  test('reads the hour of a plain daily rule, and nothing else', () => {
+    expect(ruleHour('0 5 * * *')).toBe(5)
+    expect(ruleHour('30 23 * * *')).toBe(23)
+    expect(ruleHour('* * * * *')).toBeNull()
+    expect(ruleHour('0 5 * * 1')).toBeNull() // weekly: no daily expectation
+  })
+
+  test('expects today only once the run has had an hour', () => {
+    expect(expectedLatestDay(new Date('2026-11-09T05:59:00Z'), '0 5 * * *')).toBe('2026-11-08')
+    expect(expectedLatestDay(new Date('2026-11-09T06:00:00Z'), '0 5 * * *')).toBe('2026-11-09')
+    expect(expectedLatestDay(new Date('2026-11-09T23:00:00Z'), '*/5 * * * *')).toBe('2026-11-08')
+  })
+
+  test('lists the days with no snapshot', () => {
+    const have = new Set(['2026-11-01', '2026-11-03'])
+    expect(missingDays('2026-11-01', '2026-11-04', have)).toEqual(['2026-11-02', '2026-11-04'])
+    expect(missingDays('2026-11-03', '2026-11-03', have)).toEqual([])
   })
 })
